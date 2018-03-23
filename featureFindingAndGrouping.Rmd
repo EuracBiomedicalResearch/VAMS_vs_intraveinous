@@ -1,0 +1,379 @@
+
+---
+title: "Feature detection"
+author: "Sigurdur Smarason"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+
+# Introduction
+Here we want to pick interesting features out of the two batches of POS and NEG.
+All of the data and results are stored outside of the git directory in order to
+make sure that there is no chance of them being added to the github repository.
+
+I realzie that this can also be done via gitignore but I also think it is better
+this way in terms of going back and looking at data or working further on it. 
+This is just my preference. I haven't tried running this script in windows so
+I don't know how the shortcut of ~ (the user directory under linux and apple?)
+gets translated. Something to test?
+
+The initial setup is basically clearing any residual objects out of the memory
+of R, setting a seed value for random generators (probably not needed but 
+important to ensure repeatability of results if the are used) plus defining
+where things are located and loading necessary libraries.
+
+This script was run during a time when I was not working on the computer that 
+ran it so I dedicated all 4 cores to the task. You might want to change that
+before running this script.
+
+
+```{r  initial startup, message = FALSE}
+## clean up workspace
+rm(list = ls())
+
+## Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+## Path to store RData files
+
+## Define paths:
+filename <- "vams2018_centroiding"
+
+## Define the path where we can find the mzML files:
+MZML_PATH <- "~/data/vams2018/"
+## Define the polarity of the data
+MZML_POLARITY <- c("POS","NEG")
+
+
+## define where the resulting files should go
+RDATA_PATH <- paste0("~/data/RData/", filename, "/")
+if (!dir.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+
+RESULTDATA_PATH <- paste0("~/data/Results/", filename, "/")
+if (!dir.exists(RESULTDATA_PATH)) dir.create(RESULTDATA_PATH, recursive = TRUE)
+
+MZML_OUT <- "mzML/"
+
+if (!dir.exists(MZML_PATH))
+    stop("Can not find the directory with the mzML files: ", MZML_PATH)
+ 
+
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+#library(beeswarm)
+registerDoParallel(4)
+register(DoparParam(), default = TRUE)
+
+```
+
+# Further setup and function definitions
+
+Centroiding parameters that have sometimes been changed in the past are stored 
+int the vector cw_pw.
+
+The data is comparing mitra samples taken from plasma, venous whole blood, 
+capillary blood along with the red blood cells (RBC) from the plasma?. There is
+also a pooled sample from all samples that is run on a regular interval during 
+the analysis.
+
+This is reflected in the pattern of the names of the files and so we can use
+that to automatically detect which sample / file is of which type. This is done
+in the grps vector (contains the pattern to look for) and the grps_nams vector 
+(contains the human readable group names).
+
+Furthermore the data is run in two batches for POS and two for NEG. Each
+individual batch is indicated in the file name as well with a starting numeric
+sequence indicating what day the batch was started. This is reflected in the
+data frame called batches.
+
+A Stats function is also defined that calculates the mean, standard deviation, 
+min, max and precent relative standard deviation for a vector of values. This
+is used in later analysis of the features.
+
+
+```{r further_setup, message = FALSE}
+cw_pw <- c(1.5, 8)
+
+grps <- c("_1_", "_2_", "_3_", "_RBC_", "_POOL")
+grps_nams <- c("plasma", "venous", "capillary", "RBC", "POOL")
+
+batches <- data.frame("POL"=c("POS","POS","NEG","NEG"), 
+                    "batch"=c("31012018","01022018","06022018","07022018"),
+                    stringsAsFactors=FALSE
+                    )
+
+Stats <- function(x,prefix=''){
+    Mean <- mean(x, na.rm=TRUE)
+    SD <- sd(x, na.rm=TRUE)
+    Min <- min(x, na.rm=TRUE)
+    Max <- max(x, na.rm=TRUE)
+    RSD <- 100*SD / Mean
+    retVec <- c(Mean, RSD, SD, Min, Max)
+    names(retVec) <- c(paste0(prefix,"Mean"), 
+                      paste0(prefix,"RSD"), 
+                      paste0(prefix,"SD"), 
+                      paste0(prefix,"Min"), 
+                      paste0(prefix,"Max")
+                    )
+    return(retVec)
+}
+
+```
+
+# Main loop
+
+Initally each batch was analyzed seperately to ensure that if any severe batch
+effects were observed that they would become painfully obvious. In the end it 
+turned out that there was not such a makred batch effect so in this version
+both batches for a polarity are analyzed together. This also has the added 
+benefit that features are found that are common in both batches so there is no
+need to manually connect features from one batch to the other.
+
+The general workflow is as follows: First identify chromatographic peaks using
+the centwave method. This will give us features in each sample.
+
+Then do retention time correction to align features as much as possible between
+samples.
+
+And finally group features together.
+
+Anectdotal evidence suggests that using the obiwarp method of retention time 
+correction is perhaps not good for our data. This needs to be further verified 
+and explored. Until then we use the more classical way of finding features that
+are found in nearly all samples and correcting retention times based on them.
+
+This approach requires some sort of basic grouping before being able to do 
+the retention time correction and thus one more step is introduced. The final
+workflow then is four steps:
+
+## Step 1 - per sample feature finding
+
+As mentioned above we use centwave for feature finding. One of the most important
+paramenters to consider is the chromatographic peak width we are looking for. In
+this script we are allowing peakwidths of 1.5 to 8 seconds. The algorithm will
+also pick up peaks outside of that window to some extent so this is not a hard
+limit.
+
+Another parameter to think about is the maximum ppm that is used to find areas
+where the variation of the m/z value indicates a possible feature. We use 50 ppm
+here but that value is based on the parameter optimization we did before going
+into centroiding and therefore might be something to investigate once we have a
+final selection of the centroiding parameters.
+
+## Step 2 - initial feature grouping
+
+Initial feature grouping should be more relaxed than the final one since the 
+features are not aligned well. That said initial data exploration showed that
+most deviations from the mean were on the scale of 1-5 seconds. 
+
+Also based on initial data exploration it was shown that for the list of known
+compounds a bandwidth of no greater than 1-2 was allowed since that could result
+in close peaks being sometimes combined into one group and sometimes not.
+
+And since it is quite important to have these peaks identified in most samples
+we limit peaks to only those that are found in at least 90% of one of the sample
+groups defined above. Another way would be to have all samples be in one sample
+group and only allow similarily a high percentage (closer to 95% or 98%) 
+coverage of peaks. 
+
+## Step 3 - retention time alignment
+
+The initial grouping allows for the rentiontime alignment of all features found
+in the sample. Also here we use the same high percentage of features to be 
+included in the retention time correction calculation as well as limiting
+additional peaks. The retention time correction is done via loess fitting of the
+data points. There it is quite critical to have the right span parameter as the
+peaks are not evenly distributed over the chromatogram and thus spurious 
+polynomial behavior can be observed in the fitting curve. Inthe end it was a
+trial and error approach that resulted in the selection of the span value of 
+1.5. This allowed for some slope variation in the curve while removing obvious
+outlier behavior in areas where no or only a few peaks were detected.
+
+This span selection is definitely something to further investigate.
+
+## Step 4 - final feature grouping
+
+Final feature grouping was done very similarly to the initial one except more
+stringent m/z binning was applied as well as allowing all features that were
+found in at least 33% of one of the sample groups to be included. This is in line
+with previous data exploration where some of the known compounds are not always
+found in the samples analyzed but their presence in some other samples is
+irrefutable. The thinking here is that there might be features that are important
+that are not always seen and so we want to not limit ourselves in the final list
+of features at this stage.
+
+Further filerting of the results based on e.g. RSD of the pooled sample or other
+characteristics of the features should then remove the less reliable features
+rather than removing potentially interesting ones at this stage.
+
+
+```{r main loop, message = FALSE}
+## redo all polarity in one batch
+for(i in 1:length(MZML_POLARITY)) {
+    ## get the polarity
+    onePol<- MZML_POLARITY[i]
+
+    ## get all mzML files available for polarity
+    src_dir <- paste0(MZML_PATH, MZML_OUT, 'picked/',onePol, "/")
+    fls <- list.files(src_dir,pattern='*.mzML')
+
+    ## asign groups
+    sg <- rep(1,length(fls))
+    for(j in 1:length(grps)) {
+        founds <- grep(grps[j], fls)
+        print(length(founds))
+        sg[founds] <- grps_nams[j]
+    }
+    
+    ## read the raw data
+    rawdata <- readMSData(paste0(src_dir,fls), centroid = TRUE, mode = "onDisk")
+    rawdata$sample_group <- sg
+
+    ## define the name for the chrompeaks MSnExperiment object
+    obname <- paste0("vams2018_all_cent_",cw_pw[1],"_",cw_pw[2],"_",onePol)
+
+    ## define the centware parameters to be used
+    cwp <- CentWaveParam(ppm = 50, snthresh = 5, mzdiff = 0.001,
+            integrate = 1, prefilter = c(4, 300),
+            peakwidth = cw_pw, noise = 100)
+
+    ## asign the chrompeaks object to the name defined
+    assign(obname, findChromPeaks(rawdata, param = cwp) )
+
+    ## save the R object for possible use later
+    save(file = paste0(RDATA_PATH, obname, ".RData"), list = obname)
+    
+    ## remove rawdata in case we need the memory
+    rm(rawdata)
+
+    ## asign a temporary object to the chrompeaks object
+    obnamex <- get(obname)
+
+    ## Initial Correspondence: group peaks across samples.
+    binSize <- 0.05
+    bw <- 1.25
+    pdp <- PeakDensityParam(sampleGroups = obnamex$sample_group,
+                  minFraction = 0.9, binSize=binSize, bw=bw)
+
+    ## again define a name for the object
+    obnamex <- groupChromPeaks(obnamex, param = pdp)
+    extraDescr <- paste0("_binSize_",binSize,"_bw_",bw)
+    obnamer <- paste0("xdata_all_cent_init_grp_", cw_pw[1],"_",cw_pw[2],"_",onePol,extraDescr)
+
+    ## and asign it to the result of the initial grouping
+    assign(obnamer, obnamex)
+    save(file = paste0(RDATA_PATH, obnamer, ".RData"), list = obnamer)
+
+    ## Now the retention time correction.
+    pgp <- PeakGroupsParam(minFraction = 0.9, span = 1.5, extraPeaks=1)
+
+    ## adjust the retention time.
+    tryCatch( obnamex <- adjustRtime(obnamex, param = pgp),
+        warning=function(w) cat("overfitting warning in ", 
+                    paste0(onePol), "\n")
+        )
+    
+    ## one more name definition
+    obnamer <- paste0("xdata_all_cent_init_grp_rt_cor_", cw_pw[1],"_",cw_pw[2],"_",onePol,extraDescr)
+
+    ## and asignment and we save the object as well
+    assign(obnamer, obnamex)
+    save(file = paste0(RDATA_PATH, obnamer, ".RData"), list = obnamer)
+
+
+    ## final correspondence: group peaks across samples.
+    binSize <- 0.005
+    bw <- 1.25
+    pdp <- PeakDensityParam(sampleGroups = obnamex$sample_group,
+                  minFraction = 1/3, binSize=binSize, bw=bw)
+    obnamex <- groupChromPeaks(obnamex, param = pdp)
+
+    ## we need to get the feature definitions before filling in the chrompeaks
+    ## since we need these definitions in order to filter the final filled
+    ## definitions later
+    allfeatures <- featureDefinitions(obnamex)
+
+    ## fill any missing peaks on the chromatography side that can be filled
+    obnamex <- fillChromPeaks(obnamex)
+
+    ## name definition
+    extraDescr <- paste0("_binSize_",binSize,"_bw_",bw)
+    obnamer <- paste0("xdata_all_cent_rtcor", cw_pw[1],"_",cw_pw[2],"_",onePol,extraDescr)
+
+    ## and asignment and saving of the final grouped feature object
+    assign(obnamer, obnamex)
+    save(file = paste0(RDATA_PATH, obnamer, ".RData"), list = obnamer)
+    
+    ## we also save the feature definitions before fill chrompeaks for futre use
+    obnamefd <- paste0(obnamer,"_fdbefore")
+    assign(obnamefd,allfeatures)
+    save(file = paste0(RDATA_PATH, obnamefd, ".RData"), list = obnamefd)
+    
+
+    ## now we are ready to save the results.
+    ## First get the feature values (chromatographic peak area of each feature
+    ## in each sample)
+    ft <- featureValues(obnamex, value = "into")
+
+    ## calculate the stats for each feature
+    fti2 <- t(apply(ft,1, Stats,prefix="area_"))
+
+    ## combine the stats of the area for each feature to the feature definition
+    ## and save the result in a csv
+    ft <-
+        transform(
+        merge(
+          featureDefinitions(obnamex)[,1:(7+length(unique(obnamex$sample_group)))],
+          fti2,
+          by="row.names",
+          all.x=TRUE
+        ), 
+        row.names=Row.names,
+        Row.names=NULL
+        )
+    fnam_begin <- paste0(RESULTDATA_PATH, "all_", cw_pw[1],"_",cw_pw[2],"_",onePol)
+    fname <- paste0(fnam_begin,"_features",extraDescr,".csv")
+    write.csv( ft, 
+                  file=fname,
+                  row.names =TRUE)
+
+    ## also save the chromatographic area of each feature in each sample
+    fname <- paste0(fnam_begin,"_area",extraDescr,".csv")
+    write.csv( featureValues(obnamex, value = "into"),
+                  file=fname,
+                  row.names =TRUE)
+
+    ## also save the median mz value of each feature in each sample
+    fname <- paste0(fnam_begin, "_mz",extraDescr,".csv")
+    write.csv( featureValues(obnamex, value = "mz"),
+                  file=fname,
+                  row.names =TRUE)
+
+    ## and similarly the retention time of each feature
+    fname <- paste0(fnam_begin, "_rt",extraDescr,".csv")
+    write.csv( featureValues(obnamex, value = "rt"),
+                  file=fname,
+                  row.names =TRUE)
+
+    ## probably not needed but just to be sure
+    rm(obnamer)
+    rm(obnamex)
+    gc()
+
+}
+```
+
+
