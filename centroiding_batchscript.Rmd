@@ -1,0 +1,235 @@
+---
+title: "Combine, smooth and mz pick"
+author: "Sigurdur Smarason"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+
+# Introduction
+
+This was run as a vanilla R script via putting the line: 
+'#!/home/ssmarason/R/3.4.3/bin/Rscript' at the beginning of an .R file 
+containing all of the scripts shown below.  It forces using a single core rather
+than multicores and works on a single mzML file at a time. 
+
+When this was run there was still a bit of a memory proplem with MSnbase that 
+later got fixed so that running this in a single MSnExperiment with all files 
+would have been difficult. The solution was to run it on a single core but also 
+by using a database to keep track of what has been worked on and what is left 
+the possibilty to run more than one instance of the script was made possible to 
+speed up the conversion.
+
+It uses a halfwindow of 1 for spectral combination, smooths the spectra with
+a SavitzkyGolay filter with a halfwindow of 6 and uses descendPeak refinement
+for the mz peack picking with 33% signal percentage cutoff.
+
+The datafiles themselves should be on the bbnas under the data folder there. 
+
+# Converting wiff to profile mzML
+The wiff files were converted to profile mzML files via the linux installation 
+of the windows version of the proteowizard package via wine.
+
+In order to do so it is simplest to install winetricks to somewhat easily install 
+the necessary .NET and Visual C++ packages. winetricks might fail a few times 
+and indicate what can be done to fix what is going wrong. Just follow the
+instructions and try again. In order to not make things too compliated it is 
+better to install one package at a time.
+
+.Net packages needed: 
+* .NET 2.0
+* .NET 3.0 SP1
+* .NET 3.5
+* .NET 3.5 SP1
+* .NET 4.0
+
+Visual C++ packages needed: 
+* Visual C++ 2008
+* Visual C++ 2010
+* Visual C++ 2012
+* Visual C++ 2013
+
+Additional packages needed:
+* MS XML Core Services 3.0
+
+It will complain that some of the libraries are not fully supported by wine
+but I have not run into any problems so far.
+
+After that download the proteowizard full windows package from:
+http://proteowizard.sourceforge.net/ including the vendor supported formats.  
+
+Once the proteowizard installs you can call wine msconvert.exe directly from 
+comand line for the conversion as shown here, assuming that the wiff files are
+present in the folder ~/data/vams2018/NEG and you want the resulting mzML files
+saved in the folder ~/data/vams2018/wineconv/NEG/. The output folder has to be
+created before running the conversion script, otherwise the output gets thrown
+out but the script runs nonetheless.
+
+```
+wine "c:/Program Files/ProteoWizard/ProteoWizard 3.0.11768/msconvert"  
+~/data/vams2018/NEG/*.wiff -z -o ~/data/vams2018/wineconv/NEG/
+```
+
+# The R script
+Save this as a normal .R file and run it from the command line (at least in 
+linux). You will have to change the first line to point to your R installation
+and the location of the Rscript program.
+
+```{r  whole script, message = FALSE, eval=FALSE}
+#!/home/ssmarason/R/3.4.3/bin/Rscript
+
+## clean up workspace
+rm(list = ls())
+
+## Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+
+## Define paths:
+filename <- "vams2018_centroiding"
+
+## Define the path where we can find the mzML files:
+## note: a copy of these files are found on the bbnas
+MZML_PATH <- "~/data/vams2018/"
+## Define the polarity of the data
+MZML_POLARITY <- c("POS","NEG")
+
+## define where the resulting files should go
+
+MZML_OUT <- "mzML/"
+
+if (!dir.exists(MZML_PATH))
+    stop("Can not find the directory with the mzML files: ", MZML_PATH)
+
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+#library(beeswarm)
+#registerDoParallel(3)
+#register(DoparParam(), default = TRUE)
+register(SerialParam())
+
+## get all mzML files available
+fls <- vector("list",length(MZML_POLARITY))
+for(i in 1:length(MZML_POLARITY)) {
+    onePol<- MZML_POLARITY[i]
+    fls[[i]] <- list.files(paste0(MZML_PATH, 'mzML', onePol),'*.mzML')
+}
+
+SQLITE_PATH <- paste0("~/data/sqlite/", filename,".sqlite")
+dbcon <- dbConnect(RSQLite::SQLite(), SQLITE_PATH)
+alltables <- dbListTables(dbcon)
+dbDisconnect(dbcon)
+
+
+mytable <- "csp_batch"
+
+if (!(mytable %in% alltables))  {
+    dbcon <- dbConnect(RSQLite::SQLite(), SQLITE_PATH)
+    dbSendQuery(conn = dbcon,
+       paste0("CREATE TABLE ",mytable,"(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            POL TEXT,
+            Name TEXT, 
+            Done INTEGER
+            )")
+       )
+    dbDisconnect(dbcon)
+} 
+
+
+check_done <- function(dbpath, table, pol, name) {
+    dbcon <- dbConnect(RSQLite::SQLite(), dbpath)
+    res <- dbGetQuery(dbcon,
+                paste0("select count(*) from ",table," where POL='",pol,"' and Name='",name, "' and Done!=0;")
+            )
+    dbDisconnect(dbcon)
+    return(res != 0)
+}
+
+insert_done <- function(dbpath, table, pol, name) {
+    dbcon <- dbConnect(RSQLite::SQLite(), dbpath)
+    rs <- dbSendQuery(dbcon,
+                paste0("insert into ",table,"(POL,Name,Done) values('",pol,"','",name, "',1);")
+            )
+    dbClearResult(rs)
+    dbDisconnect(dbcon)
+}
+
+
+chromHalfWindow <- 1
+## combine the profile data and save the resulting data to an mzML file.
+for(i in 1:length(fls)) {
+    onePol <- MZML_POLARITY[i]
+    for(j in 1:length(fls[[i]])) {
+        oneFls <- fls[[i]][[j]]
+        if(!check_done(SQLITE_PATH, mytable, onePol, oneFls)) {
+            insert_done(SQLITE_PATH, mytable, onePol, oneFls)
+            data_profile_none <- filterRt(
+                        readMSData(
+                            paste0(MZML_PATH, 'mzML', onePol, "/",oneFls),
+                            centroided = FALSE, mode = "inMemory", 
+                            msLevel. = 1), 
+                        rt=c(0,250) 
+                )
+
+            allSpec_new <- combineSpectraMovingWindow(data_profile_none, 
+                halfWindowSize = chromHalfWindow)
+
+            ## save the combined spectra in case we have to restart or redo
+            ## the conversion
+            dest_dir <- paste0(MZML_PATH, MZML_OUT, 'combined/',onePol, "/")
+            if (!dir.exists(dest_dir))  {
+                dir.create(dest_dir, recursive = TRUE)
+            }
+            writeMSData(allSpec_new, 
+                file = paste0(dest_dir, oneFls), 
+                copy = TRUE)
+            #not sure if this is needed still but I let it stand for now
+            remove(data_profile_none) 
+            gc()
+
+            ## spectra smoothing
+            allSpec_new <- smooth(allSpec_new, 
+                                method = "SavitzkyGolay",
+                                halfWindowSize = 6 * 1L)
+
+            ## spectra pick picking
+            allSpec_new <- pickPeaks(allSpec_new,
+                        refineMz = "descendPeak", 
+                        signalPercentage = 100/3
+                    )
+
+            new_fls <- sub(oneFls, pattern = ".mzML",
+                replacement = "_csp1_SG6_dp33.mzML")
+
+            ## and finally saving the picked data to an mzML file
+            dest_dir <- paste0(MZML_PATH, MZML_OUT, 'picked/',onePol, "/")
+            if (!dir.exists(dest_dir))  {
+                dir.create(dest_dir, recursive = TRUE)
+            }
+            writeMSData(allSpec_new, 
+                file = paste0(dest_dir, new_fls), 
+                copy = TRUE)
+
+            ## again not sure if this is needed but better safe than sorry
+            remove(allSpec_new)
+            gc()
+            print(oneFls)
+        }
+    } 
+}
+
+```
+
