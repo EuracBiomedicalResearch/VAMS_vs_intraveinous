@@ -1,4 +1,3 @@
-
 ---
 title: "Feature detection"
 author: "Sigurdur Smarason"
@@ -246,7 +245,7 @@ for(i in 1:length(MZML_POLARITY)) {
     obname <- paste0("vams2018_all_cent_",cw_pw[1],"_",cw_pw[2],"_",onePol)
 
     ## define the centware parameters to be used
-    cwp <- CentWaveParam(ppm = 50, snthresh = 5, mzdiff = 0.001,
+    cwp <- CentWaveParam(ppm = 25 snthresh = 5, mzdiff = 0.001,
             integrate = 1, prefilter = c(4, 300),
             peakwidth = cw_pw, noise = 100)
 
