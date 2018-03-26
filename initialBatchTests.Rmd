@@ -1,5 +1,5 @@
 ---
-title: "Combine, smooth and mz pick"
+title: "Initial batch tests"
 author: "Sigurdur Smarason"
 graphics: yes
 output:
