@@ -18,7 +18,6 @@ references:
 ## clean up workspace
 rm(list = ls())
 
-## Set general options
 options(useFancyQuotes = FALSE)
 set.seed(18011977)
 
@@ -26,17 +25,21 @@ set.seed(18011977)
 
 ## Define paths:
 filename <- "vams2018_centroiding"
+## Define the polarity of the data
+MZML_POLARITY <- c("POS","NEG")
 
 IMAGE_PATH <- paste0("~/data/images/", filename, "/")
 if (!dir.exists(IMAGE_PATH)) dir.create(IMAGE_PATH, recursive = TRUE)
 IMAGE_PATH_BOXPLOTS <- paste0("~/data/images/", filename, "/Boxplots/")
-if (!dir.exists(IMAGE_PATH_BOXPLOTS)) dir.create(IMAGE_PATH_BOXPLOTS, recursive = TRUE)
+if (!dir.exists(IMAGE_PATH_BOXPLOTS)) {
+    dir.create(IMAGE_PATH_BOXPLOTS, recursive = TRUE)
+}
 
 ## Define the path where we can find the mzML files:
 MZML_PATH <- "~/data/vams2018/"
-## Define the polarity of the data
-MZML_POLARITY <- c("POS","NEG")
-#MZML_POLARITY <- c("POS")
+
+## Define the path where added information is stored
+MORE_INFO_PATH <- "~/data/vams2018/csv/"
 
 ## define where the resulting files should go
 RDATA_PATH <- paste0("~/data/RData/", filename, "/")
@@ -64,6 +67,7 @@ function(s).
 
 ```{r  load-libs, message = FALSE }
 library(knitr) 
+library(MASS)            
 library(xcms)
 library(RColorBrewer)
 library(pander)
@@ -102,6 +106,7 @@ Stats <- function(x,prefix=''){
 ```
 ## Filtering the features
 Then we filter the features based on three criteria:
+
 1. The first filter eliminates features where less than 2 are found in the 
 pooled sample
 2. The second one eliminates features where the % RSD of the feature in the
@@ -112,8 +117,6 @@ number of samples where at least one peak is found can not be higher than 1.1
 
 
 ```{r  filter-features, message = FALSE }
-
-grp_cols <- brewer.pal(3, "Set1")
 
 feat_list <- vector("list", length(MZML_POLARITY))
 farea_list <- vector("list", length(MZML_POLARITY))
@@ -160,7 +163,9 @@ for(i in 1:length(MZML_POLARITY)) {
         )
 
     ## add the feature peak ratio for each feature
-    fti2$peaks_ratio <- apply(fti2,1,FUN=function(x) x["npeaks"]/sum(x[grps_nams]))
+    fti2$peaks_ratio <- apply(fti2,
+                                1,
+                                function(x) x["npeaks"]/sum(x[grps_nams]))
 
     ## apply the seond and third filter
     sel1_idx <- which(fti2$peaks_ratio <= 1.1 & fti2$pool_area_RSD <= 30)
@@ -173,23 +178,184 @@ for(i in 1:length(MZML_POLARITY)) {
 }
 
 ```
-## Initial plots
-Then we generate some basic boxplots  of the filtered data. Each sample type
-is plotted seperately since we fully expect that there are differences between
-them. For each sample type the samples are groupped and colored by the analysis
-batch they are in.
+
+## Injection order sorting
+
+Here we load the two files that contain the injection order for POS and NEG 
+respectively.
+
+```{r  injection-sequence, message = FALSE }
+
+all_injections <- vector("list", length(MZML_POLARITY))
+for(i in 1:length(MZML_POLARITY)) {
+    onePol<- MZML_POLARITY[i]
+
+    all_injections[[i]] <- read.table(
+        paste0(MORE_INFO_PATH, "SAMPLELIST_",onePol,".csv"), sep = ",",
+             as.is = TRUE, header = TRUE, check.names = FALSE
+        )
+
+    all_injections[[i]]$batch <- sapply(all_injections[[i]]$SampleName, 
+        function(x) {substr(x,1,8)})
+}
+
+```
+Here we resort the features based on the injection order within batch.
+
+```{r resort-relative-features, message = FALSE }
+
+for(i in 1:length(MZML_POLARITY)) {
+    ## define what data we are working with
+    onePol<- MZML_POLARITY[i]
+    cnam <- colnames(farea_list[[i]])
+    reorder <- sapply(1:dim(all_injections[[i]])[1], function(x){
+        grep(paste0(all_injections[[i]]$SampleName[x],"_"),cnam)
+        })
+
+    farea_list[[i]] <- farea_list[[i]][,reorder]
+}
+
+```
+
+Here we define how to calculate the relative feature area compared to the median 
+value of the whole dataset. Note that the relative feature deviation from the 
+median is here calculated as the ratio of the feature vs the median rather than 
+the logarithmic version of the same as suggested in da silva [ref]
+
+```{r relative-feature-to-mid-feature, message = FALSE }
+
+med_rel <- function(dataf) {
+    dataf2 <- dataf
+    ft_med <- apply(dataf2,1,median, na.rm=TRUE)
+    ft_relmeds <- t(sapply(1:dim(dataf2)[1], function(x) {
+        dataf2[x,]/ft_med[x]
+    })
+    )
+    rownames(ft_relmeds) <- rownames(dataf2)
+    return(ft_relmeds)
+}
+
+```
 
 
-```{r  generate-plot-boxplots, message = FALSE }
 
-all_boxplot_paths <- vector("list", length(MZML_POLARITY))
+# Overall trends
+
+Now we plot boxplot for each batch with coloring by sample type. We calculate 
+the relative abundance with the function above, but within batch not within 
+sample type. 
+
+```{r  generate-per-batch-boxplots, message = FALSE }
+
+grp_cols <- brewer.pal(length(grps_nams)+1, "Set1")
+## asign colors to the batch names
+names(grp_cols) <- grps_nams
+
+for(i in 1:length(MZML_POLARITY)) {
+    ## define what data we are working with
+    onePol<- MZML_POLARITY[i]
+    ft <- farea_list[[i]]
+
+    ## get the names of the samples in the data frame
+    
+    
+    ## get the batch names for the polarity that we have
+    bnames <- batches[batches$POL==onePol,"batch"]
+
+    ## go through each batch and color the boxplots by sample type
+    for(n in 1:length(bnames)) {
+        batch <- bnames[n]
+        samples <- colnames(ft)
+        plot_columns <- which(grepl(batch,samples))
+
+        ## get the batch specific data
+        ft2 <- med_rel(ft[,plot_columns])
+        samples <- colnames(ft2)
+        
+        ## get the type of the sample
+        plot_colors <- grps_nams[sapply(samples, function(x) {
+            which(sapply(grps, function(y) {
+                length(grep(y,x))>0
+            }))
+        })
+        ]
+
+        ## then finally generate the boxplot
+        fl <- paste0(IMAGE_PATH_BOXPLOTS, "Batch_rel_",batch,"_", 
+                        onePol, ".png")
+        png(fl, width = 16, height = 12, units = "cm", res = 300, 
+                    pointsize = 6)
+                   
+        boxplot(ft2, col=grp_cols[plot_colors], 
+                    ylab="area / med_area", 
+                    xlab="files", 
+                    main=paste0("Boxplot of feature areas for batch ", batch,
+                                " (in ",onePol, ")"),
+                    outline=FALSE
+                )
+        colmeds <- apply(ft2,2,median, na.rm=TRUE)
+        fm.rlm <- rlm(colmeds ~ plot_columns)
+        ypoints <- predict(fm.rlm)
+        lines(1:length(plot_columns), 
+                    ypoints,
+                    col=grp_cols[(length(grps_nams)+1)],
+                    lty=3, lwd=3
+                    )
+        
+        dev.off()
+    }
+}
+```
+
+As can be see in the plots below there are no strong trends observed within
+the batch. There seems to be a slight injection order sensitivity in the initial
+batch for both POS and NEG but it seems to be rather limited.
+
+There is however a very strong sample type effect that can be seen.
+Especially the red blood cells are showing a lot of variation.
+
+Also note that the outliers are not plotted in these pictures as they are quite
+numerous and have a high variability and make the graphs rather useless.
+
+`r paste0("![Boxplot for batch 31012018](",
+                    path.expand(IMAGE_PATH_BOXPLOTS),
+                    "Batch_rel_31012018_POS.png)")`
+
+`r paste0("![Boxplot for batch 01022018](",
+                    path.expand(IMAGE_PATH_BOXPLOTS),
+                    "Batch_rel_01022018_POS.png)")`
+
+`r paste0("![Boxplot for batch 06022018](",
+                    path.expand(IMAGE_PATH_BOXPLOTS),
+                    "Batch_rel_06022018_NEG.png)")`
+
+`r paste0("![Boxplot for batch 07022018](",
+                    path.expand(IMAGE_PATH_BOXPLOTS),
+                    "Batch_rel_07022018_NEG.png)")`
+
+
+
+# Per sample type boxplots
+To look at the trend in the data more carefully we split the data by sample 
+type and generate another round of boxplots.
+
+Each sample type is plotted seperately but both batches fit now in one graph.
+The samples are now groupped and colored by the analysis batch they are in. 
+
+We now generate relative feature areas based on the sample type but not the
+batch. If there is a real batch effect one would expect all sample types to
+show the same effect.
+
+```{r  generate-plot-rel-boxplots, message = FALSE }
+
+all_rel_boxplot_paths <- vector("list", length(MZML_POLARITY))
 for(i in 1:length(MZML_POLARITY)) {
     ## define what data we are working with
     onePol<- MZML_POLARITY[i]
     ft <- farea_list[[i]]
 
     ##initialize the boxplot path vector
-    all_boxplot_paths[[i]]<-rep(" ", length(grps_nams))
+    all_rel_boxplot_paths[[i]]<-rep(" ", length(grps_nams))
 
     ## get the names of the samples in the data frame
     samples <- colnames(ft)
@@ -203,53 +369,78 @@ for(i in 1:length(MZML_POLARITY)) {
     ## go through each group and plot up a boxplot of the log10
     ## transformed area per sample in each group of samples
     ## colored and groupped by the batch they belong to
-    ## TODO: sort samples within a batch by their injection order 
     for(j in 1:length(grps_nams)) {
         group <- grps[j]
         plot_columns <- c()
         plot_colors <- c()
         possibles <- grepl(group,samples)
         ## add the samples based on the batch
+        batch_run_ids <-vector("list",length(bnames))
         for(n in 1:length(bnames)) {
             batch <- bnames[n]
             founds <- which(possibles & grepl(batch,samples))
             plot_columns <- c(plot_columns, founds)
             plot_colors <- c(plot_colors, rep(batch, length(founds)))
+            batch_run_ids[[n]] <- founds
 
         }
         
+        ft2 <- med_rel(ft[,plot_columns])
         ## then finally generate the boxplot
-        fl <- paste0(IMAGE_PATH_BOXPLOTS, "Sampletype_", grps_nams[j],
+        fl <- paste0(IMAGE_PATH_BOXPLOTS, "Sampletype_rel_", grps_nams[j],
                         "_", onePol, ".png")
-        all_boxplot_paths[[i]][j] <- path.expand(fl)
+        all_rel_boxplot_paths[[i]][j] <- path.expand(fl)
         png(fl, width = 16, height = 12, units = "cm", res = 300, 
                     pointsize = 6)
-        boxplot(log10(ft[,plot_columns]), col=grp_cols[plot_colors], ylab="log10(area)", xlab="files", 
-                            main=paste0("Boxplot of feature areas for ",grps_nams[j], " in ",onePol)
-                            )
+                             
+        boxplot(ft2, col=grp_cols[plot_colors], 
+                    ylab="area / med_area", 
+                    xlab="files", 
+                    main=paste0("Boxplot of feature areas for ",
+                                    grps_nams[j], 
+                                    " in ",onePol),
+                    outline=FALSE
+                )
+        offset <- 0
+        for(n in 1:length(bnames)) {
+            ft3 <- ft2[,colnames(ft[,batch_run_ids[[n]]])]
+            colmeds <- apply(ft3,2,median, na.rm=TRUE)
+            fm.rlm <- rlm(colmeds ~ batch_run_ids[[n]])
+            ypoints <- predict(fm.rlm)
+            lines(offset+(1:length(batch_run_ids[[n]])), 
+                    ypoints,
+                    col=grp_cols[length(grps_nams)+1],
+                    lty=3, lwd=3
+                    )
+            offset <- offset+length(batch_run_ids[[n]])
+        }
+        
         dev.off()
     }
 }
 ```
 
-With the results shown below.
-
-### Initial boxplots for POS
-```{r  show-plot-boxplots-pos, results='asis', echo=FALSE}
+## Relative area boxplots for POS
+```{r  show-plot-rel-boxplots-pos, results='asis', echo=FALSE}
 i <- 1
 onePol<- MZML_POLARITY[i]
 for(j in 1:length(grps_nams)) {
     cat("![Boxplot for ",grps_nams[j]," in ",onePol,
-        " polarity](", all_boxplot_paths[[i]][j],")")
+        " polarity](", all_rel_boxplot_paths[[i]][j],")")
 }
 ```
 
-### Initial boxplots for NEG
-```{r  show-plot-boxplots-neg, results='asis', echo=FALSE}
+## Relative area boxplots for NEG
+```{r  show-plot-rel-boxplots-neg, results='asis', echo=FALSE}
 i <- 2
 onePol<- MZML_POLARITY[i]
 for(j in 1:length(grps_nams)) {
     cat("![Boxplot for ",grps_nams[j]," in ",onePol,
-        " polarity](", all_boxplot_paths[[i]][j],")")
+        " polarity](", all_rel_boxplot_paths[[i]][j],")")
 }
 ```
+
+# Conclusion
+Although there is not a strong overall batch effect in the data it would be 
+worth it to investigate if there are features with strong effects or if the
+general trend is also observed in most of the individual features.
