@@ -1,0 +1,255 @@
+---
+title: "Combine, smooth and mz pick"
+author: "Sigurdur Smarason"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r  init-workspace, message = FALSE, echo = FALSE, results = "hide" }
+## clean up workspace
+rm(list = ls())
+
+## Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+## Path to store RData files
+
+## Define paths:
+filename <- "vams2018_centroiding"
+
+IMAGE_PATH <- paste0("~/data/images/", filename, "/")
+if (!dir.exists(IMAGE_PATH)) dir.create(IMAGE_PATH, recursive = TRUE)
+IMAGE_PATH_BOXPLOTS <- paste0("~/data/images/", filename, "/Boxplots/")
+if (!dir.exists(IMAGE_PATH_BOXPLOTS)) dir.create(IMAGE_PATH_BOXPLOTS, recursive = TRUE)
+
+## Define the path where we can find the mzML files:
+MZML_PATH <- "~/data/vams2018/"
+## Define the polarity of the data
+MZML_POLARITY <- c("POS","NEG")
+#MZML_POLARITY <- c("POS")
+
+## define where the resulting files should go
+RDATA_PATH <- paste0("~/data/RData/", filename, "/")
+if (!dir.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+RESULTDATA_PATH <- paste0("~/data/Results/", filename, "/")
+if (!dir.exists(RESULTDATA_PATH)) dir.create(RESULTDATA_PATH, recursive = TRUE)
+
+MZML_OUT <- "mzML/"
+
+if (!dir.exists(MZML_PATH))
+    stop("Can not find the directory with the mzML files: ", MZML_PATH)
+```
+
+
+
+# Introduction
+
+Here we start looking at possible batch effects in the data.
+
+
+
+# Initial data analysis
+First we load the necessary libaries and define a few key variables and 
+function(s).
+
+```{r  load-libs, message = FALSE }
+library(knitr) 
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+#library(beeswarm)
+registerDoParallel(4)
+register(DoparParam(), default = TRUE)
+
+cw_pw <- c(1.5, 8)
+
+grps <- c("_1_", "_2_", "_3_", "_RBC_", "_POOL")
+grps_nams <- c("plasma", "venous", "capillary", "RBC", "POOL")
+
+batches <- data.frame("POL"=c("POS","POS","NEG","NEG"), 
+                    "batch"=c("31012018","01022018","06022018","07022018"),
+                    stringsAsFactors=FALSE
+                    )
+
+Stats <- function(x,prefix=''){
+    Mean <- mean(x, na.rm=TRUE)
+    SD <- sd(x, na.rm=TRUE)
+    Min <- min(x, na.rm=TRUE)
+    Max <- max(x, na.rm=TRUE)
+    RSD <- 100*SD / Mean
+    retVec <- c(Mean, RSD, SD, Min, Max)
+    names(retVec) <- c(paste0(prefix,"Mean"), 
+                      paste0(prefix,"RSD"), 
+                      paste0(prefix,"SD"), 
+                      paste0(prefix,"Min"), 
+                      paste0(prefix,"Max")
+                    )
+    return(retVec)
+}
+
+
+```
+## Filtering the features
+Then we filter the features based on three criteria:
+1. The first filter eliminates features where less than 2 are found in the 
+pooled sample
+2. The second one eliminates features where the % RSD of the feature in the
+pooled sample is greater than 30%
+3. The third and last eliminiates features that have a high number of 
+chromatographic peaks found. Here the ratio of total features divided by the
+number of samples where at least one peak is found can not be higher than 1.1
+
+
+```{r  filter-features, message = FALSE }
+
+grp_cols <- brewer.pal(3, "Set1")
+
+feat_list <- vector("list", length(MZML_POLARITY))
+farea_list <- vector("list", length(MZML_POLARITY))
+obnamer_list <- vector("list", length(MZML_POLARITY))
+for(i in 1:length(MZML_POLARITY)) {
+    ## define what data we are working with
+    onePol<- MZML_POLARITY[i]
+    cw_pw <- c(1.5, 8)
+    binSize <- 0.005
+    bw <- 1.25
+    extraDescr <- paste0("_binSize_",binSize,"_bw_",bw)
+    obnamer <- paste0("xdata_all_cent_rtcor", cw_pw[1],"_",
+                                        cw_pw[2],"_",onePol,extraDescr)
+    load(file = paste0(RDATA_PATH, obnamer, ".RData"))
+    obnamex <- get(obnamer)
+
+    ## get the feature definitions (including the filled peaks)
+    ftd <- featureDefinitions(obnamex)
+
+    ## get the feature chromatographic peak area
+    ft <- featureValues(obnamex, value = "into")
+
+    ## limit the areas to the ones where there are more than
+    ## two features found in the repeat analysis of the pooled sample
+    ft <- ft[ftd$POOL >2,]
+
+    ## find out where the pooled samples are in the dataset
+    pool_idx <- which(obnamex$sample_group == "POOL")
+
+    ## calculcate summary statistics for the pool sample
+    fti2 <- t(apply(ft[,pool_idx],1, Stats,prefix="pool_area_"))
+
+    ## combine that information with the feature definitions
+    fti2 <-
+        transform(
+        merge(
+          ftd[ftd$POOL >2,1:(7+length(unique(obnamex$sample_group)))],
+          fti2,
+          by="row.names",
+          all.x=TRUE
+        ), 
+        row.names=Row.names,
+        Row.names=NULL
+        )
+
+    ## add the feature peak ratio for each feature
+    fti2$peaks_ratio <- apply(fti2,1,FUN=function(x) x["npeaks"]/sum(x[grps_nams]))
+
+    ## apply the seond and third filter
+    sel1_idx <- which(fti2$peaks_ratio <= 1.1 & fti2$pool_area_RSD <= 30)
+    ft <- ft[sel1_idx,]
+
+    ## storing some values for later
+    obnamer_list[[i]] <- obnamer
+    feat_list[[i]] <- fti2
+    farea_list[[i]] <- ft
+}
+
+```
+## Initial plots
+Then we generate some basic boxplots  of the filtered data. Each sample type
+is plotted seperately since we fully expect that there are differences between
+them. For each sample type the samples are groupped and colored by the analysis
+batch they are in.
+
+
+```{r  generate-plot-boxplots, message = FALSE }
+
+all_boxplot_paths <- vector("list", length(MZML_POLARITY))
+for(i in 1:length(MZML_POLARITY)) {
+    ## define what data we are working with
+    onePol<- MZML_POLARITY[i]
+    ft <- farea_list[[i]]
+
+    ##initialize the boxplot path vector
+    all_boxplot_paths[[i]]<-rep(" ", length(grps_nams))
+
+    ## get the names of the samples in the data frame
+    samples <- colnames(ft)
+    
+    ## get the batch names for the polarity that we have
+    bnames <- batches[batches$POL==onePol,"batch"]
+
+    ## asign colors to the batch names
+    names(grp_cols) <- bnames
+
+    ## go through each group and plot up a boxplot of the log10
+    ## transformed area per sample in each group of samples
+    ## colored and groupped by the batch they belong to
+    ## TODO: sort samples within a batch by their injection order 
+    for(j in 1:length(grps_nams)) {
+        group <- grps[j]
+        plot_columns <- c()
+        plot_colors <- c()
+        possibles <- grepl(group,samples)
+        ## add the samples based on the batch
+        for(n in 1:length(bnames)) {
+            batch <- bnames[n]
+            founds <- which(possibles & grepl(batch,samples))
+            plot_columns <- c(plot_columns, founds)
+            plot_colors <- c(plot_colors, rep(batch, length(founds)))
+
+        }
+        
+        ## then finally generate the boxplot
+        fl <- paste0(IMAGE_PATH_BOXPLOTS, "Sampletype_", grps_nams[j],
+                        "_", onePol, ".png")
+        all_boxplot_paths[[i]][j] <- path.expand(fl)
+        png(fl, width = 16, height = 12, units = "cm", res = 300, 
+                    pointsize = 6)
+        boxplot(log10(ft[,plot_columns]), col=grp_cols[plot_colors], ylab="log10(area)", xlab="files", 
+                            main=paste0("Boxplot of feature areas for ",grps_nams[j], " in ",onePol)
+                            )
+        dev.off()
+    }
+}
+```
+
+With the results shown below.
+
+### Initial boxplots for POS
+```{r  show-plot-boxplots-pos, results='asis', echo=FALSE}
+i <- 1
+onePol<- MZML_POLARITY[i]
+for(j in 1:length(grps_nams)) {
+    cat("![Boxplot for ",grps_nams[j]," in ",onePol,
+        " polarity](", all_boxplot_paths[[i]][j],")")
+}
+```
+
+### Initial boxplots for NEG
+```{r  show-plot-boxplots-neg, results='asis', echo=FALSE}
+i <- 2
+onePol<- MZML_POLARITY[i]
+for(j in 1:length(grps_nams)) {
+    cat("![Boxplot for ",grps_nams[j]," in ",onePol,
+        " polarity](", all_boxplot_paths[[i]][j],")")
+}
+```
