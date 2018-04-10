@@ -52,7 +52,7 @@ filename <- "vams2018_centroiding"
 ## Define the path where we can find the mzML files:
 MZML_PATH <- "~/data/vams2018/"
 ## Define the polarity of the data
-MZML_POLARITY <- c("POS","NEG")
+MZML_POLARITY <- c("NEG","POS")
 
 
 ## define where the resulting files should go
@@ -245,7 +245,7 @@ for(i in 1:length(MZML_POLARITY)) {
     obname <- paste0("vams2018_all_cent_",cw_pw[1],"_",cw_pw[2],"_",onePol)
 
     ## define the centware parameters to be used
-    cwp <- CentWaveParam(ppm = 25 snthresh = 5, mzdiff = 0.001,
+    cwp <- CentWaveParam(ppm = 50, snthresh = 5, mzdiff = 0.001,
             integrate = 1, prefilter = c(4, 300),
             peakwidth = cw_pw, noise = 100)
 
@@ -316,7 +316,7 @@ for(i in 1:length(MZML_POLARITY)) {
     assign(obnamer, obnamex)
     save(file = paste0(RDATA_PATH, obnamer, ".RData"), list = obnamer)
     
-    ## we also save the feature definitions before fill chrompeaks for futre use
+    ## we also save the feature definitions before fill chrompeaks for future use
     obnamefd <- paste0(obnamer,"_fdbefore")
     assign(obnamefd,allfeatures)
     save(file = paste0(RDATA_PATH, obnamefd, ".RData"), list = obnamefd)
@@ -374,5 +374,4 @@ for(i in 1:length(MZML_POLARITY)) {
 
 }
 ```
-
 

@@ -84,8 +84,11 @@ Save this as a normal .R file and run it from the command line (at least in
 linux). You will have to change the first line to point to your R installation
 and the location of the Rscript program.
 
+Note this relies on SQLite to keep track of what has been worked on. This is the
+feature that also allows multiple instances to run concurrently on the computer.
+
 ```{r  whole script, message = FALSE, eval=FALSE}
-#!/home/ssmarason/R/3.4.3/bin/Rscript
+#!/home/ssmarason/R/devel/bin/Rscript
 
 ## clean up workspace
 rm(list = ls())
@@ -94,22 +97,46 @@ rm(list = ls())
 options(useFancyQuotes = FALSE)
 set.seed(18011977)
 
-
+## Path to store RData files
+library(RSQLite)
 ## Define paths:
 filename <- "vams2018_centroiding"
+SQLITE_PATH <- paste0("~/data/sqlite/", filename,".sqlite")
+dbcon <- dbConnect(RSQLite::SQLite(), SQLITE_PATH)
+alltables <- dbListTables(dbcon)
+dbDisconnect(dbcon)
+
+## mytable <- "Smoothpick"
+mytable <- "csp_batch_vams2"
+
+if (!(mytable %in% alltables))  {
+    dbcon <- dbConnect(RSQLite::SQLite(), SQLITE_PATH)
+    dbSendQuery(conn = dbcon,
+       paste0("CREATE TABLE ",mytable,"(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            POL TEXT,
+            Name TEXT, 
+            Done INTEGER
+            )")
+       )
+    dbDisconnect(dbcon)
+} 
+
+
 
 ## Define the path where we can find the mzML files:
-## note: a copy of these files are found on the bbnas
 MZML_PATH <- "~/data/vams2018/"
 ## Define the polarity of the data
-MZML_POLARITY <- c("POS","NEG")
+MZML_POLARITY <- c("NEG","POS")
+#MZML_POLARITY <- c("POS")
 
 ## define where the resulting files should go
 
 MZML_OUT <- "mzML/"
-
+MZML_IN <- "mzML/orig/"
 if (!dir.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
+ 
 
 library(xcms)
 library(RColorBrewer)
@@ -124,29 +151,11 @@ register(SerialParam())
 fls <- vector("list",length(MZML_POLARITY))
 for(i in 1:length(MZML_POLARITY)) {
     onePol<- MZML_POLARITY[i]
-    fls[[i]] <- list.files(paste0(MZML_PATH, 'mzML', onePol),'*.mzML')
+    fpath <- paste0(MZML_PATH, MZML_IN,'mzML', onePol,"/")
+    print(fpath)
+    fls[[i]] <- list.files(fpath,'*.mzML')
 }
 
-SQLITE_PATH <- paste0("~/data/sqlite/", filename,".sqlite")
-dbcon <- dbConnect(RSQLite::SQLite(), SQLITE_PATH)
-alltables <- dbListTables(dbcon)
-dbDisconnect(dbcon)
-
-
-mytable <- "csp_batch"
-
-if (!(mytable %in% alltables))  {
-    dbcon <- dbConnect(RSQLite::SQLite(), SQLITE_PATH)
-    dbSendQuery(conn = dbcon,
-       paste0("CREATE TABLE ",mytable,"(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            POL TEXT,
-            Name TEXT, 
-            Done INTEGER
-            )")
-       )
-    dbDisconnect(dbcon)
-} 
 
 
 check_done <- function(dbpath, table, pol, name) {
@@ -168,17 +177,20 @@ insert_done <- function(dbpath, table, pol, name) {
 }
 
 
+
 chromHalfWindow <- 1
 ## combine the profile data and save the resulting data to an mzML file.
+
 for(i in 1:length(fls)) {
     onePol <- MZML_POLARITY[i]
     for(j in 1:length(fls[[i]])) {
         oneFls <- fls[[i]][[j]]
         if(!check_done(SQLITE_PATH, mytable, onePol, oneFls)) {
             insert_done(SQLITE_PATH, mytable, onePol, oneFls)
+            print(oneFls)
             data_profile_none <- filterRt(
                         readMSData(
-                            paste0(MZML_PATH, 'mzML', onePol, "/",oneFls),
+                            paste0(MZML_PATH, MZML_IN,'mzML', onePol,"/",oneFls),
                             centroided = FALSE, mode = "inMemory", 
                             msLevel. = 1), 
                         rt=c(0,250) 
@@ -186,9 +198,6 @@ for(i in 1:length(fls)) {
 
             allSpec_new <- combineSpectraMovingWindow(data_profile_none, 
                 halfWindowSize = chromHalfWindow)
-
-            ## save the combined spectra in case we have to restart or redo
-            ## the conversion
             dest_dir <- paste0(MZML_PATH, MZML_OUT, 'combined/',onePol, "/")
             if (!dir.exists(dest_dir))  {
                 dir.create(dest_dir, recursive = TRUE)
@@ -196,16 +205,12 @@ for(i in 1:length(fls)) {
             writeMSData(allSpec_new, 
                 file = paste0(dest_dir, oneFls), 
                 copy = TRUE)
-            #not sure if this is needed still but I let it stand for now
             remove(data_profile_none) 
             gc()
-
-            ## spectra smoothing
             allSpec_new <- smooth(allSpec_new, 
                                 method = "SavitzkyGolay",
                                 halfWindowSize = 6 * 1L)
 
-            ## spectra pick picking
             allSpec_new <- pickPeaks(allSpec_new,
                         refineMz = "descendPeak", 
                         signalPercentage = 100/3
@@ -214,7 +219,6 @@ for(i in 1:length(fls)) {
             new_fls <- sub(oneFls, pattern = ".mzML",
                 replacement = "_csp1_SG6_dp33.mzML")
 
-            ## and finally saving the picked data to an mzML file
             dest_dir <- paste0(MZML_PATH, MZML_OUT, 'picked/',onePol, "/")
             if (!dir.exists(dest_dir))  {
                 dir.create(dest_dir, recursive = TRUE)
@@ -223,13 +227,16 @@ for(i in 1:length(fls)) {
                 file = paste0(dest_dir, new_fls), 
                 copy = TRUE)
 
-            ## again not sure if this is needed but better safe than sorry
             remove(allSpec_new)
             gc()
-            print(oneFls)
+            print("Done")
         }
     } 
 }
+
+
+
+
 
 ```
 
