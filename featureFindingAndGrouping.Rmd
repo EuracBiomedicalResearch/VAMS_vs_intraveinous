@@ -241,6 +241,42 @@ for(i in 1:length(MZML_POLARITY)) {
     rawdata <- readMSData(paste0(src_dir,fls), centroid = TRUE, mode = "onDisk")
     rawdata$sample_group <- sg
 
+    phDat <- phenoData(rawdata)
+    phDat$matrix <- grps_nams[sapply(phDat$sampleNames, function(x) {
+        which(sapply(grps, function(y) {
+            length(grep(y,x))>0
+        }))
+    })
+    ]
+
+    phDat$sampleID <- sapply(as.character(phDat$sampleNames), function(x) {
+        substr(x,10,8+regexpr('_', substr(x,10,nchar(x)-10)))
+    })
+
+    phDat$sampleID <- sapply(as.character(phDat$sampleNames), function(x) {
+        substr(x,10,8+regexpr('_', substr(x,10,nchar(x)-10)))
+    })
+    
+    phDat$sampleID[phDat$sampleID=="MitYOU"] <- "POOL"
+
+    phDat$replicate <- sapply(as.character(phDat$sampleNames), function(x) {
+        allPos <- unlist(gregexpr('_', x))
+        res <- substr(x,allPos[3]+1,allPos[4]-1)
+        if(allPos[4]-allPos[3]-2 >1) {
+            res <- substr(x,allPos[2]+1,allPos[3]-1)
+            res <- as.numeric(substr(res,5,nchar(res)))
+        } else {
+            res <- substr(x,allPos[3]+1,allPos[4]-1)
+            if(res =="a") {
+                res <- 1
+            } else {
+                res <- 2
+            }
+        }
+        res
+    })
+    phenoData(rawdata) <- phDat
+    
     ## define the name for the chrompeaks MSnExperiment object
     obname <- paste0("vams2018_all_cent_",cw_pw[1],"_",cw_pw[2],"_",onePol)
 
