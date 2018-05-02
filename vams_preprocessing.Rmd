@@ -1,0 +1,188 @@
+---
+title: "Preprocessing of the vams vs intraveneous untargeted metabolomics data"
+author: "Johannes Rainer, Giuseppe Paglia and Sigurdur Smarason"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r biocstyle, echo = FALSE, results = "asis" }
+library(BiocStyle)
+BiocStyle::markdown() 
+```
+
+**Modified**: `r file.info("vams_preprocessing.Rmd")$mtime`<br />
+**Compiled**: `r date()`
+
+```{r settings, echo = FALSE, results = "hide", message = FALSE}
+
+## Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+## Define paths:
+filename <- "vams_preprocessing"
+## Path to save the images; remove all old images.
+IMAGE_PATH <- paste0("images/", filename, "/")
+if (file.exists(IMAGE_PATH))
+    unlink(IMAGE_PATH, recursive = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE)
+## Path to store RData files
+RDATA_PATH <- paste0("data/RData/", filename, "/")
+if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+
+## Define the path where we can find the mzML files:
+MZML_PATH <- "~/data/2018/"
+if (!file.exists(MZML_PATH))
+    stop("Can not find the directory with the mzML files: ", MZML_PATH)
+
+## Wheter all calculations should be performed or cached data is to be used.
+use_cached <- FALSE
+## Run only the chunks that are required to produce the data.
+just_analysis <- FALSE
+
+## Where to cut the chromatogram (i.e. subset to spectra within rt 0-rt_cut)
+rt_cut <- 250
+
+```
+
+# Introduction
+
+In this section we perform the pre-processing of the untargeted metabolomics
+data of the *MitYOU* project which comprises an initial quality assessment,
+chromatographic peak detection, alignment (retention time correction) and
+correspondence (chromatographic peak grouping across samples).
+
+The input files represent centroided data, with centroiding performed using the
+`MSnbase` package based on the following settings: smoothing of the signal in
+retention time dimension by averaging signal from 3 neighboring spectra in a
+moving window approach followed by smoothing of each spectrum (along the m/z
+dimension) using a Savitzky-Golay filter with a half window size of 6. The data
+was subsequently centroided refining in addition the centroid's m/z value with
+an intensity-weighted average of m/z values for signal within the peak with at
+least 33% of the centroid's intensity.
+
+# Positive polarity
+
+We first focus on the data in positive polarity.
+
+## Raw data import and initial quality assessment
+
+Below we load all required libraries for the analysis as well as the *phenodata*
+file defining the experiment's layout. Also, we set up the parallel processing,
+define colors to be used for the various experimental groups throughout the
+experiment and finally read the raw data.
+
+```{r pos-libraries-data, message = FALSE}
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+registerDoParallel(3)
+register(DoparParam(), default = TRUE)
+
+pd <- read.table("data/phenodata.txt", sep = "\t", as.is = TRUE, header = TRUE)
+pd_pos <- pd[pd$polarity == "POS", ]
+
+## Define colors for the groups.
+col_source <- brewer.pal(5, name = "Set1")
+names(col_source) <- c("RBC",           # red
+                       "plasma",        # blue
+                       "all",           # green
+                       "capillary",     # purple
+                       "venous")        # orange
+## Read the data
+data_pos <- readMSData(paste0(MZML_PATH, sub(".mzML", "_csp1_SG6_dp33.mzML",
+                                             pd_pos$mzML_file)),
+                       pdata = as(AnnotatedDataFrame(pd_pos),
+                                  "NAnnotatedDataFrame"), mode = "onDisk")
+```
+
+All samples of the experiment are listed below.
+
+```{r pos-phenodata, message = FALSE, results = "asis", echo = FALSE}
+validatePdata <- function(x) {
+    src <- c(`1` = "plasma", `2` = "venous", `3` = "capillary", RBC = "RBC")
+    fn <- strsplit(x$mzML_file, split = "_")
+    for (i in 1:nrow(x)) {
+        splt <- fn[[i]]
+        if (splt[1] != x$batch[i])
+            message("Row ", i, ": batch wrong")
+        if (length(splt) == 5) {
+            if (as.numeric(splt[2]) != x$sample[i])
+                message("Row ", i, ": sample wrong")
+            if (src[splt[3]] != x$source[i])
+                message("Row ", i, ": source wrong")
+            if ((splt[4] == "a" & x$replicate[i] != 1) ||
+                (splt[4] == "b" & x$replicate[i] != 2))
+                message("Row ", i, ": replicate wrong")
+        } else {
+            if (x$sample[i] != "POOL")
+                message("Row ", i, ": sample wrong")
+        }
+    }
+}
+## validatePdata(pData(data_pos))
+
+tab <- pData(data_pos)[, -4]
+pandoc.table(tab, style = "rmarkdown",
+             caption = paste0("Data files and samples for positive polarity"))
+
+```
+
+The data set consists thus of samples from in total 22 individuals, with
+measurements performed on plasma, venous and capillary blood samples as well as
+on red blood cells for each. Measurements were performed in two runs, with each
+sample measured in duplicates within each run. A pool of all samples (all
+sources and samples) was used as quality control and repeatedly measured (every
+9 injections) during a measurement run. The injection order layout of one
+measurement run is visualized below.
+
+```{r pos-run-plot, fig.width = 10, fig.height = 2, fig.path = IMAGE_PATH, fig.cap = "Layout of a measurement run."}
+tmp <- pData(data_pos)[data_pos$batch == 31012018, ]
+par(mar = c(2, 0, 2, 0))
+plot(3, 3, pch = NA, xaxt = "n", yaxt = "n", ylim = c(0, 2),
+     xlim = c(0.5, nrow(tmp) + 0.5), bty = "n")
+rect(xleft = tmp$inj_idx - 0.5, xright = tmp$inj_idx + 0.5, ybottom = 0,
+     ytop = 1, col = col_source[tmp$source], border = "grey")
+axis(side = 1, line = 0, las = 2)
+text(x = tmp$inj_idx, y = rep(0.5, nrow(tmp)), labels = tmp$sample,
+     srt = 90, cex = 0.7)
+legend("top", col = col_source, legend = names(col_source), horiz = TRUE,
+       pch = 15)
+```
+
+Sample source type and individuals are randomly distributed along the injection
+order.
+
+Next we perform an initial quality assessment by comparing the distribution of
+TIC and BPC values from the spectra between all samples.
+
+- plot the TIC and BPC
+- RLA of TIC/BPC values: identify samples with much lower signal.
+
+### Summary
+
+## Chromatographic peak detection
+
+- Perform peak detection.
+- Compare numbers of identified peaks across samples.
+- Compare intensity distributions across samples.
+- Image of peak positions along retention time.
+- Check chromatographic peaks for some known controls.
+
+### Summary
+
+## Alignment
+
+## Correspondence
+
+# References
