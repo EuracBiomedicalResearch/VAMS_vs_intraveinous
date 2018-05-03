@@ -5,6 +5,7 @@ graphics: yes
 output:
   BiocStyle::html_document:
     toc_float: true
+bibliography: references.bib
 csl: biomed-central.csl
 references:
 - id: dummy
@@ -166,10 +167,111 @@ order.
 Next we perform an initial quality assessment by comparing the distribution of
 TIC and BPC values from the spectra between all samples.
 
-- plot the TIC and BPC
-- RLA of TIC/BPC values: identify samples with much lower signal.
+```{r pos-calc-tic, message = FALSE}
+chrs_tic <- chromatogram(data_pos, aggregationFun = "sum")
+chrs_bpc <- chromatogram(data_pos, aggregationFun = "max")
+```
+
+The base peak chromatogram for the full experiment is shown below.
+
+```{r pos-bpc-plot, message = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 5, fig.cap = "Base peak chromatograms for all samples of the experiment (positive polarity)."}
+plot(chrs_bpc, col = paste0(col_source[chrs_bpc$source], "60"))
+legend("topright", col = col_source, legend = names(col_source), lwd = 2)
+
+```
+
+The base peak chromatograms are quite different between the different sample
+sources. Plasma and venous samples have considerably higher signal in the
+retention time range from 170 to 200 seconds. For most other parts similar the
+BPC shows similar signal suggesting that similar compounds are
+detected. Individual capillary blood samples show a distinct BPC potentially
+indicating problems in sample preparation and/or measurement.
+
+Next we evaluate the distribution of base peak and total ion values per sample
+to identify potentially problematic samples/injections. In addition we calculate
+per-sample RLA (relative log abundance) [@DeLivera:2012bw] values representing
+average log2 signal (either base peak or total ion) of each sample relative to
+the median log2 signal of all samples within the same group. The per sample RLA
+values help to spot samples with an overall different average signal compared to
+all other samples within the same sample group, which is in our case the sample
+source.
+
+```{r pos-bpc-boxplot, message = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 6, fig.cap = "Distribution of the spectras' base peak signal per sample (top) and average RLA of base peak signals per sample (bottom)."}
+## function taken from BioCHRIStes... eventually add to xcms?
+rla <- function(x, group, log.transform = TRUE) {
+    if (missing(group))
+        group <- rep_len(1, length(x))
+    if (length(x) != length(group))
+        stop("length of 'x' has to match length of 'group'")
+    if (!is.factor(group))
+	group <- factor(group, levels = unique(group))
+    ## Calculate group medians.
+    if (log.transform)
+        log_x <- log2(x)
+    grp_meds <- unlist(lapply(split(log_x, group), median, na.rm = TRUE))
+    log_x - grp_meds[group]
+}
+
+bpcs <- lapply(chrs_bpc, intensity)
+xl <- c(1, length(bpcs))
+par(mfrow = c(2, 1), mar = c(0, 4.3, 0, 0.1))
+boxplot(lapply(bpcs, log2), col = paste0(col_source[chrs_bpc$source], 60),
+        pch = NA, xaxt = "n", ylab = expression(log[2]~base~peak~intensity),
+        xlim = xl)
+grid(nx = NULL)
+par(mar = c(3, 4.3, 0.5, 0.1))
+bpcs_rla <- rla(vapply(bpcs, mean, numeric(1)), group = chrs_bpc$source)
+plot(bpcs_rla, xlab = "", ylab = "average RLA", xlim = xl,
+     col = paste0(col_source[chrs_bpc$source], 80), pch = 16)
+grid(nx = NULL)
+
+
+```
+
+Overall seen, the signal in the second batch is higher than in the first,
+specifically if the QC samples from both batches are compared (green colored
+boxes or points), that show an about two-fold higher overall signal in the
+second batch. The distribution of base peak signals varies between samples with
+stretches of measurements in both batches showing lower distribution than
+samples measured before or after. Two red blood cell samples (one in the first
+and one in the second) have much lower average base peak intensities, most
+likely due to a failed injection (because the signal of the replicated
+measurement is *normal*) and should thus be excluded from the analysis. Below we
+list all samples for which one replicate yielded a more than two-fold difference
+in average base peak signal.
+
+```{r pos-bpc-outlier}
+outl <- abs(bpcs_rla) > 1
+outl_smps <- paste0(chrs_bpc$sample[outl], chrs_bpc$source[outl])
+all_outl <- paste0(chrs_bpc$sample, chrs_bpc$source) %in% outl_smps
+tab <- cbind(pData(chrs_bpc)[all_outl, ], bpc_rla = bpcs_rla[all_outl])
+
+pandoc.table(tab[order(abs(tab$bpc_rla), decreasing = TRUE), ],
+             style = "rmarkdown", split.table = Inf)
+             caption = paste0("Samples for which one replicated measurement ",
+                              "had a more than two-fold difference in average",
+                              " base peak intensity."))
+```
+
+For all of the above samples one of the two replicates yielded a more than
+two-fold difference in average base peak intensity, while the other did not. We
+might thus exclude the problematic replicate for these samples. The two
+capillary blood samples with a higher average intensity are most likely those
+that showed also higher signal in the base peak chromatogram plot above. The
+results on the total ion signal (i.e. the sum of signal per spectrum) is
+comparable, but less pronounced (data not shown).
 
 ### Summary
+
+The base peak and total ion chromatogram between samples from the various
+sources are different. The distribution of signals does also show a relatively
+large variation between all samples and batches, with the signal being generally
+higher in the second batch. Four potentially problematic samples have been
+spotted that show either more than two-fold lower or higher average base peak
+intensity than other samples from the same source. These are two RBC and two
+capillary blood samples. This is most likely caused by a failed/problematic
+injection, because one replicate is affected.
+
 
 ## Chromatographic peak detection
 
@@ -183,6 +285,14 @@ TIC and BPC values from the spectra between all samples.
 
 ## Alignment
 
+### Summary
+
 ## Correspondence
+
+- Categorize features: those with a single peak per sample and those with
+  multiple.
+- Check data for features with multiple peaks per sample.
+
+### Summary
 
 # References
