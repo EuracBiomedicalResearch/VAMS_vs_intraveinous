@@ -87,6 +87,7 @@ library(xcms)
 library(RColorBrewer)
 library(pander)
 library(doParallel)
+library(magrittr)
 registerDoParallel(3)
 register(DoparParam(), default = TRUE)
 
@@ -197,21 +198,6 @@ all other samples within the same sample group, which is in our case the sample
 source.
 
 ```{r pos-bpc-boxplot, message = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 6, fig.cap = "Distribution of the spectras' base peak signal per sample (top) and average RLA of base peak signals per sample (bottom)."}
-## function taken from BioCHRIStes... eventually add to xcms?
-rla <- function(x, group, log.transform = TRUE) {
-    if (missing(group))
-        group <- rep_len(1, length(x))
-    if (length(x) != length(group))
-        stop("length of 'x' has to match length of 'group'")
-    if (!is.factor(group))
-	group <- factor(group, levels = unique(group))
-    ## Calculate group medians.
-    if (log.transform)
-        log_x <- log2(x)
-    grp_meds <- unlist(lapply(split(log_x, group), median, na.rm = TRUE))
-    log_x - grp_meds[group]
-}
-
 bpcs <- lapply(chrs_bpc, intensity)
 xl <- c(1, length(bpcs))
 par(mfrow = c(2, 1), mar = c(0, 4.3, 0, 0.1))
@@ -240,14 +226,14 @@ measurement is *normal*) and should thus be excluded from the analysis. Below we
 list all samples for which one replicate yielded a more than two-fold difference
 in average base peak signal.
 
-```{r pos-bpc-outlier}
+```{r pos-bpc-outlier, echo = FALSE, message = FALSE, results = "asis"}
 outl <- abs(bpcs_rla) > 1
 outl_smps <- paste0(chrs_bpc$sample[outl], chrs_bpc$source[outl])
 all_outl <- paste0(chrs_bpc$sample, chrs_bpc$source) %in% outl_smps
 tab <- cbind(pData(chrs_bpc)[all_outl, ], bpc_rla = bpcs_rla[all_outl])
 
 pandoc.table(tab[order(abs(tab$bpc_rla), decreasing = TRUE), ],
-             style = "rmarkdown", split.table = Inf)
+             style = "rmarkdown", 
              caption = paste0("Samples for which one replicated measurement ",
                               "had a more than two-fold difference in average",
                               " base peak intensity."))
@@ -275,15 +261,355 @@ injection, because one replicate is affected.
 
 ## Chromatographic peak detection
 
-- Perform peak detection.
-- Compare numbers of identified peaks across samples.
-- Compare intensity distributions across samples.
-- Image of peak positions along retention time.
-- Check chromatographic peaks for some known controls.
+Key parameters for the *centWave* [@Tautenhahn:2008fx] chromatographic peak
+detection algorithm are `ppm` and `peakwidth`, the first defining the allowed
+scattering in m/z dimension of valid chromatographic peaks and the second
+defining the lower and upper bound of chromatographic peak width (in
+seconds). We empirically determine the *best* values for these parameters by
+evaluating the raw MS data for selected known compounds in QC samples. We thus
+load below the list of known compounds with the theoretical m/z value of the
+most likely ion adduct and their expected retention time window.
+
+```{r known-cmps}
+known_cmps <- read.table("data/txt/_input_Known_Compounds.txt", sep = "\t",
+                         as.is = TRUE, header = TRUE)
+rownames(known_cmps) <- known_cmps$id
+pos_cmps <- known_cmps[!is.na(known_cmps$mz_ion_pos), ]
+pos_cmps$mz <- pos_cmps$mz_ion_pos
+
+```
+
+This list of compounds is further reduced by visually inspecting the MS data and
+by re-defining the retention time window in the present data.
+
+```{r known-cmps-pos, echo = FALSE, message = FALSE, eval = FALSE}
+## This code needs to be run only once. We have to go through the images anyway
+## to manually select/refine regions.
+qc_pos <- filterFile(data_pos, file = which(data_pos$sample == "POOL"))
+
+dir.create(paste0(IMAGE_PATH, "/tmp"), showWarnings = FALSE)
+
+for (i in 1:nrow(pos_cmps)) {
+    fn <- paste0(IMAGE_PATH, "/tmp/", pos_cmps$id[i], ".png")
+    mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
+    rtr <- as.numeric(unlist(strsplit(pos_cmps$rt_range[i], split = "-")))
+    tmp_chr <- chromatogram(qc_pos, rt = rtr, mz = mzr)
+    png(fn, width = 8, height = 6, units = "cm", res = 200, pointsize = 6)
+    plot(tmp_chr)
+    dev.off()
+    ## png(fn, width = 20, height = 20, units = "cm", res = 200, pointsize = 6)
+    ## plot(filterMz(filterRt(qc_pos, rtr), mzr), type = "XIC")
+    ## dev.off()
+}
+## Now happily jump into the folder to look at the data and:
+## a) select known compounds to keep
+## b) define their rt width
+
+```
+
+For known compounds, the m/z values within a (slightly extended) retention time
+window containing the compound's peak are extracted from QC samples and a ppm
+representing the largest difference between consecutive m/z values for the ion
+are calculated (for each compound and each file). The mean and 75% quantile ppm
+across files is shown below in the table listing the compounds used in this
+analysis.
+
+```{r known-cmps-pos-define, echo = FALSE, message = FALSE, warning = FALSE, results = "asis"}
+## In this code block we manually select known compounds and define their rt
+kcs <- rbind(
+    kc_1 = c(167, 173),            # 4000
+    kc_3 = c(161, 167),            # 7000
+    kc_7 = c(161, 167),            # 800
+    kc_10 = c(178, 183),           # 5000
+    kc_13 = c(155, 167),           # 5000-20000, two peaks
+    kc_18 = c(155, 162),           # 15000, mixed single/double peak
+    kc_19 = c(155, 163),           # overlapping with kc_18
+    kc_21 = c(168, 175),           # 20000
+    kc_22 = c(31, 35),             # 6000, tricky peak, batch differences?
+    kc_23 = c(40, 53),             # 1500, very broad peak.
+    kc_24 = c(166, 171),           # 15000
+    kc_26 = c(155, 160),           # 500 (second peak next by)
+    kc_28 = c(169, 175),           # 4000
+    kc_30 = c(156, 165),           # 40000, mis-aligned (between batch?)
+    kc_31 = c(142, 153),           # 8000, double (multi)-peak with kc_32
+    kc_32 = c(142, 153),           # 8000, double peak with kc_31
+    kc_34 = c(181, 186),           # 8000
+    kc_35 = c(194, 202),           # 15000, mis-aligned
+    kc_36 = c(184, 192),           # 4000, broad peak.
+    kc_43 = c(176, 182),           # 70000
+    kc_44 = c(191, 198),           # 20000, mis-aligned
+    kc_46 = c(170, 176),           # 40000
+    kc_52 = c(191, 198),           # 30000, slightly mis-aligned
+    kc_54 = c(26, 29),             # 1000
+    kc_56 = c(165, 169),           # 2000
+    kc_61 = c(153, 157),           # 12000, slightly mis-aligned
+    kc_67 = c(185, 197),           # 15000, mis-aligned, two peaks (kc_68)
+    kc_68 = c(185, 197),           # 15000, mis-aligned, two peaks (kc_67)
+    kc_71 = c(148, 154),           # 2500, mis-aligned
+    kc_72 = c(189, 197),           # 20000, mis-aligned
+    kc_75 = c(180, 185),           # 10000, slightly mis-aligned
+    kc_79 = c(163, 170),           # 400
+    kc_81 = c(158, 168),           # 6000, mis-aligned, two peaks (kc_82)
+    kc_82 = c(158, 168),           # 6000, mis-aligned, two peaks (kc_81)
+    kc_85 = c(159, 166),           # 8000, mis-aligned
+    kc_86 = c(145, 149),           # 2500, mis-aligned (between batch?)
+    kc_88 = c(159, 165),           # 800, heavily mis-aligned
+    kc_90 = c(190, 200),           # 2000, mis-aligned
+    kc_95 = c(30, 34),             # 25000
+    kc_100 = c(178, 186),          # 6000, slightly mis-aligned, kc_101
+    kc_103 = c(145, 154),          # 2500, mis-aligned (between batch?) double peak
+    kc_106 = c(183, 189),          # 1500
+    kc_122 = c(28, 31),            # 80000
+    kc_123 = c(165, 170),          # 1500, slightly mis-aligned
+    kc_125 = c(183, 193)           # 800, double peak, kc_126.
+)
+colnames(kcs) <- c("rt_min", "rt_max")
+
+pos_cmps <- cbind(pos_cmps[rownames(kcs), ], kcs)
+
+## Filter the object based on these...
+data_pos_cmps <- vector("list", nrow(pos_cmps))
+ppm_pos_cmps <- vector("list", nrow(pos_cmps))
+## Determine for each kompound the maximal difference between consecutive m/z
+for (i in 1:nrow(pos_cmps)) {
+    data_pos_cmps[[i]] <- data_pos %>%
+        filterFile(which(data_pos$sample == "POOL")) %>%
+        filterRt(rt = c(pos_cmps$rt_min[i], pos_cmps$rt_max[i])) %>%
+        filterMz(mz = c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01))
+    tmp_data <- as(data_pos_cmps[[i]], "data.frame")
+    ppms <- vapply(split(tmp_data$mz, tmp_data$file), function(z)
+        max(diff(z)), numeric(1)) * 1e6 / pos_cmps$mz[i]
+    ppm_pos_cmps[[i]] <- c(mean(ppms), quantile(ppms, probs = 0.75),
+                           range(ppms))
+}
+names(data_pos_cmps) <- rownames(pos_cmps)
+ppm_pos_cmps <- do.call(rbind, ppm_pos_cmps)
+colnames(ppm_pos_cmps) <- c("mean_ppm", "75_quant_ppm", "min_ppm", "max_ppm")
+
+pos_cmps <- cbind(pos_cmps, ppm_pos_cmps)
+
+pandoc.table(pos_cmps[, c("name", "mz", "rt_min", "rt_max", "mean_ppm",
+                          "75_quant_ppm")], style = "rmarkdown",
+             caption = paste("List of known compounds. mean_ppm and",
+                             "75_quant_ppm represent the mean and 75% quantile",
+                             "of ppm values representing the maximal",
+                             "difference between consecutive m/z values for the",
+                             "ion."))
+```
+
+The average difference of m/z values between consecutive scans within
+chromatographic peaks of the known compounds is surprisingly large. We use thus
+a `ppm = 50` to ensure that the *regions of interest* (ROIs) in which centWave
+performs the peak detection include the full, or the largest part, of the
+chromatographic peak of the ions. The average width of chromatographic peaks is
+about 7 seconds, thus we use a `peakwidth = c(1.5, 14)`.
+
+```{r pos-centWave, message = FALSE, warning = FALSE}
+cwp <- CentWaveParam(ppm = 50,
+                     peakwidth = c(1.5, 14),
+                     snthresh = 5,
+                     mzdiff = 0.001,
+                     prefilter = c(4, 300),
+                     noise = 100)
+
+data_pos <- findChromPeaks(data_pos, param = cwp)
+save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
+
+```
+
+The table below summarizes the results of the chromatographic peak detection for
+the list of known compound.
+
+```{r pos-known-compounds-peak-summary, echo = FALSE, results = "asis", message = FALSE, warning = FALSE}
+#' Calculate summaries on peaks overlapping an MS slice.
+#'
+#' @return
+#'
+#' `numeric()` with:
+#' - average rt peak width `"rt_width"`
+#' - average mz peak width `"mz_width"`
+#' - average mz peak width in ppm `"mz_width_ppm"`
+#' - average difference of the peak m/z to the theoretical m/z in ppm `"mz_ppm"`
+#' - number of samples in which more than one peak was found `"multi_pk_count"`
+#' - percentage of samples within each group in which a peak was found.
+slice_peak_summary <- function(rtr, mzr, mz = NULL, x, group) {
+    if (missing(group))
+        group <- rep("all", length(fileNames(x)))
+    group <- factor(group, levels = unique(group))
+    if (missing(x))
+        stop("'x' has to be submitted.")
+    pks <- chromPeaks(x, rt = rtr, mz = mzr, type = "apex_within")
+    if (nrow(pks)) {
+        pks <- cbind(pks,
+                     rt_width = pks[, "rtmax"] - pks[, "rtmin"],
+                     mz_width = pks[, "mzmax"] - pks[, "mzmin"])
+        pks <- cbind(pks,
+                     mz_width_ppm = pks[, "mz_width"] * 1e6 / pks[, "mz"])
+        if (length(mz))
+            mz_ppm <- mean(abs(pks[, "mz"] - mz) * 1e6 / mz)
+        else mz_ppm <- NA_real_
+        ## Number of samples in which multiple peaks were identified.
+        pk_cnt_smpl <- table(factor(pks[, "sample"],
+                                    levels = 1:length(fileNames(x))))
+        ## Percentage per source in which a peak was identified.
+        pk_perc <- split(as.numeric(pk_cnt_smpl), group)
+        percs <- unlist(lapply(pk_perc, function(z) 100 * sum(z > 0) / length(z)))
+        c(rt_width = mean(pks[, "rt_width"]),
+          mz_width = mean(pks[, "mz_width"]),
+          mz_width_ppm = mean(pks[, "mz_width_ppm"]),
+          mz_ppm = mz_ppm,
+          multi_pk_count = sum(pk_cnt_smpl > 1),
+          percs)
+    } else {
+        percs <- rep(NA_real_, length(unique(group)))
+        names(percs) <- unique(group)
+        c(rt_width = NA_real_, mz_width = NA_real_, mz_width_ppm = NA_real_,
+          mz_ppm = NA_real_, multi_pk_count = NA_real_, )
+    }
+}
+
+## Iterate through rows to determine statistics for samples:
+pos_cmps_pks <- vector("list", nrow(pos_cmps))
+for (i in 1:nrow(pos_cmps)) {
+    rtr <- as.numeric(pos_cmps[i, c("rt_min", "rt_max")])
+    mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
+    pos_cmps_pks[[i]] <- slice_peak_summary(rtr, mzr, mz = pos_cmps$mz[i],
+                                            data_pos, data_pos$source)
+    ## A plot.
+    pks <- chromPeaks(data_pos, rt = rtr, mz = mzr, type = "apex_within")
+    rt_pks <- range(pks[, c("rtmin", "rtmax")])
+    mz_pks <- range(pks[, c("mzmin", "mzmax")])
+    fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot.png")
+    chr <- chromatogram(data_pos, rt = rt_pks, mz = mz_pks)
+    png(fn, width = 12, height = 8, units = "cm", res = 300, pointsize = 6)
+    plot(chr, col = paste0(col_source[data_pos$source], 60))
+    highlightChromPeaks(data_pos, rt = rt_pks, mz = mz_pks,
+                        border = paste0(col_source[data_pos$source], 20))
+    dev.off()
+    ## Identify samples in which we have multiple peaks.
+    tbl <- table(pks[, "sample"])
+    multi_idx <- as.numeric(names(tbl)[tbl > 1])
+    if (length(multi_idx)) {
+        fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot_multi.png")
+        png(fn, width = 12, height = 8, units = "cm", res = 300, pointsize = 6)
+        plot(chr[, multi_idx],
+             col = paste0(col_source[data_pos$source[multi_idx]], 60))
+        highlightChromPeaks(
+            filterFile(data_pos, multi_idx), rt = rt_pks, mz = mz_pks,
+            border = paste0(col_source[data_pos$source[multi_idx]], 20))
+        dev.off()
+    }
+}
+pos_cmps_pks <- data.frame(name = pos_cmps$name, do.call(rbind, pos_cmps_pks),
+                           stringsAsFactors = FALSE)
+rownames(pos_cmps_pks) <- rownames(pos_cmps)
+
+pandoc.table(pos_cmps_pks, style = "rmarkdown", 
+             caption = paste("Summary for identified chromatographic peaks of",
+                             "the known compounds. Columns rt_width, mz_width",
+                             "and mz_width_ppm show the mean widths in",
+                             "retention time and m/z dimension of the",
+                             "peaks, mz_ppm the average difference between",
+                             "the peaks' m/z and the theoretical m/z of the",
+                             "ion, multi_pk_count the number of samples in",
+                             "which more than one peak was identified",
+                             "in the rt region and the remaining columns",
+                             "the percentages of samples per group in which",
+                             "a peak was identified."))
+
+```
+
+Next we evaluate the numbers of detected peaks, m/z and retention time widths of
+the peaks and the distribution of integrated peak signals in all samples.
+
+```{r pos-peaks-summary-plot, warning = FALSE, message = FALSE, fig.cap = "Summaries of identified chromatographic peaks. Shown are the number of detected peaks, their m/z widths and their integrated signal in each measured sample.", fig.width = 12, fig.height = 10}
+## Split the peaks per sample.
+pk_list <- split.data.frame(chromPeaks(data_pos),
+                            chromPeaks(data_pos)[, "sample"])
+## Calculate mz and rt widths
+pk_list <- lapply(pk_list, function(z) {
+    cbind(z, mz_width = z[, "mzmax"] - z[, "mzmin"],
+          mz_width_ppm = (z[, "mzmax"] - z[, "mzmin"]) * 1e6 / z[, "mz"],
+          rt_width = z[, "rtmax"] - z[, "rtmin"])
+})
+
+par(mfrow = c(3, 1), mar = c(0, 4.3, 1.5, 0.1))
+barplot(unlist(lapply(pk_list, nrow)),
+        col = paste0(col_source[data_pos$source], 80),
+        ylab = "peak count", main = "Peak detection summary, POS",
+        ylim = c(0, 12000), xaxt = "n")
+grid()
+legend("top", horiz = TRUE, col = col_source, pch = 15,
+       legend = names(col_source))
+par(mar = c(0, 4.3, 0, 0.1))
+boxplot(lapply(pk_list, function(z) z[, "mz_width_ppm"]), outline = FALSE,
+        ylab = "m/z width [ppm]", varwidth = TRUE, xaxt = "n",
+        col = paste0(col_source[data_pos$source], 80))
+## boxplot(lapply(pk_list, function(z) z[, "rt_width"]), outline = FALSE,
+##         ylab = "rt width", varwidth = TRUE, xaxt = "n",
+##         col = paste0(col_source[data_pos$source], 80))
+boxplot(lapply(pk_list, function(z) log2(z[, "into"])), outline = FALSE,
+        ylab = expression(log[2]~intensity), varwidth = TRUE, xaxt = "n",
+        col = paste0(col_source[data_pos$source], 80))
+
+```
+
+The numbers of detected peaks is between 6000 and 9000 with more peaks being
+found in venous and capillary samples, while fewer were found in plasma
+samples. RBC samples show the highest variability in the numbers of identified
+peaks with three samples yielding a very low number of peaks (between 2000 and
+4000). These are from samples 11, 20 and 22 replicates 2, 1 and 2,
+respectively. The m/z widths of identified peaks is on average below 10ppm. Most
+of the peaks are between 3 and 5 seconds wide with the retention time width
+being highly comparable between samples (not shown). Interestingly, the
+distribution of integrated peak signals between samples is also highly similar,
+which is relatively unexpected, since some samples did show considerably lower
+base peak intensity signals. In the two RBC samples that had a significantly lower
+base peak intensity RLA (samples 11 and 22, replicate 2 for both)  much fewer
+peaks were however detected.
+
+The table below shows the per-sample median values
+summarized per source type.
+
+```{r pos-peaks-summary-table, echo = FALSE, message = FALSE, results = "asis"}
+## Calculate per sample mean of
+## - peak count
+## - m/z width
+## - rt width
+## Aggregate these per sample group.
+smpl_summary <- cbind(peak_count = vapply(pk_list, nrow, numeric(1)),
+                      do.call(rbind, lapply(pk_list, function(z) {
+                          c(median_mz_width = median(z[, "mz_width_ppm"]),
+                            median_rt_width = median(z[, "rt_width"]))
+                      })))
+tab <- aggregate(smpl_summary, by = list(source = data_pos$source), quantile)
+rownames(tab) <- tab[, 1]
+tab <- tab[, -1]
+pandoc.table(t(tab), style = "rmarkdown", 
+             cap = paste("Summary of peak detection results. Shown are the",
+                         "per-source quantiles of the numbers of identified",
+                         "peaks, of the median m/z and rt widths per sample."))
+```
+
+The per-sample median m/z width of the identified peaks is on average quite
+low and consistent across sample types, same as the retention time width. The
+only apparent differences are for the numbers of detected peaks. Here plasma
+samples show the lowest and venous samples the highest numbers.
 
 ### Summary
 
+The settings for the centWave-based chromatographic peak detection might still
+have to be slightly modified, specifically the `ppm` and the `mzdiff`
+parameters.
+
+On average about 8000 chromatographic peaks were identified per sample, with the
+median m/z width of these peaks being quite small.
+
+
 ## Alignment
+
+- obiwarp vs group peaks.
+
 
 ### Summary
 
