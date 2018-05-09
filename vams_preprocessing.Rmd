@@ -53,6 +53,9 @@ just_analysis <- FALSE
 ## Where to cut the chromatogram (i.e. subset to spectra within rt 0-rt_cut)
 rt_cut <- 250
 
+## Get the number of cpus allocated or fall back to 3 
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+
 ```
 
 # Introduction
@@ -88,7 +91,7 @@ library(RColorBrewer)
 library(pander)
 library(doParallel)
 library(magrittr)
-registerDoParallel(3)
+registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
 
 pd <- read.table("data/phenodata.txt", sep = "\t", as.is = TRUE, header = TRUE)
@@ -412,7 +415,9 @@ cwp <- CentWaveParam(ppm = 50,
                      prefilter = c(4, 300),
                      noise = 100)
 
-data_pos <- findChromPeaks(data_pos, param = cwp)
+system.time(
+    data_pos <- findChromPeaks(data_pos, param = cwp)
+)
 save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
 
 ```
@@ -608,15 +613,201 @@ median m/z width of these peaks being quite small.
 
 ## Alignment
 
-- obiwarp vs group peaks.
+After detection, chromatographic peaks have to be aligned to adjust for any
+retention time differences due to shifts or biases of the LC. We will use the
+*peak groups* method, that aligns samples based on *hook* peaks that are present
+in most samples. We thus first group chromatographic peaks requiring them to be
+present in 80% of the samples within each group and use these as the *hook*
+peaks. Most of the settings for the peak grouping can then be reused for the
+correspondence analysis in the next section. Note that before alignment we
+remove potentially problematic samples. We are setting `binSize = 0.025` to
+avoid chromatographic peaks with highly similar m/z values (within the same
+file) to be grouped into the same feature. This has been defined by evaluating
+the distance in m/z between chromatographic peaks in the same file in a region
+with a high peak density (see plot below).
+
+```{r pos-mz-distance-peaks-plot, message = FALSE, warning = FALSE, fig.cap = "Position of detected chromatographic peaks within a sample. Shown are chromatographic peaks in a region with high peak density. The horizontal blue line represents the bin width if binSize = 0.025 was used."}
+plotChromPeaks(filterMz(data_pos, mz = c(756, 758)), 1)
+abline(h = c(757, 757.025), col = "#0000ff80")
+
+```
+
+To define the `bw` parameter, the other important parameter to the peak
+density-based peak grouping, we evaluate the impact of different values on an
+extracted ion chromatogram with several consecutive peaks. Such MS data slices
+can be identified by visualizing the position of identified peaks on the 2
+dimensional MS data map with the `plotChromPeaks` function. The `bw` parameter
+should be defined in a way that allows separation of these peaks.
+
+```{r pos-bw-definition-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result on a m/z slice. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks in that slice along the retention time axis (y-axis lists samples). The black line shows the density distribution for a bw = 1.5, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
+
+plot_grouping <- function(x, mz, rt, param, col = "#00000080") {
+    if (missing(rt))
+        rt <- range(rtime(data_pos))
+    chrs <- chromatogram(data_pos, mz = mz, rt = rt)
+    par(mfrow = c(2, 1), mar = c(0, 4.3, 2, 0.1))
+    plot(chrs, col = col, xaxt = "n")
+    highlightChromPeaks(x, mz = mz, rt = rt, type = "point", col = col)
+    par(mar = c(2, 4.3, 0.1, 0.1))
+    plotChromPeakDensity(x, mz = mz, rt = rt, col = col, param = param)    
+}
+
+mzr <- c(202.18, 202.2)
+rtr <- c(30, 150)
+pdp_tmp <- PeakDensityParam(sampleGroups = data_pos$source, bw = 1.5)
+plot_grouping(data_pos, mz = mzr, rt = rtr, param = pdp_tmp,
+              col = paste0(col_source[data_pos$source], "80"))
+```
+
+While there might be a lot of background noise in this selected MS data slice,
+there seem to be several peaks at discrete retention times that are seem to be
+grouped correctly based on the selected bandwidth (i.e. `bw = 1.5`).
+
+In addition we evaluate the bandwidth setting on the peaks for 1-Methylhistidine
+and 3-Methylhistidine.
+
+```{r pos-bw-definition-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result for Methylhistidine. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks for 1-Methylhistidine and 3-Methylhistidine (y-axis lists samples). The black line shows the density distribution for a bw = 1.5, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
+
+
+## mzr <- pos_cmps["kc_31", "mz"] + c(0.01, -0.01)
+## rtr <- as.numeric(pos_cmps["kc_31", c("rt_min", "rt_max")])
+## rtr[1] <- rtr[1] - 2
+## rtr[2] <- rtr[2] + 2
+## plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
+##               col = paste0(col_source[data_pos$source], 80))
+
+mzr <- pos_cmps["kc_67", "mz"] + c(0.01, -0.01)
+rtr <- as.numeric(pos_cmps["kc_67", c("rt_min", "rt_max")])
+rtr[1] <- rtr[1] - 2
+rtr[2] <- rtr[2] + 2
+plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
+              col = paste0(col_source[data_pos$source], 80))
+
+## mzr <- pos_cmps["kc_81", "mz"] + c(0.01, -0.01)
+## rtr <- as.numeric(pos_cmps["kc_81", c("rt_min", "rt_max")])
+## rtr[1] <- rtr[1] - 2
+## rtr[2] <- rtr[2] + 2
+## plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
+##               col = paste0(col_source[data_pos$source], 80))
+
+```
+
+With a `bw = 1.5` it is thus possible to separate the peaks for
+1-Methylhistidine and 3-Methylhistidine. Note that this setting also separated
+the peaks for Leucine and Isoleucine, as well as for Fructose and Mannose (data
+not shown). Below we perform the peak grouping on the defined settings and
+subsequently the alignment. For the alignment we require a *hook* peak to be
+present in at least 90% of samples. We also increase the smoothing parameter for
+the loess function (`span = 0.3`). With the default value of `span = 0.2`
+alignment resulted in spectra within some files to be not ordered by retention
+time anymore. Setting the parameter `extraPeaks = 50` ensured *hook* peaks not
+being discarded because of the grouping of additional peaks within the same
+sample to the same feature. Setting this parameter to a large value resulted in
+*hook* peaks that span almost the full retention time range.
+
+```{r pos-alignment-group, message = FALSE, warning = FALSE}
+## Remove potentially problematic samples.
+bad_idx <- c(74, 178)
+data_pos <- filterFile(data_pos, file = seq_along(data_pos$sample)[-bad_idx])
+
+## Define the peak grouping parameters to define the hook peaks
+## These should be peaks present in most samples
+pdp <- PeakDensityParam(sampleGroups = data_pos$source,
+                        minFraction = 0.8,
+                        minSamples = 5,
+                        binSize = 0.025,
+                        bw = 1.5)
+data_pos <- groupChromPeaks(data_pos, param = pdp)
+
+## Next we perform the alignemnt.
+pgp <- PeakGroupsParam(minFraction = 0.9, extraPeaks = 50, span = 0.3)
+data_pos <- adjustRtime(data_pos, param = pgp)
+
+```
+
+The results from the alignment are shown below. The base peak chromatograms are
+slightly more overlapping after alignment. Also, adjustment of retention time is
+smaller 5 seconds for most of the signal, which is what we would expect from
+such a small experiment consisting of only two measurement runs.
+
+```{r pos-alignment-rtime-plot, message = FALSE, warning = FALSE, echo = FALSE, fig.width = 12, fig.height = 10, fig.cap = "Alignment result. Shown are the raw base peak chromatogram, the base peak chromatogram after alignment and the difference between the adjusted and raw retention time. Grey dots indicate hook peaks on which the alignment based."}
+
+chr_raw <- chromatogram(data_pos, aggregationFun = "max", adjustedRtime = FALSE)
+chr_adj <- chromatogram(data_pos, aggregationFun = "max")
+par(mfrow = c(3, 1), mar = c(0, 4.3, 2, 0.1))
+plot(chr_raw, col = paste0(col_source[chr_raw$source], 40), main = "BPC, raw")
+plot(chr_adj, col = paste0(col_source[chr_raw$source], 40),
+     main = "BPC, adjusted")
+plotAdjustedRtime(data_pos, col = paste0(col_source[data_pos$source], 80))
+
+```
+
+At last we generate extracted ion chromatogram plots of the raw and adjusted
+data for the list of known compounds. These are visually inspected to evaluate
+the impact of the alignment. The plots for some representative compounds are
+shown below.
+
+```{r pos-alignment-kc-plots, echo = FALSE, warning = FALSE, message = FALSE}
+
+data_raw <- dropAdjustedRtime(data_pos)
+## Visualizing alignment results for known compounds.
+for (i in 1:nrow(pos_cmps)) {
+    rtr <- as.numeric(pos_cmps[i, c("rt_min", "rt_max")])
+    mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
+    ## A plot.
+    pks <- chromPeaks(data_pos, rt = rtr, mz = mzr, type = "apex_within")
+    rtr <- range(pks[, c("rtmin", "rtmax")], rtr)
+    rtr[1] <- rtr[1] - 2
+    rtr[2] <- rtr[2] + 2
+    mz_pks <- range(pks[, c("mzmin", "mzmax")])
+    fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot_adjusted.png")
+    chr_raw <- chromatogram(data_pos, rt = rtr, mz = mz_pks,
+                            adjustedRtime = FALSE)
+    chr_adj <- chromatogram(data_pos, rt = rtr, mz = mz_pks,
+                            adjustedRtime = TRUE)
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    par(mfrow = c(2, 1), mar = c(0, 4.3, 0.5, 0))
+    plot(chr_raw, col = paste0(col_source[data_pos$source], 60), xlim = rtr)
+    grid(ny = NA)
+    highlightChromPeaks(data_raw, rt = rtr, mz = mz_pks,
+                        border = paste0(col_source[data_pos$source], 60),
+                        type = "point", pch = 16, whichPeaks = "apex_within")
+    plot(chr_adj, col = paste0(col_source[data_pos$source], 60), xaxt = "n",
+         xlim = rtr)
+    grid(ny = NA)
+    highlightChromPeaks(data_pos, rt = rtr, mz = mz_pks,
+                        border = paste0(col_source[data_pos$source], 60),
+                        type = "point", pch = 16, whichPeaks = "apex_within")
+    dev.off()    
+}
+
+
+```
+
+For most known compounds alignment worked nicely, see e.g. the plot for Serine
+or 1- and 3-Methylhistidine below, others could not be aligned perfectly, such
+as Taurine (see last image below).
+
+![](images/vams_preprocessing/kc_10_chrom_plot_adjusted.png)
+
+![](images/vams_preprocessing/kc_68_chrom_plot_adjusted.png)
+
+![](images/vams_preprocessing/kc_24_chrom_plot_adjusted.png)
 
 
 ### Summary
+
+We used the peak groups method for alignment that uses *hook* peaks expected to
+be present in all samples for the alignment. We also tried *obiwarp*, but the
+results were not that good. While most of the samples could be aligned with
+*obiwarp* (using settings `response = 20` and `localAlignment = TRUE`), some
+samples were completely misaligned.
 
 ## Correspondence
 
 - Categorize features: those with a single peak per sample and those with
   multiple.
+- Visually inspect some of these.
 - Check data for features with multiple peaks per sample.
 
 ### Summary
