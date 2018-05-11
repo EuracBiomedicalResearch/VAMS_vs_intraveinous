@@ -53,8 +53,8 @@ rt_cut <- 250
 
 ## Get the number of cpus allocated or fall back to 3 
 ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
-
 ```
+
 
 # Introduction
 
@@ -188,6 +188,62 @@ retention time range from 170 to 200 seconds. For most other parts similar the
 BPC shows similar signal suggesting that similar compounds are
 detected. Individual capillary blood samples show a distinct BPC potentially
 indicating problems in sample preparation and/or measurement.
+We next cluster samples based on their base peak chromatograms.
+
+```{r pos-bin-chr, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 12, fig.height = 12, fig.cap = "Samples clustered by base peak chromatogram. Clustering bases on pairwise correlations of base peak chromatograms."}
+## First we have to bin the chromatograms to force them having the same
+## retention times.
+chrs_bin <- bin(chrs_bpc)
+
+cormat <- cor(do.call(cbind, lapply(chrs_bin, intensity)))
+colnames(cormat) <- rownames(cormat) <- sampleNames(data_pos)
+ann <- pData(data_pos)[, c("batch", "source")]
+ann$batch <- factor(ann$batch, levels = c("31012018", "1022018"))
+res <- pheatmap(cormat, annotation_col = ann, cutree_cols = 3,
+                annotation_color = list(source = col_source))
+
+```
+
+The base peak chromatograms cluster mainly by the sample source, separating
+capillary samples and red blood cells from all other sources (i.e. plasma, all,
+and venous samples). One cluster of samples, consisting exclusively of capillary
+and red blood cell samples, mostly from the second batch, separates from all
+others samples.
+
+The samples belonging to the first cluster of capillary and red blood samples
+that separates from all other samples are listed in the table below.
+
+```{r pos-cluster-one-sample-table, echo = FALSE, results = "asis"}
+clust_one <- cutree(res$tree_col, 2)
+clust_one_idx <- which(clust_one == 2)
+tab <- pData(data_pos)[clust_one_idx, c("batch", "sample",
+                                        "source", "replicate")]
+pandoc.table(tab[order(tab$sample), ], style = "rmarkdown",
+             caption = paste("Samples separating from all others based on",
+                             "their base peak chromatograms."))
+```
+
+As described already above, the potential outlier samples are exclusively RBC
+and capillary blood samples. For individuals *12*, *16*, *17* and *19* both
+replicates are affected suggesting a potential problem with the extraction or
+the sample tube. All the others the actual measurement might be failed, since
+the other replicate was not affected. Note that all except one measurement are
+from the second batch.
+
+In the plot below the base peak chromatogram of samples from this cluster are
+highlighted.
+
+```{r pos-cluster-one-bpc-plot, echo = FALSE, fig.width = 12, fig.height = 5, fig.cap = "Base peak chromatogram with samples identified as potential outliers being highlighted in red."}
+col_clust <- c("#00000020", "#ff000080")
+plot(chrs_bpc, col = col_clust[clust_one])
+```
+
+```{r, echo = FALSE, eval = FALSE}
+## Perform the PCA
+pc <- prcomp(t(log2(do.call(cbind, lapply(chrs_bin, intensity)))),
+             scale = FALSE, center = TRUE)
+BioCHRIStes::plot_pca(pc, col = col_clust[clust_one], pc_x = 1, pc_y = 2)
+```
 
 Next we evaluate the distribution of base peak and total ion values per sample
 to identify potentially problematic samples/injections. In addition we calculate
@@ -198,7 +254,7 @@ values help to spot samples with an overall different average signal compared to
 all other samples within the same sample group, which is in our case the sample
 source.
 
-```{r pos-bpc-boxplot, message = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 6, fig.cap = "Distribution of the spectras' base peak signal per sample (top) and average RLA of base peak signals per sample (bottom)."}
+```{r pos-bpc-boxplot, message = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 6, fig.cap = "Distribution of the spectras' base peak signal per sample (top) and average RLA of base peak signals per sample (bottom). Potential outlier samples identified based on their base peak intensities are indicated with squares."}
 bpcs <- lapply(chrs_bpc, intensity)
 xl <- c(1, length(bpcs))
 par(mfrow = c(2, 1), mar = c(0, 4.3, 0, 0.1))
@@ -208,10 +264,11 @@ boxplot(lapply(bpcs, log2), col = paste0(col_source[chrs_bpc$source], 60),
 grid(nx = NULL)
 par(mar = c(3, 4.3, 0.5, 0.1))
 bpcs_rla <- rla(vapply(bpcs, mean, numeric(1)), group = chrs_bpc$source)
+pch <- rep(16, length(bpcs_rla))
+pch[clust_one_idx] <- 15
 plot(bpcs_rla, xlab = "", ylab = "average RLA", xlim = xl,
-     col = paste0(col_source[chrs_bpc$source], 80), pch = 16)
+     col = paste0(col_source[chrs_bpc$source], 80), pch = pch)
 grid(nx = NULL)
-
 
 ```
 
@@ -223,9 +280,11 @@ stretches of measurements in both batches showing lower distribution than
 samples measured before or after. Two red blood cell samples (one in the first
 and one in the second) have much lower average base peak intensities, most
 likely due to a failed injection (because the signal of the replicated
-measurement is *normal*) and should thus be excluded from the analysis. Below we
-list all samples for which one replicate yielded a more than two-fold difference
-in average base peak signal.
+measurement is *normal*) and should thus be excluded from the analysis.  Only 4
+of the 19 samples identified as potential outliers based on the correlation of
+their base peak chromatograms deviate from other samples based on their base
+peak RLA value.  Below we list all samples for which one replicate yielded a
+more than two-fold difference in average base peak signal.
 
 ```{r pos-bpc-outlier, echo = FALSE, message = FALSE, results = "asis"}
 outl <- abs(bpcs_rla) > 1
@@ -488,7 +547,7 @@ for (i in 1:nrow(pos_cmps)) {
     mz_pks <- range(pks[, c("mzmin", "mzmax")])
     fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot.png")
     chr <- chromatogram(data_pos, rt = rt_pks, mz = mz_pks)
-    png(fn, width = 12, height = 8, units = "cm", res = 300, pointsize = 6)
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
     plot(chr, col = paste0(col_source[data_pos$source], 60))
     highlightChromPeaks(data_pos, rt = rt_pks, mz = mz_pks,
                         border = paste0(col_source[data_pos$source], 20))
@@ -498,7 +557,7 @@ for (i in 1:nrow(pos_cmps)) {
     multi_idx <- as.numeric(names(tbl)[tbl > 1])
     if (length(multi_idx)) {
         fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot_multi.png")
-        png(fn, width = 12, height = 8, units = "cm", res = 300, pointsize = 6)
+        png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
         plot(chr[, multi_idx],
              col = paste0(col_source[data_pos$source[multi_idx]], 60))
         highlightChromPeaks(
@@ -710,8 +769,12 @@ sample to the same feature. Setting this parameter to a large value resulted in
 *hook* peaks that span almost the full retention time range.
 
 ```{r pos-alignment-group, message = FALSE, warning = FALSE}
-## Remove potentially problematic samples.
-bad_idx <- c(74, 178)
+## ## Remove potentially problematic samples. These were manually defined.
+## bad_idx <- c(74, 178)
+
+## Use the definition from the cluster analysis
+bad_idx <- clust_one_idx
+
 data_pos <- filterFile(data_pos, file = seq_along(data_pos$sample)[-bad_idx])
 
 ## Define the peak grouping parameters to define the hook peaks
@@ -813,9 +876,8 @@ Correspondence aims to group chromatographic peaks of the same ion across
 samples. We re-use settings for the grouping performed already in the previous
 section (i.e. the bandwidth parameter) but reduce the `binSize` parameter to
 ensure that peaks from different ions possibly close in m/z dimension are not
-grouped. Also, we reduce the `binSize` parameter to allow definition of features
-that are present in fewer individuals.
-
+grouped. Also, we reduce the `minFraction` parameter to allow definition of
+features that are present in fewer individuals.
 
 ```{r pos-correspondence}
 
@@ -840,21 +902,114 @@ for (i in 1:nrow(pos_cmps)) {
     rtr[2] <- rtr[2] + 2
     mz_pks <- range(pks[, c("mzmin", "mzmax")])
     fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot_correspondence.png")
-    plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp,
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    plot_grouping(data_pos, rt = rtr, mz = mz_pks, param = pdp,
                   col = paste0(col_source[data_pos$source], 80),
                   simulate = FALSE)
-    dev.off()    
+    dev.off()
 }
 ```
 
+The table below summarizes the results from the correspondence analysis.
+
+```{r pos-correspondence-summary-table, echo = FALSE, message = FALSE, warning = FALSE, results = "asis"}
+
+feat_summ <- featureSummary(data_pos, group = data_pos$source)
+
+#' Summarized the feature summary table by breaking it down to certain
+#' categories that represent the total number of features, total number of
+#' features with as well as fetures present in certain percentages of samples with the percentages defined with `percentages`.
+#'
+#' @param x `matrix` such as returned by the [featureSummary] function.
+#'
+#' @param percentages `numeric` defining the percentages for which counts
+#'     should be reported.
+#'
+#' @return `matrix` with total counts of features and counts of features for
+#'     which peaks have been found in certain percentages of samples. Rows
+#'     `"multi"` refer to features for which multiple chromatographic peaks
+#'     are present in a sample.
+#'
+#' @author Johannes Rainer
+featureSummaryTable <- function(x, percentages = c(10, 25, 50, 90)) {
+    ## Check input table.
+    if (!is.matrix(x) ||
+        !all(c("count", "multi_count", "multi_perc", "perc") %in% colnames(x)))
+        stop("'x' is supposed to be a matrix as returned by the ",
+             "'featureSummary' function")
+    trues <- list(total = feat_summ[, "count"] > 0,
+                  `single peaks` = feat_summ[, "multi_count"] == 0,
+                  `multi peaks` = feat_summ[, "multi_perc"] > 0
+                  )
+    if (length(percentages)) {
+        for (perc in percentages) {
+            trues <- c(trues, list(feat_summ[, "multi_perc"] > perc))
+        }
+        names(trues) <- c("total", "single peaks", "multi peaks",
+                          paste0("multi in > ", percentages, "% of samples"))
+    }
+    do.call(rbind, lapply(trues, function(is_true) {
+        cnt <- c(count = sum(is_true))
+        for (perc in percentages) {
+            nms <- names(cnt)
+            cnt <- c(cnt, sum(x[is_true, "perc"] > perc))
+            names(cnt) <- c(nms, paste0("in > ", perc, "%"))
+        }
+        cnt
+    }))
+}
+
+pandoc.table(featureSummaryTable(feat_summ), style = "rmarkdown", 
+             caption = paste("Summary of the correspondence analysis. Shown",
+                             "are counts of features, counts of features with",
+                             "at least one samples in which multiple peaks",
+                             "are present (column multi peaks) and counts",
+                             "of features with different amount of samples",
+                             "having multiple peaks."))
+
+```
+
+Half of the features are *single peak features*, i.e. have only a single
+chromatographic peak assigned per sample. The number of features present in more
+than 90% of samples is low, but not unexpected, since we do have a relatively
+heterogeneous group of individuals, and are also comparing different sample
+sources. Note also that for the *multi peaks* most have an additional peak in
+fewer than 10% of samples.
 
 
+- plot some random ones for
+  - multi peaks with less than 10%.
+  - multi peaks with > 50%.
+
+
+- Correspondence summary:
+  - total number of features.
+  - total number of single-peak/sample features
+  - number of features present in > 50% of samples per group (for each group).
+  - number of single-peak/sample features present in > 50%...
 
 
 - Categorize features: those with a single peak per sample and those with
   multiple.
 - Visually inspect some of these.
 - Check data for features with multiple peaks per sample.
+
+### Features with many peaks per sample
+
+Here we want to characterize features that have more than one chromatographic
+peak assigned in many samples. 
+
+### Features with different number of peaks depending on the source
+
+- Identify features that have > 90% samples in at least one group with a single
+  peak and > 90% of samples from another with multiple.
+
+- kc_32 would be one possible example.
+- kc_61 too.
+- kc_71
+- kc_103
+
+### Features close on m/z and with partially overlapping chromatographic peaks
 
 ### Summary
 
