@@ -89,6 +89,7 @@ library(RColorBrewer)
 library(pander)
 library(doParallel)
 library(magrittr)
+library(pheatmap)
 registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
 
