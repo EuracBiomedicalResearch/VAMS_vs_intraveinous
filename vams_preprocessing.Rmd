@@ -1386,7 +1386,7 @@ peaks in at least 50% of samples. For multi-peaks we require a feature to have
 multiple peaks in at least 75% of the samples (in which a peak was detected),
 and for single peaks to have less than 5% of samples with an additional peak.
 
-```{r multi-single-define, echo = FALSE, results = "asis"}
+```{r multi-single-define, echo = FALSE, results = "asis", warning = FALSE, message = FALSE}
 srcs <- unique(data_pos$source)
 srcs <- srcs[srcs != "all"]
 mlts <- do.call(cbind, lapply(srcs, function(src) {
@@ -1415,7 +1415,7 @@ pandoc.table(tab, style = "rmarkdown",
 
 ```
 
-```{r multi-single-plot, echo = FALSE, results = "silent"}
+```{r multi-single-plot, echo = FALSE, results = "silent", message = FALSE, warning = FALSE}
 dr <- paste0(IMAGE_PATH, "source-dependent-multi-peaks/")
 dir.create(dr, showWarnings = FALSE)
 
@@ -1453,7 +1453,7 @@ considered, overlapping features will necessarily share one or more peaks with
 each other. Below we identify overlapping features, but also features that are
 close on retention time, m/z or both dimensions.
 
-```{r overlapping-features, message = FALSE}
+```{r overlapping-features, message = FALSE, warning = FALSE}
 ovlap_fts <- overlappingFeatures(data_pos)
 ovlap_fts_rt <- overlappingFeatures(data_pos, expandRt = 2) # isomers?
 ovlap_fts_mz <- overlappingFeatures(data_pos, ppm = 40)
@@ -1481,7 +1481,7 @@ retention time and/or m/z dimension. The largest part of the feature groups
 that are close on retention time consists of only two features. There are
 however some groups that consist of more than 5 features.
 
-```{r feature-groups-close-rt, message = FALSE, echo = FALSE}
+```{r feature-groups-close-rt, message = FALSE, echo = FALSE, warning = FALSE}
 ft_grps <- ovlap_fts_rt[lengths(ovlap_fts_rt) > 5]
 
 dr <- paste0(IMAGE_PATH, "overlapping_close_rt/")
@@ -1499,7 +1499,7 @@ for (i in seq_along(ft_grps)) {
 ```
 
 
-```{r feature-groups-close-ppm, echo = FALSE, results = "hide"}
+```{r feature-groups-close-ppm, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
 ## Randomly choosing among features that are less than 50 ppm apart.
 set.seed(123)
 
@@ -1528,7 +1528,6 @@ for (i in seq_along(fts_grps)) {
 save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
 
 ```
-
 
 ### Summary
 
