@@ -1,0 +1,143 @@
+---
+title: "Normalization of the vams vs intraveneous untargeted metabolomics data"
+author: "Johannes Rainer, Giuseppe Paglia and Sigurdur Smarason"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r biocstyle, echo = FALSE, results = "asis" }
+library(BiocStyle)
+BiocStyle::markdown() 
+```
+
+**Modified**: `r file.info("vams_preprocessing.Rmd")$mtime`<br />
+**Compiled**: `r date()`
+
+```{r settings, echo = FALSE, results = "hide", message = FALSE}
+## Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+## Define paths:
+filename <- "vams_normalization"
+## Path to save the images; remove all old images.
+IMAGE_PATH <- paste0("images/", filename, "/")
+if (file.exists(IMAGE_PATH))
+    unlink(IMAGE_PATH, recursive = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE)
+## Path to store RData files
+RDATA_PATH <- paste0("data/RData/", filename, "/")
+if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+
+## Get the number of cpus allocated or fall back to 3 
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+```
+
+# Introduction
+
+In this document we perform the normalization of the feature abundances of the
+*MitYOU* project. This comprises quality assessment based on the feature's
+abundances, eventual normalization of a injection order-dependent signal drift
+within each batch (if this proves to increase signal quality as determined by
+the RSD across QC samples) and removal of between batch effects. The
+preprocessing of the data is described in file *vams_preprocessing.Rmd*.
+
+# Data import and initial quality assessment
+
+Below we load all libraries required for the analysis and the data. We also
+fill-in missing peak values, i.e. for features for which not a peak was
+identified in all samples, we integrate the signal from the feature area in
+these samples. 
+
+```{r libraries-data, message = FALSE}
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(magrittr)
+library(pheatmap)
+library(doParallel)
+registerDoParallel(ncores)
+register(DoparParam(), default = TRUE)
+
+## Define colors for the groups.
+col_source <- brewer.pal(5, name = "Set1")
+names(col_source) <- c("RBC",           # red
+                       "plasma",        # blue
+                       "all",           # green
+                       "capillary",     # purple
+                       "venous")        # orange
+
+load("data/RData/vams_preprocessing/data_pos.RData")
+```
+
+We restrict the analysis to features with multiple peaks per sample in less than
+10% of samples in which a peak was found (excluding QC samples). In addition we
+require a feature to be found in 30% of the samples of at least one group
+(excluding QC samples). An overview of features used for the analysis is given
+in the table below.
+
+```{r feature-summary, message = FALSE, echo = FALSE}
+fsumm <- featureSummary(data_pos, data_pos$source)
+study_src <- names(col_source)[names(col_source) != "all"]
+
+## Determine the proportion of samples with multi peaks in the study group.
+## Have to relate that to the number of samples in which a peak was found,
+## and not to the total number of samples!!!
+tmp <- rowSums(fsumm[, paste0(study_src, "_multi_count")]) /
+    rowSums(fsumm[, paste0(study_src, "_count")])
+
+## Further require a feature to be cound in more than 30% of samples in at
+## least one group.
+tmp_perc <- apply(fsumm[, paste0(study_src, "_perc")], 1,
+                  function (z) any(z > 30))
+fts_used <- rownames(featureDefinitions(data_pos))[which(tmp < 0.1 & tmp_perc)]
+
+
+tab <- rbind(total_features = length(fts_used),
+             `RBC > 50%` = sum(fsumm[fts_used, "RBC_perc"] > 50),
+             `plasma > 50%` = sum(fsumm[fts_used, "plasma_perc"] > 50),
+             `capillary > 50%` = sum(fsumm[fts_used, "capillary_perc"] > 50),
+             `venous > 50%` = sum(fsumm[fts_used, "venous_perc"] > 50))
+colnames(tab) <- "count"
+pandoc.table(tab, style = "rmarkdown",
+             caption = paste("Summary of features used for the analysis. All",
+                             "features found more than 30% of samples of at",
+                             "least one sample group and with less than 10%",
+                             "of samples with multiple peaks per sample among",
+                             " those in which a peak was identified are used."))
+
+```
+
+
+
+
+
+
+
+For samples for which even peak filling does not result in a
+signal we impute the data by setting it to half of the smallest value adding
+also a random value (from a normal distribution with mean being half of the
+smallest value and standard deviation being 1 fourth of the standard deviation
+of values for that feature). 
+
++ Load the data
++ Check average abundances.
++ RLA plots for abundances.
++ Adjust injection order dependent drift... do I have to? Really?
+  - In log2 scale.
+  - Use all samples, check for QCs if it improved.
+  - Overall RSD.
+  - Features with an RSD < 0.3, 0.2, 0.1.
++ Adjust batch effect.
+
+
