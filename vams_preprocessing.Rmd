@@ -1525,7 +1525,7 @@ for (i in seq_along(fts_grps)) {
 
 
 ```{r save-data, echo = FALSE, results = "hide"}
-save(data_pos, paste0(RDATA_PATH, "data_pos.RData"))
+save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
 
 ```
 
