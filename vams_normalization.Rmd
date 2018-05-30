@@ -39,6 +39,10 @@ dir.create(IMAGE_PATH, recursive = TRUE)
 RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
+use_cached <- TRUE
+if (!file.exists(paste0(RDATA_PATH, "data_pos.RData")))
+    use_cached <- FALSE
+
 ## Get the number of cpus allocated or fall back to 3 
 ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 ```
@@ -118,11 +122,135 @@ pandoc.table(tab, style = "rmarkdown",
 
 ```
 
+Next we fill-in data for samples in which no peak was detected. The signal
+integration bases on the m/z and retention time range of the features, which in
+fact represents the extent in which the apexes of the individual peaks differ
+between samples. While we will eventually exclude filled-in signals in the
+estimation of the normalization factors for the within and between-batch
+normalization, we will normalize these intensities as they might be affected by
+the same effects than the *real* signal. Imputation of signals that are still
+missing after filling in will be performed **after** normalization.
+
+Below we fill-in missing peak data by expanding the retention time window of
+each feature by a constant value (1 second on each side) and the m/z by 40 ppm.
+
+```{r fill-in, message = FALSE, warning = FALSE, eval = use_cached}
+fcp <- FillChromPeaksParam(ppm = 40, fixedRt = 1)
+data_pos <- fillChromPeaks(data_pos, param = fcp)
+
+save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
+```
+
+```{r load-again, echo = FALSE, results = "hide"}
+load(paste0(RDATA_PATH, "data_pos.RData"))
+```
+
+Next we extract the matrix with feature abundances with the integrated peak area
+(column `"into"`) used as abundance estimate. The integrated peak area of all
+peaks of a sample assigned to a feature are summed for multi-peak features. This
+is however matter for change with alternatives being `method = "maxint"` and
+`intensity = "maxo"` (select the aggregated intensity of the peak with the
+highest intensity at the apex) or `method = "maxint"` and `intensity = "into"`
+(select the largest integrated intensity). For comparison reasons we also
+extract the feature data without any filled-in information.
+
+```{r extract-featureValues, message = FALSE}
+## Use method = "sum"... for now.
+fv <- featureValues(data_pos, method = "sum", value = "into")
+fv_nofill <- featureValues(data_pos, method = "sum",
+                           value = "into", filled = FALSE)
+
+```
+
+Below we plot the number of non-missing values and the distribution of feature
+intensities first for the data without and then with filled-in data.
+
+```{r raw-nofill-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution.", fig.width = 10, fig.height = 8}
+layout(mat = matrix(1:2, ncol = 1), height = c(0.5, 1))
+par(mar = c(1, 4.5, 1, 0.5))
+barplot(apply(fv_nofill, MARGIN = 2, function(x) sum(!is.na(x))),
+        col = paste0(col_source[data_pos$source], 80), ylab = "features",
+        xaxt = "n")
+boxplot(log2(fv_nofill), ylab = expression(log[2]~feature~abundance),
+        col = paste0(col_source[data_pos$source]), cex = 0.5, pch = 16,
+        border = paste0(col_source[data_pos$source], 40))
+grid(nx = NA, ny = NULL)
+```
+
+Plasma samples (blue) have less valid values for features compared to samples
+from other sources. Some of the RBC (red) samples also have a considerably lower
+number of detected features.  The distribution of feature intensities seems to
+be comparable between samples, sources and batches.
+
+```{r raw-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution for the filled-in data.", fig.width = 10, fig.height = 8}
+layout(mat = matrix(1:2, ncol = 1), height = c(0.5, 1))
+par(mar = c(1, 4.5, 1, 0.5))
+barplot(apply(fv, MARGIN = 2, function(x) sum(!is.na(x))),
+        col = paste0(col_source[data_pos$source], 80), ylab = "features",
+        xaxt = "n")
+boxplot(log2(fv), ylab = expression(log[2]~feature~abundance),
+        col = paste0(col_source[data_pos$source]), cex = 0.5, pch = 16,
+        border = paste0(col_source[data_pos$source], 40))
+grid(nx = NA, ny = NULL)
+```
+
+After filling in missing peak values the proportion of detected features is
+highly comparable between samples. Plasma samples show however considerably
+lower signal intensities than all other samples, which reflects that less peaks
+were detected for these features in these samples (and intensities were thus
+filled-in).
+
+Next we create relative log abundance plots that represent the difference of the
+(log) abundances of each feature in a sample compared to the median abundance of
+that feature in samples from the same sample group (source).
+
+```{r raw-nofill-rla-plot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "RLA plot for the raw data. Note: outliers are not drawn.", fig.width = 10, fig.height = 5}
+boxplot(rowRla(fv_nofill, group = data_pos$source), cex = 0.5, pch = 16, 
+        col = col_source[data_pos$source], ylab = "RLA",
+        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
+        outline = FALSE, xaxt = "n", main = "raw data")
+grid(nx = NA, ny = NULL)
+abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+```
+
+The RLA plot above shows some potentially systematic drifts in signal
+intensities that includes also consistently lower average RLA values in the
+last samples from the first, and consistently higher average RLA values in the
+last samples from the second batch. Next we plot the RLA plots after filling-in
+missing peak data. 
+
+```{r raw-rla-plot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "RLA plot for the raw data after filling-in missing peak data. Note: outliers are not drawn.", fig.width = 10, fig.height = 5}
+boxplot(rowRla(fv, group = data_pos$source), cex = 0.5, pch = 16, 
+        col = col_source[data_pos$source], ylab = "RLA",
+        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
+        outline = FALSE, xaxt = "n", main = "raw data, filled-in")
+grid(nx = NA, ny = NULL)
+abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+```
+
+The RLA plots after filling-in missing peak data look similar but the trends
+become more pronounced.
+
+# Within-batch normalization
+
+- Estimate injection order dependent signal drift on all samples (not just QC
+  samples), but not on filled-in data.
+- Identify features with a strong injection index dependent drift, plot them.
+- Adjust all (including filled-in) based on the estimated factors.
+- Estimate within batch and check if per-feature slopes are similar between the
+  two batches.
+
+- Check performance of within-batch normalization using the two replicates per
+  sample: the difference between abundances should get smaller.
+- Use also the QC samples.
 
 
+# Between-batch normalization
 
+- Overall RSD should reduce.
+- RLA plots should show a lower bias.
 
-
+# Final QA
 
 For samples for which even peak filling does not result in a
 signal we impute the data by setting it to half of the smallest value adding
@@ -141,3 +269,19 @@ of values for that feature).
 + Adjust batch effect.
 
 
+
+
+```{r}
+
+tmp <- na.omit(fv)
+pc <- prcomp(t(log2(tmp)), scale = FALSE, center = TRUE)
+par(mfrow = c(1, 2))
+BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+                      pc_x = 1, pc_y = 2)
+BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+                      pc_x = 3, pc_y = 4)
+
+```
+
+
+# References
