@@ -67,7 +67,6 @@ these samples.
 library(xcms)
 library(RColorBrewer)
 library(pander)
-library(magrittr)
 library(pheatmap)
 library(doParallel)
 registerDoParallel(ncores)
@@ -134,7 +133,7 @@ missing after filling in will be performed **after** normalization.
 Below we fill-in missing peak data by expanding the retention time window of
 each feature by a constant value (1 second on each side) and the m/z by 40 ppm.
 
-```{r fill-in, message = FALSE, warning = FALSE, eval = use_cached}
+```{r fill-in, message = FALSE, warning = FALSE, eval = !use_cached}
 fcp <- FillChromPeaksParam(ppm = 40, fixedRt = 1)
 data_pos <- fillChromPeaks(data_pos, param = fcp)
 
@@ -145,60 +144,134 @@ save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
 load(paste0(RDATA_PATH, "data_pos.RData"))
 ```
 
-Next we extract the matrix with feature abundances with the integrated peak area
-(column `"into"`) used as abundance estimate. The integrated peak area of all
-peaks of a sample assigned to a feature are summed for multi-peak features. This
-is however matter for change with alternatives being `method = "maxint"` and
-`intensity = "maxo"` (select the aggregated intensity of the peak with the
-highest intensity at the apex) or `method = "maxint"` and `intensity = "into"`
-(select the largest integrated intensity). For comparison reasons we also
-extract the feature data without any filled-in information.
+Below we compare the signal distribution of detected and filled-in peak signals.
+
+```{r compare-detected-filled-plot, fig.path = IMAGE_PATH, message = FALSE, echo = FALSE, warning = FALSE, fig.cap = "Distribution of (log2) signal intensities of detected (green) and filled-in peaks (blue). Left: all features/peaks, right: only peaks of features used in the present analysis based on the above definition.", fig.width = 8, fig.height = 4}
+## First all features.
+tmp_pks <- chromPeaks(data_pos)
+dpks_dens <- density(log2(tmp_pks[tmp_pks[, "is_filled"] == 0, "into"]))
+fpks_dens <- density(log2(tmp_pks[tmp_pks[, "is_filled"] == 1, "into"]))
+yl <- c(0, max(dpks_dens$y, fpks_dens$y))
+xl <- range(dpks_dens$x, fpks_dens$x)
+
+par(mfrow = c(1, 2), mar = c(4, 4.5, 1, 0.5))
+plot(4, 4, pch = NA, xlim = xl, ylim = yl, xlab = expression(log[2]~abundance),
+     ylab = "Density", main = "All peaks")
+points(dpks_dens$x, dpks_dens$y, type = "l", lwd = 2, col = "#00ce0080")
+points(fpks_dens$x, fpks_dens$y, type = "l", lwd = 2, col = "#0000ce80")
+legend("topright", col = c("#00ce0080", "#0000ce80"), lwd = 2,
+       legend = c("detected peaks", "filled-in peaks"))
+
+## Features being used in the analysis: fts_used
+pk_idxs <- sort(unlist(featureDefinitions(data_pos)[fts_used, "peakidx"]))
+tmp_pks <- chromPeaks(data_pos)[pk_idxs, ]
+dpks_dens <- density(log2(tmp_pks[tmp_pks[, "is_filled"] == 0, "into"]))
+fpks_dens <- density(log2(tmp_pks[tmp_pks[, "is_filled"] == 1, "into"]))
+yl <- c(0, max(dpks_dens$y, fpks_dens$y))
+xl <- range(dpks_dens$x, fpks_dens$x)
+
+plot(4, 4, pch = NA, xlim = xl, ylim = yl, xlab = expression(log[2]~abundance),
+     ylab = "Density", main = "Peaks of selected features")
+points(dpks_dens$x, dpks_dens$y, type = "l", lwd = 2, col = "#00ce0080")
+points(fpks_dens$x, fpks_dens$y, type = "l", lwd = 2, col = "#0000ce80")
+legend("topright", col = c("#00ce0080", "#0000ce80"), lwd = 2,
+       legend = c("detected peaks", "filled-in peaks"))
+
+```
+
+As expected, abundances from filled-in peaks have on average lower intensities
+than truly detected peaks. Abundances are however relatively similar suggesting
+that for many missing peaks a signal from an ion was recorded, but peak
+detection failed.
+
+Next we extract the matrix of feature abundances with the integrated peak area
+(column `"into"`) used as estimate. For multi-peak features, the integrated peak
+area of all peaks of a sample assigned to a feature are summed to create the
+final abundance estimate. We might however change this in future updates with
+alternative approaches being `method = "maxint"` and `intensity = "maxo"`
+(select the aggregated intensity of the peak with the highest intensity at the
+apex) or `method = "maxint"` and `intensity = "into"` (select the largest
+integrated intensity). For comparison reasons we also extract the feature data
+without any filled-in information.
 
 ```{r extract-featureValues, message = FALSE}
 ## Use method = "sum"... for now.
-fv <- featureValues(data_pos, method = "sum", value = "into")
+fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
 fv_nofill <- featureValues(data_pos, method = "sum",
-                           value = "into", filled = FALSE)
+                           value = "into", filled = FALSE)[fts_used, ]
 
 ```
+
+
+Next we calculate and compare for each feature in QC samples the difference
+between the detected and filled-in peak data. Evaluation in QC samples avoids
+any potential differences being caused by biological differences of the compared
+samples.
+
+```{r per-feature-difference-filled-detected, message = FALSE, fig.cap = "Difference (log2 scale) of detected against filled-in signal.", fig.path = IMAGE_PATH, fig.height = 4, fig.width = 4, echo = FALSE}
+## Get only the filled-in signals.
+fv_onlyfill <- fv
+fv_onlyfill[!is.na(fv_nofill)] <- NA
+
+is_QC <- data_pos$sample == "POOL"
+M_QC <- numeric(nrow(fv_onlyfill))
+names(M_QC) <- rownames(fv_onlyfill)
+for (i in seq_along(M_QC))
+    M_QC[i] <- log2(mean(fv_nofill[i, is_QC], na.rm = TRUE)) -
+        log2(mean(fv_onlyfill[i, is_QC], na.rm = TRUE))
+boxplot(M_QC, ylab = expression(log[2](detected/filled)))
+grid(nx = NA, ny = NULL)
+
+```
+
+On average, detected peak signals are twice as high as filled-in peak
+signals. For 75% of the features detected peak signals are less than 4-fold
+higher than filled in signals. This suggests that filled-in data does to some
+extend represent signal from the ion, but mostly underestimates the *real*
+signal.
 
 Below we plot the number of non-missing values and the distribution of feature
 intensities first for the data without and then with filled-in data.
 
-```{r raw-nofill-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution.", fig.width = 10, fig.height = 8}
-layout(mat = matrix(1:2, ncol = 1), height = c(0.5, 1))
-par(mar = c(1, 4.5, 1, 0.5))
+```{r raw-nofill-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution.", fig.width = 10, fig.height = 5}
+layout(mat = matrix(1:2, ncol = 1), height = c(0.2, 0.8))
+par(mar = c(0.2, 4.5, 0.2, 0.5))
 barplot(apply(fv_nofill, MARGIN = 2, function(x) sum(!is.na(x))),
         col = paste0(col_source[data_pos$source], 80), ylab = "features",
         xaxt = "n")
 boxplot(log2(fv_nofill), ylab = expression(log[2]~feature~abundance),
         col = paste0(col_source[data_pos$source]), cex = 0.5, pch = 16,
-        border = paste0(col_source[data_pos$source], 40))
+        border = paste0(col_source[data_pos$source], 40), xaxt = "n")
 grid(nx = NA, ny = NULL)
 ```
 
 Plasma samples (blue) have less valid values for features compared to samples
 from other sources. Some of the RBC (red) samples also have a considerably lower
-number of detected features.  The distribution of feature intensities seems to
-be comparable between samples, sources and batches.
+number of detected features. The distribution of feature intensities seems to
+be comparable between samples, sources and batches. The high similarity of
+average abundances between samples visible above might however be misleading,
+since only signal from identified peaks are considered. Comparing signal
+intensities **after** filling-in missing peak data might be better, because it
+also reflects the fact that some features are simply not present in the data.
 
-```{r raw-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution for the filled-in data.", fig.width = 10, fig.height = 8}
-layout(mat = matrix(1:2, ncol = 1), height = c(0.5, 1))
-par(mar = c(1, 4.5, 1, 0.5))
+```{r raw-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution for the filled-in data.", fig.width = 10, fig.height = 5}
+
+layout(mat = matrix(1:2, ncol = 1), height = c(0.2, 0.8))
+par(mar = c(0.2, 4.5, 0.2, 0.5))
 barplot(apply(fv, MARGIN = 2, function(x) sum(!is.na(x))),
         col = paste0(col_source[data_pos$source], 80), ylab = "features",
         xaxt = "n")
 boxplot(log2(fv), ylab = expression(log[2]~feature~abundance),
         col = paste0(col_source[data_pos$source]), cex = 0.5, pch = 16,
-        border = paste0(col_source[data_pos$source], 40))
+        border = paste0(col_source[data_pos$source], 40), xaxt = "n")
 grid(nx = NA, ny = NULL)
 ```
 
 After filling in missing peak values the proportion of detected features is
-highly comparable between samples. Plasma samples show however considerably
-lower signal intensities than all other samples, which reflects that less peaks
-were detected for these features in these samples (and intensities were thus
-filled-in).
+highly comparable between samples, but more differences between abundances are
+visible. Plasma samples (blue) show however considerably lower signal
+intensities than all other samples, which reflects that less peaks were detected
+for these features in these samples (and intensities were thus filled-in).
 
 Next we create relative log abundance plots that represent the difference of the
 (log) abundances of each feature in a sample compared to the median abundance of
@@ -226,12 +299,548 @@ boxplot(rowRla(fv, group = data_pos$source), cex = 0.5, pch = 16,
         outline = FALSE, xaxt = "n", main = "raw data, filled-in")
 grid(nx = NA, ny = NULL)
 abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+text(y = -2, x = 1:length(data_pos$sample), labels = data_pos$sample, cex = 0.5,
+     srt = -90)
 ```
 
 The RLA plots after filling-in missing peak data look similar but the trends
 become more pronounced.
 
+At last we plot the average abundances per sample separately for the 4 sources
+to see whether the drift is independent of the sample source.
+
+```{r rla-split-source-plot, message = FALSE, echo = FALSE, fig.cap = "Plot of per-source average (mean) RLA values per sample.", fig.path = IMAGE_PATH, fig.width = 10, fig.height = 6}
+crlas <- colMeans(rowRla(fv, group = data_pos$source), na.rm = TRUE)
+injidx <- data_pos$inj_idx
+injidx[data_pos$batch == 1022018] <- injidx[data_pos$batch == 1022018] + 100
+
+par(mfrow = c(5, 1), mar = c(0.2, 4.5, 0.7, 0.5))
+X <- injidx[data_pos$source == "all"]
+Y <- crlas[data_pos$source == "all"]
+plot(X, xlim = range(injidx), Y, col = col_source["all"], pch = 16,
+     ylab = "RLA", xaxt = "n", type = "b", main = "Pool")
+grid()
+abline(v = 100.5, col = "grey")
+X <- injidx[data_pos$source == "RBC"]
+Y <- crlas[data_pos$source == "RBC"]
+plot(X, xlim = range(injidx), Y, col = col_source["RBC"], pch = 16,
+     ylab = "RLA", xaxt = "n", type = "b", main = "RBC")
+grid()
+abline(v = 100.5, col = "grey")
+X <- injidx[data_pos$source == "plasma"]
+Y <- crlas[data_pos$source == "plasma"]
+plot(X, xlim = range(injidx), Y, col = col_source["plasma"], pch = 16,
+     ylab = "RLA", xaxt = "n", type = "b", main = "plasma")
+grid()
+abline(v = 100.5, col = "grey")
+X <- injidx[data_pos$source == "capillary"]
+Y <- crlas[data_pos$source == "capillary"]
+plot(X, xlim = range(injidx), Y, col = col_source["capillary"], pch = 16,
+     ylab = "RLA", xaxt = "n", type = "b", main = "capillary")
+grid()
+abline(v = 100.5, col = "grey")
+X <- injidx[data_pos$source == "venous"]
+Y <- crlas[data_pos$source == "venous"]
+plot(X, xlim = range(injidx), Y, col = col_source["venous"], pch = 16,
+     ylab = "RLA", xaxt = "n", type = "b", main = "venous")
+grid()
+abline(v = 100.5, col = "grey")
+
+```
+
+The trend seen on QC pools seems, to some extend, also be present in venous
+blood samples and plasma blood samples. RBC and capillary samples show a higher
+variability. Over and above it seems also that the samples from the second batch
+have slightly higher abundances.
+
+
 # Within-batch normalization
+
+Next we perform a within-batch normalization to remove potential injection order
+dependent signal drifts. In order to define whether there is a similar injection
+order dependent signal drift in each batch (i.e. the drift is independent of the
+batch) we fit feature-wise linear models to the (log2 transformed) data of QC
+samples within each batch and compare the slopes for each feature between the
+batches. 
+
+Note that the models describing the batch effect and injection
+dependent signal drift is estimated on the detected peak data, i.e. prior to
+filling-in missing peak data.
+
+```{r estimate-slopes-per-batch, message = FALSE, warning = FALSE, fig.path = IMAGE_PATH, fig.cap = "Plot of per-feataure estimates for the injection order dependent signal drift from the two batches.", fig.width = 6, fig.height = 6, echo = FALSE}
+smps <- data_pos$batch == 31012018 & data_pos$source == "all"
+lm_btch1 <- xcms:::rowFitModel(
+                       y ~ inj_idx, y = log2(fv_nofill[, smps]),
+                       method = "lmrob",
+                       data = data.frame(inj_idx = data_pos$inj_idx[smps]))
+smps <- data_pos$batch == 1022018 & data_pos$source == "all"
+lm_btch2 <- xcms:::rowFitModel(
+                       y ~ inj_idx, y = log2(fv_nofill[, smps]),
+                       method = "lmrob",
+                       data = data.frame(inj_idx = data_pos$inj_idx[smps]))
+
+slps_btch1 <- unlist(lapply(lm_btch1, function(z)
+    ifelse(any(!is.na(z)), z$coefficients[2], NA)))
+slps_btch2 <- unlist(lapply(lm_btch2, function(z)
+    ifelse(any(!is.na(z)), z$coefficients[2], NA)))
+
+plot(slps_btch1, slps_btch2, pch = 16, col = "#00000040", xlab = "batch 1",
+     ylab = "batch 2", main = "slopes")
+grid()
+lmod <- lm(slps_btch2 ~ slps_btch1)
+abline(lmod, lty = 2)
+
+```
+
+Not unexpectedly, there is only a very low correlation of the slopes between the
+batches suggesting that the injection dependent signal drift is for the most
+part batch dependent. If the model is fitted to all values, a higher correlation
+can however be observed (data not shown).
+
+<!-- TODO CHANGE THIS -->
+
+<!-- Since the signal drift is also batch dependent we fit the model `y ~ inj_idx * -->
+<!-- batch` to the data. Because abundances measured in QC samples are supposed to be -->
+<!-- identical within and between batches we estimate the effect on QC samples -->
+<!-- only. Also, we log2 transform the data assuming the drift being caused by -->
+<!-- multiplicative effects. The linear models are fitted using robust regression -->
+<!-- \cite{Koller:2017jsa}. The fit fails for features with a) less than 4 data -->
+<!-- points to fit the data on, or b) no measurements in one of the two -->
+<!-- batches. These features will have to be adjusted using a global, not -->
+<!-- feature-specific model. We are fitting the model only on detected peak -->
+<!-- signals. An analysis including filled-in peak data was also performed (with -->
+<!-- down-weighting filled-in signals), but the fits were too dependent on the -->
+<!-- filled-in signals for cases with only few detected peaks. -->
+
+```{r fit-model-global, echo = FALSE, eval = FALSE, message = FALSE, warning = FALSE}
+smpls <- data_pos$sample == "POOL"
+pdata <- pData(data_pos)[smpls, ]
+## Replace the numeric batch column with character to avoid it being treated
+## as a continuous variable!
+pdata$batch[pdata$batch == 31012018] <- "a"
+pdata$batch[pdata$batch == 1022018] <- "b"
+
+## Fit the model on only detected peaks.
+mdls <- xcms:::rowFitModel(y ~ inj_idx * batch, data = pdata,
+                           y = log2(fv_nofill[, smpls]), method = "lmrob")
+
+
+```
+
+Fitting the linear models describing an (log scale) injection index dependent
+signal drift to the abundances of QC samples separately in each batch. The
+advantage of performing the analysis separately in each batch is that the drift
+can be adjusted also for features for which only in one of the two batches
+enough valid measurements would be available. The rationale of the separate
+analysis is that the signal drift seems to be batch dependent, thus a different
+slope would have to be estimated for each batch anyways. Below we fit linear
+models `y ~ inj_idx` to the log2 transformed abundances using robust regression
+\cite{Koller:2017jsa}. Model fitting is skipped for features with less than 4
+valid signals. 
+
+```{r fit-model-batch, message = FALSE, warning = FALSE}
+smpls_a <- data_pos$sample == "POOL" & data_pos$batch == 31012018
+mdls_a <- xcms:::rowFitModel(y ~ inj_idx, data = pData(data_pos)[smpls_a, ],
+                             y = log2(fv_nofill[, smpls_a]), method = "lmrob")
+
+smpls_b <- data_pos$sample == "POOL" & data_pos$batch == 1022018
+mdls_b <- xcms:::rowFitModel(y ~ inj_idx, data = pData(data_pos)[smpls_b, ],
+                             y = log2(fv_nofill[, smpls_b]), method = "lmrob")
+```
+
+We are next re-evaluating the model fits and removing linear models for features
+for which valid measurements do not span more than 2/3 of the injection index
+range or that have a difference between the 25 and 75% percentile of residuals
+larger than 1 (i.e. more than two-fold deviation from the linear fit).
+
+```{r fit-model-table-batch, message = FALSE, echo = FALSE, fig.cap = "Distribution of slopes of the fitted models for batch a and b. Red and blue represents slopes for models flagged because of too large range of residuals and too low span of injection index, respectively.", fig.width = 8, fig.height = 4, fig.path = IMAGE_PATH}
+
+#' Flags a single model. Returns `TRUE` if it should be flagged, `FALSE`
+#' otherwise.
+#'
+#' @param x a linear model object such as generated by [lm()] or [lmrob()].
+#' 
+#' @param diff_residual `numeric(1)` defining the cut-off to flag models with
+#'     large residuals. All models with a difference between the 25 and 75
+#'     percent percentile of residuals are removed.
+#'
+#' @return `logical(1)`
+#'
+#' @noRd
+flag_model_residual <- function(x, diff_residual = 1) {
+    if (length(x) > 1) {
+        if (diff(quantile(residuals(x), probs = c(0.25, 0.75))) > diff_residual)
+            TRUE
+        else FALSE
+    } else NA
+}
+
+#' Flags model for which valid measurements don't span a minimum required
+#' injection index range. This requires `x` being a model of the type
+#' `y ~ inj_idx`.
+#'
+#' @param x a linear model object such as generated by [lm()] or [lmrob()].
+#'
+#' @param min_range `numeric(1)` defining the minimum range. This is an absolute
+#'     value, not a percentage. Means, the function compares the
+#'     `diff(range(x$x[, column]))` with `min_range` and flags models that
+#'     don't fit that criteria (i.e. have a smaller range).
+#'
+#' @return `logical(1)`
+#'
+#' @noRd
+flag_model_inj_range <- function(x, min_range = 1, column = "inj_idx") {
+    if (length(x) > 1) {
+        if (diff(range(x$x[, column])) < min_range)
+            TRUE
+        else FALSE
+    } else NA
+}
+
+## Calculating flags for batch a
+flgs_res_a <- vapply(mdls_a, flag_model_residual, logical(1), diff_residual = 1)
+length(which(flgs_res_a))
+flgs_inj_range_a <- vapply(mdls_a, flag_model_inj_range, logical(1),
+                           min_range = diff(range(data_pos$inj_idx)) / 2)
+length(which(flgs_inj_range_a))
+
+## Calculate slopes for batch a
+slps_a <- vapply(mdls_a, function(z) {
+    if (length(z) > 1) {
+        coefficients(z)[2]
+    } else NA_real_
+}, numeric(1))
+
+## Calculate flags for batch b
+flgs_res_b <- vapply(mdls_b, flag_model_residual, logical(1), diff_residual = 1)
+flgs_inj_range_b <- vapply(mdls_b, flag_model_inj_range, logical(1),
+                           min_range = diff(range(data_pos$inj_idx)) / 2)
+
+## Calculate slopes for batch b
+slps_b <- vapply(mdls_b, function(z) {
+    if (length(z) > 1) {
+        coefficients(z)[2]
+    } else NA_real_
+}, numeric(1))
+
+## Remove model fits for the flagged friends.
+mdls_a[unique(c(which(flgs_res_a), which(flgs_inj_range_a)))] <- NA
+mdls_b[unique(c(which(flgs_res_b), which(flgs_inj_range_b)))] <- NA
+slps_a[unique(c(which(flgs_res_a), which(flgs_inj_range_a)))] <- NA
+slps_b[unique(c(which(flgs_res_b), which(flgs_inj_range_b)))] <- NA
+
+## Plot the distribution of slopes.
+par(mfrow = c(1, 2), mar = c(4, 4.5, 1, 0.5))
+hist(slps_a, breaks = 128, xlab = "slope", main = "Batch a")
+hist(slps_a[which(flgs_res_a)], breaks = 128, add = TRUE, col = "#ff000080")
+hist(slps_a[which(flgs_inj_range_a)], breaks = 128, add = TRUE,
+     col = "#0000ff80")
+hist(slps_b, breaks = 128, xlab = "slope", main = "Batch b")
+hist(slps_b[which(flgs_res_b)], breaks = 128, add = TRUE, col = "#ff000080")
+hist(slps_b[which(flgs_inj_range_b)], breaks = 128, add = TRUE,
+     col = "#0000ff80")
+
+
+```
+
+Most of the slopes representing the estimated injection order-dependent signal
+drift are 0 suggesting that most features are not affected by such a shift.
+
+The table below lists the number of features for which the model was fitted and
+the number of features for which model fitting was skipped or discarded.
+
+```{r fit-model-table, message = FALSE, eacho = FALSE, results = "asis"}
+
+tab <- cbind(batch_a = c(length(mdls_a), length(which(flgs_res_a)),
+                         length(which(flgs_inj_range_a)),
+                         sum(!is.na(mdls_a))),
+             batch_b = c(length(mdls_b), length(which(flgs_res_b)),
+                         length(which(flgs_inj_range_b)),
+                         sum(!is.na(mdls_b)))
+             )
+rownames(tab) <- c("total features", "large residuls", "low inj idx range",
+                   "valid model fits")
+pandoc.table(tab, style = "rmarkdown",
+             caption = paste("Numbers of features for which an injection",
+                             "index dependent model could be fitted."))
+```
+
+For about half of the features a model describing the injection dependent signal
+drift has been defined.
+
+Most of the slopes from the models describing the injection dependent signal
+drift are close to 0 suggesting only a relatively low influence. Only about 70
+have a absolute slope larger than 0.025.
+
+```{r features-large-slopes-plots, echo = FALSE, message = FALSE, warning = FALSE}
+
+plot_feature_slopes <- function(y, yfill, data, lmod, main) {
+    ## Two plots, one per batch.
+    par(mar = c(0.5, 4.5, 1, 0), mfrow = c(1, 2))
+    a <- which(data$batch == data$batch[1])
+    y_a <- y[a]
+    yfill_a <- yfill[a]
+    dta <- data[a, ]
+    plot(main = paste0(main, " batch a"), xlab = "", xaxt = "n",
+         ylab = expression(log[2]~abundance), ylim = range(yfill, na.rm = TRUE),
+         col = paste0(col_source[dta$source], 80), x = dta$inj_idx,
+         y = yfill_a)
+    points(x = dta$inj_idx, y = y_a, col = paste0(col_source[dta$source], 80),
+           pch = 16)
+    grid()
+    if (!missing(lmod)) {
+        if (!is.na(lmod)) {
+            if (is.finite(lmod$coefficients[1]) &
+                is.finite(lmod$coefficients[2]))
+                abline(lmod$coefficients[1:2], col = col_source["all"])
+            else warning("Feature ", ft, " has non-finite coeffs in batch a")
+        }
+    }
+    par(mar = c(0.5, 0, 1, 4.5))
+    a <- which(data$batch != data$batch[1])
+    y_a <- y[a]
+    yfill_a <- yfill[a]
+    dta <- data[a, ]
+    plot(main = paste0(main, " batch b"), xlab = "", xaxt = "n",
+         ylab = expression(log[2]~abundance), ylim = range(yfill, na.rm = TRUE),
+         col = paste0(col_source[dta$source], 80), x = dta$inj_idx,
+         y = yfill_a, yaxt = "n")
+    points(x = dta$inj_idx, y = y_a, col = paste0(col_source[dta$source], 80),
+           pch = 16)
+    grid()
+    if (!missing(lmod)) {
+        if (!is.na(lmod)) {
+            a <- sum(lmod$coefficients[c(1, 3)])
+            b <- sum(lmod$coefficients[c(2, 4)])
+            if (is.finite(a) & is.finite(b))
+                abline(a, b, col = col_source["all"])
+            else warning("Feature ", ft, " has non-finite coeffs in batch b")
+        }
+    }
+}
+
+plot_feature_slopes_batch <- function(y, yfill, data, lmoda, lmodb, main) {
+    ## Two plots, one per batch.
+    par(mar = c(0.5, 4.5, 1, 0), mfrow = c(1, 2))
+    a <- which(data$batch == data$batch[1])
+    y_a <- y[a]
+    yfill_a <- yfill[a]
+    dta <- data[a, ]
+    plot(main = paste0(main, " batch a"), xlab = "", xaxt = "n",
+         ylab = expression(log[2]~abundance), ylim = range(yfill, na.rm = TRUE),
+         col = paste0(col_source[dta$source], 80), x = dta$inj_idx,
+         y = yfill_a)
+    points(x = dta$inj_idx, y = y_a, col = paste0(col_source[dta$source], 80),
+           pch = 16)
+    grid()
+    if (!missing(lmoda)) {
+        if (length(lmoda) > 1) {
+            if (is.finite(lmoda$coefficients[1]) &
+                is.finite(lmoda$coefficients[2]))
+                abline(lmoda$coefficients[1:2], col = col_source["all"])
+            else warning("Feature ", ft, " has non-finite coeffs in batch a")
+        }
+    }
+    par(mar = c(0.5, 0, 1, 4.5))
+    a <- which(data$batch != data$batch[1])
+    y_a <- y[a]
+    yfill_a <- yfill[a]
+    dta <- data[a, ]
+    plot(main = paste0(main, " batch b"), xlab = "", xaxt = "n",
+         ylab = expression(log[2]~abundance), ylim = range(yfill, na.rm = TRUE),
+         col = paste0(col_source[dta$source], 80), x = dta$inj_idx,
+         y = yfill_a, yaxt = "n")
+    points(x = dta$inj_idx, y = y_a, col = paste0(col_source[dta$source], 80),
+           pch = 16)
+    grid()
+    if (!missing(lmodb)) {
+        if (length(lmodb) > 1) {
+            if (is.finite(lmodb$coefficients[1]) &
+                is.finite(lmodb$coefficients[2]))
+                abline(lmodb$coefficients[1:2], col = col_source["all"])
+            else warning("Feature ", ft, " has non-finite coeffs in batch a")
+        }
+    }
+}
+
+
+
+dr <- paste0(IMAGE_PATH, "largest_slopes_batch_a/")
+dir.create(dr, showWarnings = FALSE)
+fts <- names(mdls_a)[which(abs(slps_a) > 0.025)]
+
+for (ft in fts) {
+    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+        res = 200, units = "cm")
+    plot_feature_slopes_batch(y = log2(fv_nofill[ft, ]), yfill = log2(fv[ft, ]),
+                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+                              lmodb = mdls_b[[ft]], main = ft)
+    dev.off()
+}
+
+
+dr <- paste0(IMAGE_PATH, "largest_slopes_batch_b/")
+dir.create(dr, showWarnings = FALSE)
+fts <- names(mdls_b)[which(abs(slps_b) > 0.025)]
+
+for (ft in fts) {
+    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+        res = 200, units = "cm")
+    plot_feature_slopes_batch(y = log2(fv_nofill[ft, ]), yfill = log2(fv[ft, ]),
+                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+                              lmodb = mdls_b[[ft]], main = ft)
+    dev.off()
+}
+
+
+```
+
+TODO 
+- check features with good and bad F-statistic; eventually remove those with bad
+  stat.
+- Compare the effect on adjusted ones: check RSD in QC samples, difference
+  between replicates.
+
+```{r}
+adjr <- vapply(mdls, function(z) {
+    if (length(z) == 1) NA_real_
+    else summary(z)$adj.r.squared
+}, numeric(1))
+
+## 40 with poorest R squared
+dr <- paste0(IMAGE_PATH, "lowest_R_squared/")
+dir.create(dr, showWarnings = FALSE)
+fts <- names(sort(adjr))[1:20]
+
+for (ft in fts) {
+    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+        res = 200, units = "cm")
+    plot_feature_slopes(y = log2(fv_nofill[ft, ]), yfill = log2(fv[ft, ]),
+                        data = pData(data_pos), lmod = mdls[[ft]],
+                        main = ft)
+    dev.off()
+}
+## These guys are mostly those with slope ~ 0
+
+dr <- paste0(IMAGE_PATH, "largest_R_squared/")
+dir.create(dr, showWarnings = FALSE)
+fts <- names(sort(adjr, decreasing = TRUE))[1:20]
+
+for (ft in fts) {
+    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+        res = 200, units = "cm")
+    plot_feature_slopes(y = log2(fv_nofill[ft, ]), yfill = log2(fv[ft, ]),
+                        data = pData(data_pos), lmod = mdls[[ft]],
+                        main = ft)
+    dev.off()
+}
+## These are nice fits with slopes != 0
+
+## Next approach. residual for detected peaks has to be lower than 1
+mean_res <- vapply(mdls, function(z) {
+    if (length(z) == 1) NA_real_
+    else {
+        det <- weights(z) == 1
+        diff(quantile(residuals(z)[det], probs = c(0.25, 0.75), na.rm = TRUE))
+    }
+}, numeric(1))
+
+dr <- paste0(IMAGE_PATH, "mean_res_05/")
+dir.create(dr, showWarnings = FALSE)
+fts <- names(mean_res)[which(mean_res > 1)]
+
+for (ft in fts) {
+    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+        res = 200, units = "cm")
+    plot_feature_slopes(y = log2(fv_nofill[ft, ]), yfill = log2(fv[ft, ]),
+                        data = pData(data_pos), lmod = mdls[[ft]],
+                        main = ft)
+    dev.off()
+}
+## These are mostly those on which the fit used the filled-in peaks.
+
+```
+
+
+
+
+
+Fitting on only detected peaks seems to result in exaggerated estimates for the
+signal drift (see figures below, filled circles represent detected peak signals,
+open circles filled-in signal; the fit was performed on the green filled circles
+(QC samples).
+
+![](images/vams_preprocessing/largest_slopes/FT00012.png)
+
+![](images/vams_preprocessing/largest_slopes/FT08699.png)
+
+![](images/vams_preprocessing/largest_slopes/FT09128.png)
+
+Fitting on all QC signals, also filled-in abundances, has also drawbacks and can
+lead to similar overestimation of drifts, if few detected peaks and/or filled-in
+peaks are available.
+
+
+
+
+- Table with numbers of features that could be adjusted.
+- Check models with steepest slopes in a and in b.
+
+Before adjusting the data with the 
+
+
+
+```{r}
+## For quality checks, calculate:
+## - MRA (maximum ratio of abundances).
+## - RSD (relative standard deviation between replicates).
+rowMra <- function(x) {
+    mra <- function(z) {
+        z <- z[!is.na(z)]
+        if (length(z) > 1) {
+            rng <- range(z)
+            rng[2]/rng[1]
+        } else {
+            NA
+        }
+    }
+    apply(x, MARGIN = 1, mra)
+}
+
+rowRsd <- function(x) {
+    apply(x, MARGIN = 1, function(z) {
+        sd(z, na.rm = TRUE) / abs(mean(z, na.rm = TRUE))
+    })
+}
+
+rsd_pool <- rowRsd(fv[, data_pos$source == "all"])
+plot(density(rsd_pool, na.rm = TRUE))
+
+mra_pool <- rowMra(fv[, data_pos$source == "all"])
+plot(density(mra_pool, na.rm = TRUE))
+
+## Calculate RSD for replicates in each source.
+rsd_mat <- function(x, groups, ids) {
+    grps <- unique(groups)
+    res <- lapply(grps, function(z) {
+        x_sub <- x[, groups == z, drop = FALSE]
+        ids_sub <- ids[groups == z]
+        ids_unq <- unique(ids_sub)
+        tmp <- do.call(cbind, lapply(ids_unq, function(id) {
+            rowRsd(x_sub[, ids_unq == id, drop = FALSE])
+        }))
+        colnames(tmp) <- ids_unq
+        tmp
+    })
+    names(res) <- grps
+    res
+}
+
+rsds_raw <- rsd_mat(fv, data_pos$source, data_pos$sample)
+rsds_raw_mn <- lapply(rsds_raw, rowMeans, na.rm = TRUE)
+
+```
+
 
 - Estimate injection order dependent signal drift on all samples (not just QC
   samples), but not on filled-in data.
@@ -243,6 +852,9 @@ become more pronounced.
 - Check performance of within-batch normalization using the two replicates per
   sample: the difference between abundances should get smaller.
 - Use also the QC samples.
+
+- Alternative: Use lowess on QC samples to estimate an effect and adjust each
+  sample with that.
 
 
 # Between-batch normalization
@@ -280,6 +892,36 @@ BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
                       pc_x = 1, pc_y = 2)
 BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
                       pc_x = 3, pc_y = 4)
+
+```
+
+```{r}
+## This code chunk generates the data for Chiara (after filling in peak values):
+fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
+
+pd <- pData(data_pos)
+write.table(pd, file = "data/txt/sample-descriptions.txt", sep = "\t",
+            row.names = FALSE)
+
+fv <- data.frame(feature_id = rownames(fv),
+                 featureDefinitions(data_pos)[fts_used,
+                                              c("mzmed", "mzmin", "mzmax",
+                                                "rtmed", "rtmin", "rtmax")],
+                 fv, check.names = FALSE)
+write.table(fv, file = "data/txt/feature-values-filled.txt", sep = "\t",
+            row.names = FALSE)
+
+
+fv <- featureValues(data_pos, method = "sum",
+                    value = "into", filled = FALSE)[fts_used, ]
+
+fv <- data.frame(feature_id = rownames(fv),
+                 featureDefinitions(data_pos)[fts_used,
+                                              c("mzmed", "mzmin", "mzmax",
+                                                "rtmed", "rtmin", "rtmax")],
+                 fv, check.names = FALSE)
+write.table(fv, file = "data/txt/feature-values-not-filled.txt", sep = "\t",
+            row.names = FALSE)
 
 ```
 
