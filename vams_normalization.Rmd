@@ -206,7 +206,7 @@ plot_feature_slopes <- function(y, yfill, data, lmod, main) {
 #'
 #' @param is_filled `logical` indicating which of the data points are filled-in.
 plot_feature_slopes_batch <- function(y, is_filled, data, lmoda,
-                                      lmodb, main, ...) {
+                                      lmodb, main, legend = TRUE, ...) {
     ##' Two plots, one per batch.
     par(mar = c(0.5, 4.5, 1, 0), mfrow = c(1, 2))
     a <- which(data$batch == data$batch[1])
@@ -229,10 +229,12 @@ plot_feature_slopes_batch <- function(y, is_filled, data, lmoda,
             else warning("Feature ", ft, " has non-finite coeffs in batch a")
             ##' diff_res <- diff(quantile(residuals(lmoda), probs = c(0.1, 1)))
             diff_res <- mean(abs(residuals(lmoda)))
-            legend("topright",
-                   legend = c(res = format(diff_res, digits = 3),
-                              R2 = format(summary(lmoda)$adj.r.squared,
-                                          digits = 3)))
+            if (legend)
+                legend("topright",
+                       legend = paste0(c("res: ", "R2: "),
+                                       c(format(diff_res, digits = 3),
+                                         format(summary(lmoda)$adj.r.squared,
+                                                digits = 3))))
         }
     }
     par(mar = c(0.5, 0, 1, 4.5))
@@ -256,12 +258,63 @@ plot_feature_slopes_batch <- function(y, is_filled, data, lmoda,
             else warning("Feature ", ft, " has non-finite coeffs in batch a")
             ##' diff_res <- diff(quantile(residuals(lmodb), probs = c(0.1, 1)))
             diff_res <- mean(abs(residuals(lmodb)))
-            legend("topright",
-                   legend = c(res = format(diff_res, digits = 3),
-                              R2 = format(summary(lmodb)$adj.r.squared,
-                                          digits = 3)))
+            if (legend)
+                legend("topright",
+                       legend = paste0(c("res: ", "R2:"),
+                                       c(format(diff_res, digits = 3),
+                                         format(summary(lmodb)$adj.r.squared,
+                                                digits = 3))))
         }
     }
+}
+
+#' @description
+#'
+#' Apply a function to sets of columns, i.e. to sub-matrices of selected
+#' columns defined with parameter `colgroup`.
+#'
+#' @param x `matrix` with numeric values.
+#'
+#' @param colgroup `character` or `factor` defining the sets of columns.
+#'
+#' @param FUN `function` to be applied to the sub-matrix.
+#'
+#' @return `matrix` with aggregated values. Number of columns represent the
+#'     number of unique groups/sets defined by `colgroup`. Number of rows is
+#'     either one (for `FUN` being e.g. `mean`, `sum` etc) or equal to the
+#'     number of rows of `x` (for `FUN` being e.g. `rowSums`).
+apply_colgroup <- function(x, colgroup, FUN, ...) {
+    if (missing(FUN)) stop("'FUN' is missing")
+    if (length(colgroup) != ncol(x))
+        stop("length of 'colgroup' should match ncol of 'x'")
+    grps <- unique(colgroup)
+    res <- lapply(grps, function(z) {
+        x_sub <- x[, colgroup == z, drop = FALSE]
+        FUN(x_sub, ...)
+    })
+    names(res) <- grps
+    do.call(cbind, res)
+}
+
+#' @description
+#'
+#' Function to calculate row-wise maximum ratio of abundances, i.e. the ratio of
+#' the largest difference of replicated measurements.
+#'
+#' @param x `matrix` with values. These have to be in **natural scale**.
+#'
+#' @return The *MRA* or `NA` if only a single value is available.
+rowMra <- function(x) {
+    mra <- function(z) {
+        z <- z[!is.na(z)]
+        if (length(z) > 1) {
+            rng <- range(z)
+            rng[2]/rng[1]
+        } else {
+            NA
+        }
+    }
+    apply(x, MARGIN = 1, mra)
 }
 
 ```
@@ -964,9 +1017,12 @@ Next we plot the data before and after adjustment for some selected features.
 
 ```{r feature-plots-before-after-within-adjustment, echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE}
 
-##' Select one with the best R squared in batch a, one for batch b
-fts <- c(names(sort(abs(adjr_a), decreasing = TRUE)[1:5]),
-         names(sort(abs(adjr_b), decreasing = TRUE)[1:5]))
+#' Select sone with the best R squared in batch a, one for batch b
+#' fts <- c(names(sort(abs(adjr_a), decreasing = TRUE)[1:5]),
+#'          names(sort(abs(adjr_b), decreasing = TRUE)[1:5]))
+#' Manually specifying features... these are from the largest R squared and
+#' large slope candidates
+fts <- sort(c("FT00642", "FT05680", "FT07853", "FT00988", "FT09056"))
 dr <- paste0(IMAGE_PATH, "within-batch-examples/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts) {
@@ -975,7 +1031,7 @@ for (ft in fts) {
     plot_feature_slopes_batch(y = log2(fv[ft, ]),
                               is_filled = !is.na(fv_onlyfill[ft, ]),
                               data = pData(data_pos), lmoda = mdls_a[[ft]],
-                              lmodb = mdls_b[[ft]], main = ft)
+                              lmodb = mdls_b[[ft]], main = ft, legend = FALSE)
     dev.off()
     png(paste0(dr, ft, "_adj.png"), width = 10, height = 5, pointsize = 6,
         res = 200, units = "cm")
@@ -988,10 +1044,9 @@ for (ft in fts) {
     plot_feature_slopes_batch(y = fv_adj[ft, ],
                               is_filled = !is.na(fv_onlyfill[ft, ]),
                               data = pData(data_pos), lmoda = lmoda,
-                              lmodb = lmodb, main = ft)
+                              lmodb = lmodb, main = ft, legend = FALSE)
     dev.off()
 }
-##' Now these guys are not really the best/nicest ones...
 
 ```
 
@@ -999,144 +1054,112 @@ The plots below show some examples for feature signals before and after
 within-batch correction.
 
 ```{r out.width = 8, echo = FALSE, fig.cap = "Feature abundances before adjustment."}
-knitr::include_graphics(paste0(IMAGE_PATH, fts[3], "_raw.png"))
+knitr::include_graphics(paste0(IMAGE_PATH, dr, "FT09056_raw.png"))
 ```
 
 ```{r out.width = 8, echo = FALSE, fig.cap = "Feature abundances after within-batch adjustment."}
-knitr::include_graphics(paste0(IMAGE_PATH, fts[3], "_adj.png"))
+knitr::include_graphics(paste0(IMAGE_PATH, dr, "FT09056_adj.png"))
 ```
 
-Next we evaluate the impact of the within-batch normalization on the relative
-log abundances (RLA).
+For each sample two measurements are available within the same batch. These
+replicates allow to estimate the performance of the within-batch adjustment as
+the difference between measured abundances should be reduced by a successfull
+normalization. We perform this quality assessment only on **detected** peaks
+since the filled-in signal was shown to be considerably lower than detected peak
+data therefore artificially increasing the difference between replicated
+measurements if only in one sample a peak was identified.
 
-```{r rla-before-after-within-batch-plot, fig.path = IMAGE_PATH, fig.cap = "RLA plot before and after within-batch adjustment. RLA is calculated within-group, with groups being the data source (matrix) of the samples.", fig.width = 10, fig.height = 7, echo = FALSE, warning = FALSE, message = FALSE}
-##' Determine the features that have been adjusted.
-fts_adj <- rownames(fv_adj)[lengths(mdls_a) > 1 | lengths(mdls_b) > 1]
+Below we calculate the difference in abundances between replicated measurements
+on detected peak data only.
 
-par(mfrow = c(2, 1), mar = c(1, 4.5, 1, 0.5))
-boxplot(rowRla(fv, group = data_pos$source), cex = 0.5, pch = 16, 
-        col = col_source[data_pos$source], ylab = "RLA",
-        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
-        outline = FALSE, xaxt = "n", main = "raw data")
-grid(nx = NA, ny = NULL)
-abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
-boxplot(rowRla(fv_adj, group = data_pos$source, log.transform = FALSE),
-        cex = 0.5, pch = 16, col = col_source[data_pos$source], ylab = "RLA",
-        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
-        outline = FALSE, xaxt = "n", main = "raw data")
-grid(nx = NA, ny = NULL)
-abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+```{r calculate-mra, message = FALSE, warning = FALSE}
+grp <- paste(data_pos$source, data_pos$sample, sep = "-")
 
-```
+#' Remove adjusted filled-in signal
+fv_nofill_adj <- fv_adj
+fv_nofill_adj[is.na(fv_nofill)] <- NA
 
-Hardly any difference can be observed between the RLA plots of the raw and
-within-batch adjusted data can be observed. In part this might be explained with
-the estimated signal drifts being mostly only moderate and only about half of
-the features being adjusted for the injection order-dependent signal drift.
-
-Next we calculate the RSD values of QC samples (across both batches) before and
-after adjustment. Because also the signal drift was estimated on QC samples the
-RSD is expected to improve - this comparison should thus not be used for quality
-assessment.
-
-```{r within-batch-QC-rsd, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 5, fig.height = 5, fig.path = IMAGE_PATH, fig.cap = "Distribution of RSDs of QC samples before and after within-batch adjustment. Shown is data for features for which a model describing the injection order-dependent signal drift could be fitted."}
-#' @description Simple function to calculate RSD values.
-#'
-#' @param x `matrix`.
-rowRsd <- function(x) {
-    apply(x, MARGIN = 1, function(z) {
-        sd(z, na.rm = TRUE) / abs(mean(z, na.rm = TRUE))
-    })
-}
-
-rsd_raw <- rowRsd(fv[, data_pos$source == "all"])
-rsd_adj <- rowRsd(fv_adj[, data_pos$source == "all"])
-
-par(mar = c(4, 4.5, 1, 0.5))
-boxplot(list(raw = rsd_raw[fts_adj], adj = rsd_adj[fts_adj]),
-        main = "RSD of QC samples", ylab = "RSD")
-grid(nx = NA, ny = NULL)
-```
-
-The strong reduction in RSD of the QC samples (mean 0.38 before and 0.06 after
-adjustment for features for which a model could be fitted) suggests the
-injection order dependent signal drift being most likely caused by
-multiplicative effects.
-
-
-TODO:
-
-- [x] Adjust abundances.
-- [x] Check how to deal with negative values: replace by lowest intensity/2
-  for that feature.
-- [x] Plot data before and after adjustment for some selected features.
-- [x] RLA before and after adjustment.
-- [x] Estimate RSD of QC samples.
-- [ ] Difference in replicated measurements between replicates.
-
-
-```{r}
-##' For quality checks, calculate:
-##' - MRA (maximum ratio of abundances).
-##' - RSD (relative standard deviation between replicates).
-rowMra <- function(x) {
-    mra <- function(z) {
-        z <- z[!is.na(z)]
-        if (length(z) > 1) {
-            rng <- range(z)
-            rng[2]/rng[1]
-        } else {
-            NA
-        }
-    }
-    apply(x, MARGIN = 1, mra)
-}
-
-
-rsd_pool <- rowRsd(fv[, data_pos$source == "all"])
-plot(density(rsd_pool, na.rm = TRUE))
-
-mra_pool <- rowMra(fv[, data_pos$source == "all"])
-plot(density(mra_pool, na.rm = TRUE))
-
-##' Calculate RSD for replicates in each source.
-rsd_mat <- function(x, groups, ids) {
-    grps <- unique(groups)
-    res <- lapply(grps, function(z) {
-        x_sub <- x[, groups == z, drop = FALSE]
-        ids_sub <- ids[groups == z]
-        ids_unq <- unique(ids_sub)
-        tmp <- do.call(cbind, lapply(ids_unq, function(id) {
-            rowRsd(x_sub[, ids_unq == id, drop = FALSE])
-        }))
-        colnames(tmp) <- ids_unq
-        tmp
-    })
-    names(res) <- grps
-    res
-}
-
-rsds_raw <- rsd_mat(fv, data_pos$source, data_pos$sample)
-rsds_raw_mn <- lapply(rsds_raw, rowMeans, na.rm = TRUE)
+#' Calculate the raw and adjusted MRAs within batch a
+mra_raw_a <- apply_colgroup(fv_nofill[, smpls_a], grp[smpls_a], rowMra)
+mra_adj_a <- apply_colgroup(2^fv_nofill_adj[, smpls_a], grp[smpls_a], rowMra)
+#' same for batch b
+mra_raw_b <- apply_colgroup(fv_nofill[, smpls_b], grp[smpls_b], rowMra)
+mra_adj_b <- apply_colgroup(2^fv_nofill_adj[, smpls_b], grp[smpls_b], rowMra)
 
 ```
 
-- Adjust all (including filled-in) based on the estimated factors.
-- Estimate within batch and check if per-feature slopes are similar between the
-  two batches.
+To evaluate the impact of within-batch normalization we calculate the 75%
+quantile of all adjusted features' MRA per sample. 75% of adjusted features for
+a specific sample have a maximum ratio of abundances between replicated
+measurements that is smaller than this value.
 
-- Check performance of within-batch normalization using the two replicates per
-  sample: the difference between abundances should get smaller.
-- Use also the QC samples.
+```{r mra-75}
+mra_raw_a_75 <- apply(mra_raw_a[fts_adj, ], 2, quantile,
+                      probs = 0.75, na.rm = TRUE)
+mra_adj_a_75 <- apply(mra_adj_a[fts_adj, ], 2, quantile,
+                      probs = 0.75, na.rm = TRUE)
 
-- Alternative: Use lowess on QC samples to estimate an effect and adjust each
-  sample with that.
+mra_raw_b_75 <- apply(mra_raw_b[fts_adj, ], 2, quantile,
+                      probs = 0.75, na.rm = TRUE)
+mra_adj_b_75 <- apply(mra_adj_b[fts_adj, ], 2, quantile,
+                      probs = 0.75, na.rm = TRUE)
+
+```
+
+A comparison between the raw and adjusted 75% MRAs is shown in the plot below.
+
+```{r mra-75-scatterplot, message = FALSE, warning = FALSE, fig.path = IMAGE_PATH, fig.cap = "Raw against adjusted 75% MRA for replicated samples in batch a (left) and batch b (right). Each point represents the 75% MRA for one replicated sample pair. Colors indicate the sample source, the solid line the identity line.", fig.width = 12, fig.height = 6, echo = FALSE}
+
+cols_mra_a <- col_source[vapply(strsplit(colnames(mra_adj_a), "-"),
+                                function(z) z[1], character(1))]
+cols_mra_b <- col_source[vapply(strsplit(colnames(mra_adj_b), "-"),
+                                function(z) z[1], character(1))]
+
+par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1, 0.5))
+YL <- range(c(mra_raw_a_75, mra_adj_a_75), na.rm = TRUE)
+plot(mra_raw_a_75, mra_adj_a_75, main = "batch a", col = paste0(cols_mra_a, 80),
+     pch = 16, xlim = YL, ylim = YL, xlab = "raw 75% MRA", ylab = "adj 75% MRA")
+abline(0, 1)
+grid()
+legend("topleft", legend = unique(names(cols_mra_a)),
+       col = cols_mra_a[unique(names(cols_mra_a))], pch = 16)
+YL <- range(c(mra_raw_b_75, mra_adj_b_75), na.rm = TRUE)
+plot(mra_raw_b_75, mra_adj_b_75, main = "batch b", col = paste0(cols_mra_a, 80),
+     pch = 16, xlim = YL, ylim = YL, xlab = "raw 75% MRA", ylab = "adj 75% MRA")
+abline(0, 1)
+grid()
+
+```
+
+The 75% MRA of replicated samples is between 1.2 and 2.5 which is actually quite
+good, meaning that most samples have a less than 2-fold difference between
+replicated measurements. Within-batch normalization had however no big impact on
+the MRA. This might be explained by the relatively moderate signal drift present
+in only few features (for most features the estimated signal drift slope was
+about 0 suggesting an almost absent signal drift).
+
+The boxplot below summarizes the results by comparing the distribution of raw
+and adjusted 75% MRA for both batches.
+
+```{r mra-75-boxplot, message = FALSE, warning = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of 75% MRAs for the raw and adjusted features in batch a and b.", fig.width = 6, fig.height = 6, echo = FALSE}
+
+par(mar = c(6, 4.3, 1, 1), mfrow = c(1, 1))
+boxplot(data.frame(`raw btch a` = mra_raw_a_75, `adj btch a` = mra_adj_a_75,
+                   `raw btch b` = mra_raw_b_75, `adj btch b` = mra_adj_b_75),
+        ylab = "75% MRA", las = 2)
+grid(ny = NULL, nx = NA)
+```
+
+Within-batch adjustment did reduce the 75% MRAs slightly, especially the 75%
+quantile and the value ranges.
+
 
 
 # Between-batch normalization
 
 - Overall RSD should reduce.
 - RLA plots should show a lower bias.
+- Compare against RUV
 
 # Final QA
 
@@ -1158,46 +1181,56 @@ of values for that feature).
 
 
 
-
 ```{r}
 
-tmp <- na.omit(fv)
-pc <- prcomp(t(log2(tmp)), scale = FALSE, center = TRUE)
-par(mfrow = c(1, 2))
-BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
-                      pc_x = 1, pc_y = 2)
-BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
-                      pc_x = 3, pc_y = 4)
+## tmp <- na.omit(fv)
+## pc <- prcomp(t(log2(tmp)), scale = FALSE, center = TRUE)
+## par(mfrow = c(1, 2))
+## BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+##                       pc_x = 1, pc_y = 2)
+## BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+##                       pc_x = 3, pc_y = 4)
+
+## quartz()
+## tmp <- na.omit(fv_adj)
+## pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
+## par(mfrow = c(1, 2))
+## BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+##                       pc_x = 1, pc_y = 2)
+## BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+##                       pc_x = 3, pc_y = 4)
+
 
 ```
 
 ```{r}
-##' This code chunk generates the data for Chiara (after filling in peak values):
-fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
 
-pd <- pData(data_pos)
-write.table(pd, file = "data/txt/sample-descriptions.txt", sep = "\t",
-            row.names = FALSE)
+## #' This code chunk generates the data for Chiara (after filling in peak values):
+## fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
 
-fv <- data.frame(feature_id = rownames(fv),
-                 featureDefinitions(data_pos)[fts_used,
-                                              c("mzmed", "mzmin", "mzmax",
-                                                "rtmed", "rtmin", "rtmax")],
-                 fv, check.names = FALSE)
-write.table(fv, file = "data/txt/feature-values-filled.txt", sep = "\t",
-            row.names = FALSE)
+## pd <- pData(data_pos)
+## write.table(pd, file = "data/txt/sample-descriptions.txt", sep = "\t",
+##             row.names = FALSE)
+
+## fv <- data.frame(feature_id = rownames(fv),
+##                  featureDefinitions(data_pos)[fts_used,
+##                                               c("mzmed", "mzmin", "mzmax",
+##                                                 "rtmed", "rtmin", "rtmax")],
+##                  fv, check.names = FALSE)
+## write.table(fv, file = "data/txt/feature-values-filled.txt", sep = "\t",
+##             row.names = FALSE)
 
 
-fv <- featureValues(data_pos, method = "sum",
-                    value = "into", filled = FALSE)[fts_used, ]
+## fv <- featureValues(data_pos, method = "sum",
+##                     value = "into", filled = FALSE)[fts_used, ]
 
-fv <- data.frame(feature_id = rownames(fv),
-                 featureDefinitions(data_pos)[fts_used,
-                                              c("mzmed", "mzmin", "mzmax",
-                                                "rtmed", "rtmin", "rtmax")],
-                 fv, check.names = FALSE)
-write.table(fv, file = "data/txt/feature-values-not-filled.txt", sep = "\t",
-            row.names = FALSE)
+## fv <- data.frame(feature_id = rownames(fv),
+##                  featureDefinitions(data_pos)[fts_used,
+##                                               c("mzmed", "mzmin", "mzmax",
+##                                                 "rtmed", "rtmin", "rtmax")],
+##                  fv, check.names = FALSE)
+## write.table(fv, file = "data/txt/feature-values-not-filled.txt", sep = "\t",
+##             row.names = FALSE)
 
 ```
 
