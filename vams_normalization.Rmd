@@ -444,7 +444,7 @@ between the detected and filled-in peak data. Evaluation in QC samples avoids
 any potential differences being caused by biological differences of the compared
 samples.
 
-```{r per-feature-difference-filled-detected, message = FALSE, fig.cap = "Difference (log2 scale) of detected against filled-in signal.", fig.path = IMAGE_PATH, fig.height = 4, fig.width = 4, echo = FALSE}
+```{r per-feature-difference-filled-detected, message = FALSE, fig.cap = "Difference (log2 scale) of detected against filled-in signal.", fig.path = IMAGE_PATH, fig.height = 5, fig.width = 5, echo = FALSE}
 ##' Get only the filled-in signals.
 fv_onlyfill <- fv
 fv_onlyfill[!is.na(fv_nofill)] <- NA
@@ -745,6 +745,11 @@ mdls_b[unique(c(which(flgs_res_b), which(flgs_inj_range_b)))] <- NA
 slps_a[unique(c(which(flgs_res_a), which(flgs_inj_range_a)))] <- NA
 slps_b[unique(c(which(flgs_res_b), which(flgs_inj_range_b)))] <- NA
 
+#' Identify the features that are adjusted either in batch a or b
+fts_adj <- sort(unique(c(
+    names(mdls_a)[!is.na(mdls_a)],
+    names(mdls_b)[!is.na(mdls_b)]
+)))
 ```
 
 Most of the slopes representing the estimated injection order-dependent signal
@@ -891,11 +896,11 @@ Some examples for nice model fits for features with large injection order
 dependent drifts are shown below.
 
 ```{r out.width = "750px", echo = FALSE}
-knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/FT00642.png")
+knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/FT00642.png"))
 ```
 
 ```{r out.width = "750px", echo = FALSE}
-knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/FT07853.png")
+knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/FT07853.png"))
 ```
 
 
@@ -943,11 +948,15 @@ Examples for linear models that were **excluded** because of too large residuals
 are shown below (the first excluded in batch a and the second in batch b).
 
 ```{r out.width = "750px", echo = FALSE}
-knitr::include_graphics(paste0(IMAGE_PATH, "largest_slopes_batch_a_residuals_excluded/FT06751.png")
+knitr::include_graphics(
+           paste0(IMAGE_PATH,
+                  "largest_slopes_batch_a_residuals_excluded/FT06751.png"))
 ```
 
 ```{r out.width = "750px", echo = FALSE}
-knitr::include_graphics(paste0(IMAGE_PATH, "largest_slopes_batch_b_residuals_excluded/FT05318.png")
+knitr::include_graphics(
+           paste0(IMAGE_PATH,
+                  "largest_slopes_batch_b_residuals_excluded/FT05318.png"))
 ```
 
 
@@ -999,7 +1008,7 @@ minimum non negative intensity for that feature. Note however that quite some
 log2 abundances are smaller than 1, which represents negative intensities in
 natural scale.
 
-```{r apply-within-batch-adjustment, message = FALSE, warning = FALSE, eval = FALSE}
+```{r apply-within-batch-adjustment, message = FALSE, warning = FALSE}
 #' Applying the adjustment to the full (filled-in) data. Note that adjustment
 #' of the detected peak values did not result in negative log2 abundances.
 fv_adj <- fv
@@ -1015,7 +1024,7 @@ fv_adj[, smpls_b] <- xcms:::applyModelAdjustment(
 
 Next we plot the data before and after adjustment for some selected features.
 
-```{r feature-plots-before-after-within-adjustment, echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE}
+```{r feature-plots-before-after-within-adjustment, echo = FALSE, message = FALSE, warning = FALSE}
 
 #' Select sone with the best R squared in batch a, one for batch b
 #' fts <- c(names(sort(abs(adjr_a), decreasing = TRUE)[1:5]),
@@ -1054,11 +1063,11 @@ The plots below show some examples for feature signals before and after
 within-batch correction.
 
 ```{r out.width = 8, echo = FALSE, fig.cap = "Feature abundances before adjustment."}
-knitr::include_graphics(paste0(IMAGE_PATH, dr, "FT09056_raw.png"))
+knitr::include_graphics(paste0(dr, "FT09056_raw.png"))
 ```
 
 ```{r out.width = 8, echo = FALSE, fig.cap = "Feature abundances after within-batch adjustment."}
-knitr::include_graphics(paste0(IMAGE_PATH, dr, "FT09056_adj.png"))
+knitr::include_graphics(paste0(dr, "FT09056_adj.png"))
 ```
 
 For each sample two measurements are available within the same batch. These
