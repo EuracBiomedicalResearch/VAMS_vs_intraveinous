@@ -144,7 +144,7 @@ flag_model_mean_residual <- function(x, cut_off = 0.5) {
 #' @noRd
 flag_model_inj_range <- function(x, min_range = 1, column = "inj_idx") {
     if (length(x) > 1)
-        diff(range(x$x[, column])) < min_range
+        diff(range(x$model[, column])) < min_range
     else NA
 }
 
@@ -326,7 +326,7 @@ require a feature to be found in 30% of the samples of at least one group
 (excluding QC samples). An overview of features used for the analysis is given
 in the table below.
 
-```{r feature-summary, message = FALSE, echo = FALSE}
+```{r feature-summary, message = FALSE, echo = FALSE, results = "asis"}
 fsumm <- featureSummary(data_pos, data_pos$source)
 study_src <- names(col_source)[names(col_source) != "all"]
 
@@ -678,12 +678,14 @@ for features with less than 4 valid signals.
 smpls_a <- data_pos$batch == 31012018
 qcs_a <- data_pos$sample == "POOL" & smpls_a
 mdls_a <- xcms:::rowFitModel(y ~ inj_idx, data = pData(data_pos)[qcs_a, ],
-                             y = log2(fv_nofill[, qcs_a]), method = "lmrob")
+                             y = log2(fv_nofill[, qcs_a]), method = "lmrob",
+                             minVals = 4)
 
 smpls_b <- data_pos$batch == 1022018
 qcs_b <- data_pos$sample == "POOL" & smpls_b
 mdls_b <- xcms:::rowFitModel(y ~ inj_idx, data = pData(data_pos)[qcs_b, ],
-                             y = log2(fv_nofill[, qcs_b]), method = "lmrob")
+                             y = log2(fv_nofill[, qcs_b]), method = "lm",
+                             minVals = 4)
 ```
 
 We next remove fitted linear models for features for which valid measurements do
@@ -759,7 +761,7 @@ injection index range filter removed most of the fits with the largest slopes.
 The table below lists the number of features for which the model was fitted and
 the number of features for which model fitting was skipped or discarded.
 
-```{r fit-model-table, message = FALSE, eacho = FALSE, results = "asis"}
+```{r fit-model-table, message = FALSE, echo = FALSE, results = "asis"}
 
 tab <- cbind(batch_a = c(length(mdls_a), length(which(flgs_res_a)),
                          length(which(flgs_inj_range_a)),
@@ -1009,8 +1011,9 @@ log2 abundances are smaller than 1, which represents negative intensities in
 natural scale.
 
 ```{r apply-within-batch-adjustment, message = FALSE, warning = FALSE}
-#' Applying the adjustment to the full (filled-in) data. Note that adjustment
-#' of the detected peak values did not result in negative log2 abundances.
+#' Applying the adjustment to the full (filled-in) data. Note that
+#' adjustment of the detected peak values did not result in negative
+#' log2 abundances.
 fv_adj <- fv
 fv_adj[, smpls_a] <- xcms:::applyModelAdjustment(
                                 y = log2(fv[, smpls_a]), lmod = mdls_a,
@@ -1038,7 +1041,7 @@ for (ft in fts) {
     png(paste0(dr, ft, "_raw.png"), width = 10, height = 5, pointsize = 6,
         res = 200, units = "cm")
     plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = !is.na(fv_onlyfill[ft, ]),
+                              is_filled = is.na(fv_nofill[ft, ]),
                               data = pData(data_pos), lmoda = mdls_a[[ft]],
                               lmodb = mdls_b[[ft]], main = ft, legend = FALSE)
     dev.off()
@@ -1051,7 +1054,7 @@ for (ft in fts) {
     lmodb <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[qcs_b, ],
                              method = "lmrob", y = y_sub[qcs_b])
     plot_feature_slopes_batch(y = fv_adj[ft, ],
-                              is_filled = !is.na(fv_onlyfill[ft, ]),
+                              is_filled = is.na(fv_nofill[ft, ]),
                               data = pData(data_pos), lmoda = lmoda,
                               lmodb = lmodb, main = ft, legend = FALSE)
     dev.off()
@@ -1192,54 +1195,54 @@ of values for that feature).
 
 ```{r}
 
-## tmp <- na.omit(fv)
-## pc <- prcomp(t(log2(tmp)), scale = FALSE, center = TRUE)
-## par(mfrow = c(1, 2))
-## BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
-##                       pc_x = 1, pc_y = 2)
-## BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
-##                       pc_x = 3, pc_y = 4)
+#' tmp <- na.omit(fv)
+#' pc <- prcomp(t(log2(tmp)), scale = FALSE, center = TRUE)
+#' par(mfrow = c(1, 2))
+#' BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+#'                       pc_x = 1, pc_y = 2)
+#' BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+#'                       pc_x = 3, pc_y = 4)
 
-## quartz()
-## tmp <- na.omit(fv_adj)
-## pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
-## par(mfrow = c(1, 2))
-## BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
-##                       pc_x = 1, pc_y = 2)
-## BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
-##                       pc_x = 3, pc_y = 4)
+#' quartz()
+#' tmp <- na.omit(fv_adj)
+#' pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
+#' par(mfrow = c(1, 2))
+#' BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+#'                       pc_x = 1, pc_y = 2)
+#' BioCHRIStes::plot_pca(pc, col = col_source[data_pos$source],
+#'                       pc_x = 3, pc_y = 4)
 
 
 ```
 
 ```{r}
 
-## #' This code chunk generates the data for Chiara (after filling in peak values):
-## fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
+#' #' This code chunk generates the data for Chiara (after filling in peak values):
+#' fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
 
-## pd <- pData(data_pos)
-## write.table(pd, file = "data/txt/sample-descriptions.txt", sep = "\t",
-##             row.names = FALSE)
+#' pd <- pData(data_pos)
+#' write.table(pd, file = "data/txt/sample-descriptions.txt", sep = "\t",
+#'             row.names = FALSE)
 
-## fv <- data.frame(feature_id = rownames(fv),
-##                  featureDefinitions(data_pos)[fts_used,
-##                                               c("mzmed", "mzmin", "mzmax",
-##                                                 "rtmed", "rtmin", "rtmax")],
-##                  fv, check.names = FALSE)
-## write.table(fv, file = "data/txt/feature-values-filled.txt", sep = "\t",
-##             row.names = FALSE)
+#' fv <- data.frame(feature_id = rownames(fv),
+#'                  featureDefinitions(data_pos)[fts_used,
+#'                                               c("mzmed", "mzmin", "mzmax",
+#'                                                 "rtmed", "rtmin", "rtmax")],
+#'                  fv, check.names = FALSE)
+#' write.table(fv, file = "data/txt/feature-values-filled.txt", sep = "\t",
+#'             row.names = FALSE)
 
 
-## fv <- featureValues(data_pos, method = "sum",
-##                     value = "into", filled = FALSE)[fts_used, ]
+#' fv <- featureValues(data_pos, method = "sum",
+#'                     value = "into", filled = FALSE)[fts_used, ]
 
-## fv <- data.frame(feature_id = rownames(fv),
-##                  featureDefinitions(data_pos)[fts_used,
-##                                               c("mzmed", "mzmin", "mzmax",
-##                                                 "rtmed", "rtmin", "rtmax")],
-##                  fv, check.names = FALSE)
-## write.table(fv, file = "data/txt/feature-values-not-filled.txt", sep = "\t",
-##             row.names = FALSE)
+#' fv <- data.frame(feature_id = rownames(fv),
+#'                  featureDefinitions(data_pos)[fts_used,
+#'                                               c("mzmed", "mzmin", "mzmax",
+#'                                                 "rtmed", "rtmin", "rtmax")],
+#'                  fv, check.names = FALSE)
+#' write.table(fv, file = "data/txt/feature-values-not-filled.txt", sep = "\t",
+#'             row.names = FALSE)
 
 ```
 
