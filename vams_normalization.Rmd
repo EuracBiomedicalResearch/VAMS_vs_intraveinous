@@ -53,8 +53,36 @@ In this document we perform the normalization of the feature abundances of the
 *MitYOU* project. This comprises quality assessment based on the feature's
 abundances, eventual normalization of a injection order-dependent signal drift
 within each batch (if this proves to increase signal quality as determined by
-the RSD across QC samples) and removal of between batch effects. The
-preprocessing of the data is described in file *vams_preprocessing.Rmd*.
+the comparison of abundances from replicated measurements) and removal of
+between batch effects. The preprocessing of the data is described in file
+*vams_preprocessing.Rmd*.
+
+## Metabolomics data normalization
+
+Untargeted meatabolomics data biased by a variety of different biological and
+technical variances. Biological variances include e.g. the amount or
+concentration of biofluids while technical variances comprise batch effects
+(laboratory conditions, reagent lots), sample degradation over time in long runs
+of samples, matrix specific effects (such as ion suppression), temperature
+changes within instruments, and variations during sample extraction and
+preparation. Sample degratation over time in long runs, oxidization or build-up
+of contaminants can lead to signal drifts dependent on the injection order.
+
+Different approaches for the normalization of metabolomics data exist (briefly
+described also in [@Livera:2015bo]). Batch correction methods use per-feature
+regression models to remove batch effects and signal drifts
+[@Dunn:2011bq],[@Wang:2013fe],[@Wehrens:2016ie] but don't usually remove biases
+related to the processing of individual samples (with the exception of Batch
+Normalizer [@Wang:2013fe]). Other methods such as scaling (e.g. by the total sum
+of signal) or RUV (removal of unwanted variance) [@Livera:2015bo] adjust for
+such sample-specific biases, but do not remove feature specific signal drifts.
+
+Combinations of such feature-wise and sample-wise normalization strategies
+should be possible. Feature-wise normalization approaches, if applied before
+normalization adjusting between sample differences, should however be based only
+on QC samples, as these, at least within the same batch, should be independent
+of any sample processing differences.
+
 
 # Data import and initial quality assessment
 
@@ -820,8 +848,6 @@ for (ft in fts) {
 
 ```
 
-
-
 ```{r features-large-r-squared, echo = FALSE, message = FALSE, warning = FALSE}
 #' Plot features with largest or smallest R squared.
 
@@ -1074,12 +1100,14 @@ knitr::include_graphics(paste0(dr, "FT09056_adj.png"))
 ```
 
 For each sample two measurements are available within the same batch. These
-replicates allow to estimate the performance of the within-batch adjustment as
-the difference between measured abundances should be reduced by a successfull
-normalization. We perform this quality assessment only on **detected** peaks
-since the filled-in signal was shown to be considerably lower than detected peak
-data therefore artificially increasing the difference between replicated
-measurements if only in one sample a peak was identified.
+replicates derive from the same original tube (sample), but all further
+processing was performed separately. LLLLL These replicates can thus be used to
+estimate the performance of the within-batch adjustment as the difference
+between measured abundances should be reduced by a successfull normalization. We
+perform this quality assessment only on **detected** peaks since the filled-in
+signal was shown to be considerably lower than detected peak data therefore
+artificially increasing the difference between replicated measurements if only
+in one sample a peak was identified.
 
 Below we calculate the difference in abundances between replicated measurements
 on detected peak data only.
@@ -1169,6 +1197,76 @@ quantile and the value ranges.
 
 # Between-batch normalization
 
+The between-batch normalization aims to remove batch specific effects from the
+data. These batch effects are assumed to affect each sample measured in the same
+batch (same run, from the same plate) in the same way. The effect is estimated
+based on abundances in QC samples and differences of these between batches are
+leveled. Note that this between-batch normalization does **not** account for
+biases that result from pipetting or injection amount differences. Such effects
+would have to be normalized based on a per-sample normalization strategy similar
+to what is performed in gene expression experiments.
+
+```{r estimate-betwee-batch-effect, message = FALSE, warning = FALSE}
+#' Use the linear model fit on DETECTED QC samples
+data_pos$batch <- factor(data_pos$batch) #' avoid batch being treated as number
+mdls_batch <- xcms:::rowFitModel(y ~ batch,
+                                 data = pData(data_pos)[qcs_a | qcs_b, ],
+                                 y = fv_nofill_adj[, qcs_a | qcs_b],
+                                 method = "lm", minVals = 6)
+
+#' get the slopes and the intercepts.
+mdls_slp <- vapply(mdls_batch, function(z) {
+    if (length(z) > 1) z$coefficients[2]
+    else NA_real_
+}, numeric(1))
+mdls_int <- vapply(mdls_batch, function(z) {
+    if (length(z) > 1) z$coefficients[1]
+    else NA_real_
+}, numeric(1))
+
+par(mfrow = c(1, 2))
+hist(mdls_int)
+hist(mdls_slp)
+
+```
+
+
+
+**Questions**: 
+
+- QC pool: is it the pool of all samples from batch a and b, or is the QC pool
+  in batch a only the pool from samples from batch a and the QC pool in batch b
+  the pool from samples from batch b? Pool is the same in both plates.
+- Replicated measurements: technical replicates? Same blood source (tube)
+  sampling was done twice.
+- Batch effect: global or per-feature based? Can test that: compare the
+  distribution of per-feature batch effects. If they are not strongly
+  different -> global. **Answer** combination of global and feature specific. To
+  what amount -> use the CHRIS normalization data set.
+- What with per-sample normalization? That would account for pipetting
+  differences or injection amount differences resulting in a different amount of
+  sample being processed. There is nothing such reverse transcription or
+  amplification efficiency that we would have to consider here - still.
+  **Siggi**: from a liquid sample, always the same amount is taken, thus the
+  amount should be the same for all samples. Nevertheless, many people do such
+  per-sample normalization: using internal standards (added at the beginning;
+  can still be tricky) or approaches such as normalizing on the total sum of
+  signal.
+
+
+# Per-sample normalization
+
+Approaches:
+- Use internal standards.
+- Use global sum.
+- Use RNAseq approach (stable against high abundance compounds).
+- RUV.
+
+Evaluate:
+- Difference between technical replicates **has** to improve by this.
+
+
+Assess performance:
 - Overall RSD should reduce.
 - RLA plots should show a lower bias.
 - Compare against RUV
