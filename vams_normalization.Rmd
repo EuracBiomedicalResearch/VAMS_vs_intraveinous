@@ -95,10 +95,12 @@ these samples.
 library(xcms)
 library(RColorBrewer)
 library(pander)
-library(pheatmap)
+## register(bpstart(MulticoreParam(ncores)))
 library(doParallel)
 registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
+library(DESeq2)
+library(edgeR)
 
 ##' Define colors for the groups.
 col_source <- brewer.pal(5, name = "Set1")
@@ -109,6 +111,7 @@ names(col_source) <- c("RBC",           #' red
                        "venous")        #' orange
 
 load("data/RData/vams_preprocessing/data_pos.RData")
+data_pos$batch <- factor(data_pos$batch)
 ```
 
 ```{r local-utility-functions, echo = FALSE, message = FALSE}
@@ -347,7 +350,6 @@ rowMra <- function(x) {
 
 ```
 
-
 We restrict the analysis to features with multiple peaks per sample in less than
 10% of samples in which a peak was found (excluding QC samples). In addition we
 require a feature to be found in 30% of the samples of at least one group
@@ -461,8 +463,8 @@ without any filled-in information.
 
 ```{r extract-featureValues, message = FALSE}
 ##' Use method = "sum"... for now.
-fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
-fv_nofill <- featureValues(data_pos, method = "sum",
+fv <- featureValues(data_pos, method = "max", value = "into")[fts_used, ]
+fv_nofill <- featureValues(data_pos, method = "max",
                            value = "into", filled = FALSE)[fts_used, ]
 
 ```
@@ -616,6 +618,394 @@ The trend seen on QC pools seems, to some extend, also be present in venous
 blood samples and plasma blood samples. RBC and capillary samples show a higher
 variability. Over and above it seems also that the samples from the second batch
 have slightly higher abundances.
+
+
+## Internal standards
+
+Internal standards have been added to the sample mix after sample processing and
+before injection into the LC-MS system. Below we load the table with the
+internal standards and their expected mass to charge ration m/z. Features
+detected at these m/z are then identified.
+
+```{r internal-standards-read, message = FALSE, warning = FALSE}
+int_std <- read.table("data/txt/_input_Internal_Standards.txt", sep = "\t",
+                      as.is = TRUE, header = TRUE, check.names = FALSE)
+int_std$mz <- int_std[, "[M+H]+"]
+int_std <- int_std[!is.na(int_std$mz), ]
+
+#' Identify features at the expected m/z
+fts_int_std <- lapply(int_stnd$mz, function(mz) {
+    featureDefinitions(data_pos, mz = mz, ppm = 10, type = "apex_within")
+})
+
+```
+
+```{r internal-standards-plot, echo = FALSE, message = FALSE, warning = FALSE}
+#' Plot the features for the internal standards.
+col <- paste0(col_source[data_pos$source], 80)
+## col <- c("#ce000080", "#0000ce80")[as.integer(data_pos$batch)]
+
+dr <- paste0(IMAGE_PATH, "internal-standards/")
+dir.create(dr, showWarnings = FALSE)
+for (i in 1:length(fts_int_std)) {
+    if (nrow(fts_int_std[[i]]) == 0)
+        next
+    fn <- gsub("%", "", paste0(dr, "int_std_", int_std[i, "name"], ".png"))
+    fts <- fts_int_std[[i]]
+    pks <- chromPeaks(data_pos)[unlist(fts$peakidx), ]
+    mzr <- range(pks[, c("mzmin", "mzmax")])
+    rtr <- range(pks[, c("rtmin", "rtmax")])
+    rtr[1] <- rtr[1] - 5
+    rtr[2] <- rtr[2] + 5
+    chrs <- chromatogram(data_pos, mz = mzr, rt = rtr, aggregationFun = "max")
+    png(fn, width = 10, height = 5, units = "cm", res = 200, pointsize = 4)
+    plot(chrs, col = col)
+    highlightChromPeaks(data_pos, mz = mzr, rt = rtr,
+                        border = sub("80$", 20, col),
+                        whichPeaks = "apex_within")
+    abline(v = fts$rtmed)
+    dev.off()
+}
+
+##' Plot peaks of a certain feature.
+##' pks <- chromPeaks(data_pos)[fts$peakidx[[1]], ]
+##' rect(xleft = pks[, "rtmin"], xright = pks[, "rtmax"], ybottom = 0,
+##'      ytop = pks[, "maxo"], border = "#ff000080")
+##' pks <- chromPeaks(data_pos)[fts$peakidx[[2]], ]
+##' rect(xleft = pks[, "rtmin"], xright = pks[, "rtmax"], ybottom = 0,
+##'      ytop = pks[, "maxo"], border = "#0000ff80")
+
+##' Manually select features/internal standards.
+int_std$feature <- rep(NA_character_, nrow(int_std))
+int_std[2, "feature"] <- rownames(fts_int_std[[2]])
+int_std[4, "feature"] <- rownames(fts_int_std[[4]])
+int_std[5, "feature"] <- rownames(fts_int_std[[5]])[2] #' the one at 192sec
+int_std[6, "feature"] <- rownames(fts_int_std[[6]])
+int_std[7, "feature"] <- rownames(fts_int_std[[7]]) #' only in plasma???
+int_std[8, "feature"] <- rownames(fts_int_std[[8]])
+int_std[9, "feature"] <- rownames(fts_int_std[[9]])
+int_std[10, "feature"] <- rownames(fts_int_std[[10]])[1] #' the one at rt 193
+##' 11 and 12 L-IsoLeucine and L-Leucine each have 3 peaks - don't know which
+##' one might be the best/correct one.
+int_std[13, "feature"] <- rownames(fts_int_std[[13]])
+##' 14 L-Methionine, 15 L-Phenylalanine and 16 L-Proline each have two peaks,
+##' seems that in some samples two and in some a single peak is present.
+##' Thus we're not using them.
+int_std[17, "feature"] <- rownames(fts_int_std[[17]])
+int_std[18, "feature"] <- rownames(fts_int_std[[18]])
+int_std[19, "feature"] <- rownames(fts_int_std[[19]]) #' check: large diffs
+##' 20 L-Valine has several peaks over a large rt window. Unclear which signal
+##' belongs to valine.
+
+#' TODO: ask Siggi
+#' - how can it be that L-Cystine has very high signals in plasma
+```
+
+All features possibly related to internal standards have been manually evaluated
+and only features have been assigned to internal standards if the signal was
+unambiguous. For L-Leucine and L-Isoleucine several chromatographic peaks (3)
+were present at the expected m/z and it was unclear which one was the *right*
+one for the standard. Similarly, the extracted chromatogram for the m/z of
+L-Methionine, L-Phenylalanine and L-Proline each featured two chromatographic
+peaks close in retention time. Also for L-Valine several peaks were present over
+a larger retention time window and thus no feature was assigned because it was
+unclear which of the signal/peaks belong to Valine. The table below lists the
+internal standards and their assigned feature with mean abundance and its
+standard deviation.
+
+```{r internal-standard-table, echo = FALSE, results = "asis", message = FALSE, warning = FALSE}
+#' table of internal standards with mean and sd of abundances (in log2 scale)
+```
+
+
+
+
+
+# Per-sample normalization
+
+Per-sample normalization aims to remove global abundance differences between
+samples due to variations in sample processing and possibly amount. The simplest
+approach is to normalize abundances based on either the total signal sum or the
+median abundance. They rely however on the self-averaging property assuming that
+an increase in abundances of a group of metabolites is balanced by a decrease in
+abundances in another group \cite{Livera:2015bo}. Also, these approaches tend to
+be biased by highly abundant metabolites. Methods robust against such a bias,
+like the median ratio method (MRM [@Anders:2010fu]) or the trimmed mean of
+M-values (TMM [@Robinson:2010dd]) used in RNAseq data normalization might be
+used instead. Alternatively, we will evaluate also the performance of RUV
+[@Livera:2015bo] which requires however internal standards (or metabolites
+correlating with their abundance) to estimate the technical variance in the
+data.
+
+Below we calculate normalization factors based on the total sum of the signal,
+the median abundance per sample and using the MRM and TMM methods. The
+calculations are based on abundances of detected peaks. Subsequently we
+normalize the feature abundance based on the estimated sample-wise normalization
+factors.
+
+```{r estimate-norm-factors, message = FALSE, warning = FALSE}
+#' sum of signal.
+sms <- colSums(fv_nofill, na.rm = TRUE)
+nf_sm <- sms / mean(sms)
+
+#' median signal
+mdns <- apply(fv_nofill, MARGIN = 2, median, na.rm = TRUE)
+nf_mdn <- mdns / median(mdns)
+
+#' MRM
+nf_mrm <- estimateSizeFactorsForMatrix(fv_nofill)
+
+#' TMM
+tmp <- fv_nofill
+tmp[is.na(tmp)] <- 0
+nf_tmm <- calcNormFactors(tmp, method = "TMM")
+rm(tmp)
+
+#' Normalize
+fv_sm <- sweep(fv, MARGIN = 2, nf_sm, `/`)
+fv_mdn <- sweep(fv, MARGIN = 2, nf_mdn, `/`)
+fv_mrm <- sweep(fv, MARGIN = 2, nf_mrm, `/`)
+fv_tmm <- sweep(fv, MARGIN = 2, nf_tmm, `*`)
+
+```
+
+The impact of the per-sample normalization approaches on the feature abundances
+is shown below.
+
+```{r per-sample-normalization-boxplot, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of feature abundances before and after per-sample normalization", fig.width = 6, fig.height = 10}
+
+par(mfrow = c(5, 1), mar = c(0.5, 4.5, 1, 0.1))
+boxplot(log2(fv), main = "raw data", outline = FALSE,
+        col = paste0(col_source[data_pos$source], "ff"), 
+        border = paste0(col_source[data_pos$source], "60"), notch = TRUE,
+        range = 0, ylab = expression(log[2]~abundance), xaxt = "n", xlab = "")
+grid(nx = NA, ny = NULL)
+boxplot(log2(fv_sm), main = "sum normalized", outline = FALSE,
+        col = paste0(col_source[data_pos$source], "ff"), 
+        border = paste0(col_source[data_pos$source], "60"), notch = TRUE,
+        range = 0, ylab = expression(log[2]~abundance), xaxt = "n", xlab = "")
+grid(nx = NA, ny = NULL)
+boxplot(log2(fv_mdn), main = "median normalized", outline = FALSE,
+        col = paste0(col_source[data_pos$source], "ff"), 
+        border = paste0(col_source[data_pos$source], "60"), notch = TRUE,
+        ylab = expression(log[2]~abundance), xaxt = "n", xlab = "")
+grid(nx = NA, ny = NULL)
+boxplot(log2(fv_mrm), main = "MRM normalized", outline = FALSE,
+        col = paste0(col_source[data_pos$source], "ff"), 
+        border = paste0(col_source[data_pos$source], "60"), notch = TRUE,
+        ylab = expression(log[2]~abundance), xaxt = "n", xlab = "")
+grid(nx = NA, ny = NULL)
+boxplot(log2(fv_tmm), main = "TMM normalized", outline = FALSE,
+        col = paste0(col_source[data_pos$source], "ff"), 
+        border = paste0(col_source[data_pos$source], "60"), notch = TRUE,
+        ylab = expression(log[2]~abundance), xaxt = "n", xlab = "")
+grid(nx = NA, ny = NULL)
+
+```
+
+All normalization approaches remove differences in average feature abundances
+between samples and seem to perform similarly well. Next we evaluate RLA plots
+of the data before and after normalization.
+
+```{r per-sample-normalization-rla-plot, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "RLA plots before and after normalization with different per-batch normalization approaches.", fig.width = 6, fig.height = 10}
+rla_raw <- rowRla(fv_nofill, group = data_pos$source)
+tmp <- fv_sm
+tmp[is.na(fv_nofill)] <- NA
+rla_sm <- rowRla(tmp, group = data_pos$source)
+tmp <- fv_mdn
+tmp[is.na(fv_nofill)] <- NA
+rla_mdn <- rowRla(tmp, group = data_pos$source)
+tmp <- fv_mrm
+tmp[is.na(fv_nofill)] <- NA
+rla_mrm <- rowRla(tmp, group = data_pos$source)
+tmp <- fv_tmm
+tmp[is.na(fv_nofill)] <- NA
+rla_tmm <- rowRla(tmp, group = data_pos$source)
+rm(tmp)
+
+par(mfrow = c(5, 1), mar = c(0.5, 4.5, 1, 0.1))
+boxplot(rla_raw, cex = 0.5, pch = 16, 
+        col = col_source[data_pos$source], ylab = "RLA",
+        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
+        outline = FALSE, xaxt = "n", main = "raw data")
+grid(nx = NA, ny = NULL)
+abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+boxplot(rla_sm, cex = 0.5, pch = 16, 
+        col = col_source[data_pos$source], ylab = "RLA",
+        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
+        outline = FALSE, xaxt = "n", main = "sum normalized")
+grid(nx = NA, ny = NULL)
+abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+boxplot(rla_mdn, cex = 0.5, pch = 16, 
+        col = col_source[data_pos$source], ylab = "RLA",
+        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
+        outline = FALSE, xaxt = "n", main = "median normalized")
+grid(nx = NA, ny = NULL)
+abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+boxplot(rla_mrm, cex = 0.5, pch = 16, 
+        col = col_source[data_pos$source], ylab = "RLA",
+        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
+        outline = FALSE, xaxt = "n", main = "MRM normalized")
+grid(nx = NA, ny = NULL)
+abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+boxplot(rla_tmm, cex = 0.5, pch = 16, 
+        col = col_source[data_pos$source], ylab = "RLA",
+        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
+        outline = FALSE, xaxt = "n", main = "TMM normalized")
+grid(nx = NA, ny = NULL)
+abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
+
+```
+
+Normalization improved the RLA. Note that For plasma, RBC, capillary and venous
+samples some scattering is expected since each *group* used for the RLA
+calculation contains data from different individuals. The best performing
+methods are the median scaling and MRM.
+
+The RSD of detected features across QC samples did not improve by the per-sample
+normalization (data not shown). This is however not unexpected since all QC
+samples derive from a single sample processing and hence no sample processing
+related biases have to be removed from their signal.
+
+```{r , eval = FALSE, echo = FALSE}
+rsd_raw <- BioCHRIStes:::rowRsd(fv_nofill[, data_pos$source == "all"])
+tmp <- fv_sm
+tmp[is.na(fv_nofill)] <- NA
+rsd_sm <- BioCHRIStes:::rowRsd(tmp[, data_pos$source == "all"])
+tmp <- fv_mdn
+tmp[is.na(fv_nofill)] <- NA
+rsd_mdn <- BioCHRIStes:::rowRsd(tmp[, data_pos$source == "all"])
+tmp <- fv_mrm
+tmp[is.na(fv_nofill)] <- NA
+rsd_mrm <- BioCHRIStes:::rowRsd(tmp[, data_pos$source == "all"])
+tmp <- fv_tmm
+tmp[is.na(fv_nofill)] <- NA
+rsd_tmm <- BioCHRIStes:::rowRsd(tmp[, data_pos$source == "all"])
+rm(tmp)
+
+rsd_df <- data.frame(raw = rsd_raw, sum = rsd_sm, median = rsd_mdn,
+                     MRM = rsd_mrm, TMM = rsd_tmm)
+
+boxplot(rsd_df, main = "RSD of QC samples", ylab = "RSD")
+grid(nx = NA, ny = NULL)
+
+colMeans(rsd_df, na.rm = TRUE)
+
+```
+
+Two measurements are available for each study sample that, while originating
+from the same tube, were processed separately. These replicates are thus ideal
+to evaluate the performance of per-sample normalization as that aims to remove
+sample processing related variances. We thus calculate the MRA (maximum ratio of
+abundances) of between replicated samples (using only the detected signal). From
+these we calculate the 75% quantile of the absolute MRM per sample as a proxy
+for between replicate difference. Seventy five features per sample have an
+absolute difference between replicates that is smaller than this value.
+
+```{r per-sample-mra-calculation, message = FALSE, warning = FALSE}
+grp <- paste(data_pos$source, data_pos$sample, sep = "-")
+mra_raw <- apply_colgroup(fv_nofill, grp, rowMra)
+tmp <- fv_sm
+tmp[is.na(fv_nofill)] <- NA
+mra_sm <- apply_colgroup(tmp, grp, rowMra)
+tmp <- fv_mdn
+tmp[is.na(fv_nofill)] <- NA
+mra_mdn <- apply_colgroup(tmp, grp, rowMra)
+tmp <- fv_mrm
+tmp[is.na(fv_nofill)] <- NA
+mra_mrm <- apply_colgroup(tmp, grp, rowMra)
+tmp <- fv_tmm
+tmp[is.na(fv_nofill)] <- NA
+mra_tmm <- apply_colgroup(tmp, grp, rowMra)
+rm(tmp)
+
+#' Calculating the 75% quantile for each sample
+mra_raw_75q <- apply(mra_raw, MARGIN = 2, quantile, probs = 0.75, na.rm = TRUE)
+mra_sm_75q <- apply(mra_sm, MARGIN = 2, quantile, probs = 0.75, na.rm = TRUE)
+mra_mdn_75q <- apply(mra_mdn, MARGIN = 2, quantile, probs = 0.75, na.rm = TRUE)
+mra_mrm_75q <- apply(mra_mrm, MARGIN = 2, quantile, probs = 0.75, na.rm = TRUE)
+mra_tmm_75q <- apply(mra_tmm, MARGIN = 2, quantile, probs = 0.75, na.rm = TRUE)
+```
+
+
+
+```{r per-sample-mra-75-boxplot, message = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of per-sample 75% quantile MRM for the raw and per-sample normalized data", fig.width = 7, fig.height = 5}
+
+mra_df <- data.frame(raw = mra_raw_75q, sum = mra_sm_75q, median = mra_mdn_75q,
+                     MRM = mra_mrm_75q, TMM = mra_tmm_75q)
+par(mar = c(6, 4.5, 1, 0.5))
+boxplot(mra_df, las = 2, ylab = "75% quantile MRA")
+
+colMeans(mra_df, na.rm = TRUE)
+apply(mra_df, MARGIN = 2, median, na.rm = TRUE)
+
+#' par(mfrow = c(5, 1), mar = c(0, 4.3, 1, 0.5))
+#' boxplot(log2(mra_raw), range = 0, main = "raw", xaxt = "n")
+#' grid(nx = NA, ny = NULL)
+#' boxplot(log2(mra_sm), range = 0, main = "sum", xaxt = "n")
+#' grid(nx = NA, ny = NULL)
+#' boxplot(log2(mra_mdn), range = 0, main = "median", xaxt = "n")
+#' grid(nx = NA, ny = NULL)
+#' boxplot(log2(mra_mrm), range = 0, main = "MRM", xaxt = "n")
+#' grid(nx = NA, ny = NULL)
+#' boxplot(log2(mra_tmm), range = 0, main = "TMM", xaxt = "n")
+#' grid(nx = NA, ny = NULL)
+
+```
+
+
+```{r, eval = FALSE}
+
+plot_pca <- function (pc, pch = 16, col = "#000000", pc_x = 1, pc_y = 2, 
+                      main = "", FUN = points, ...) {
+    pcSummary <- summary(pc)
+    plot(pc$x[, pc_x], pc$x[, pc_y], pch = NA, main = "",
+         xlab = paste0("PC", pc_x, ": ",
+                       format(pcSummary$importance[2, pc_x] * 100, 
+                              digits = 3), " % variance"),
+         ylab = paste0("PC", pc_y, ": ",
+                       format(pcSummary$importance[2, pc_y] * 100, 
+                              digits = 3), " % variance"))
+    grid()
+    FUN(pc$x[, pc_x], pc$x[, pc_y], pch = pch, col = col, 
+        ...)
+}
+
+clr <- col_source[data_pos$source]
+clr <- c("red", "blue")[as.numeric(data_pos$batch)]
+
+
+tmp <- na.omit(fv)
+tmp <- na.omit(fv_nofill)
+tmp <- na.omit(fv_mdn)
+tmp <- na.omit(fv_mrm)
+
+pc <- prcomp(t(log2(tmp)), scale = FALSE, center = TRUE)
+par(mfrow = c(1, 2))
+plot_pca(pc, col = clr, pc_x = 1, pc_y = 2,
+         FUN = text, label = data_pos$sample)
+plot_pca(pc, col = clr, pc_x = 3, pc_y = 4,
+         FUN = text, label = data_pos$sample)
+
+quartz()
+
+
+
+```
+
+Approaches:
+- Use internal standards.
+- RUV.
+
+Evaluate:
+- Difference between technical replicates **has** to improve by this.
+
+
+Assess performance:
+- Overall RSD should reduce -> NOPE: QCs derive all from the same original tube.
+- RLA plots should show a lower bias.
+- Compare against RUV
+
 
 
 # Within-batch normalization
@@ -1254,22 +1644,6 @@ hist(mdls_slp)
   signal.
 
 
-# Per-sample normalization
-
-Approaches:
-- Use internal standards.
-- Use global sum.
-- Use RNAseq approach (stable against high abundance compounds).
-- RUV.
-
-Evaluate:
-- Difference between technical replicates **has** to improve by this.
-
-
-Assess performance:
-- Overall RSD should reduce.
-- RLA plots should show a lower bias.
-- Compare against RUV
 
 # Final QA
 

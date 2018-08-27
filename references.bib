@@ -81,3 +81,32 @@ pages = {1060--1083},
 month = jul
 }
 
+@article{Anders:2010fu,
+author = {Anders, Simon and Huber, Wolfgang},
+title = {{Differential expression analysis for sequence count data.}},
+journal = {Genome Biology},
+year = {2010},
+volume = {11},
+number = {10},
+pages = {R106}
+}
+
+@article{Robinson:2010dd,
+author = {Robinson, Mark D and Oshlack, Alicia},
+title = {{A scaling normalization method for differential expression analysis of RNA-seq data.}},
+journal = {Genome Biology},
+year = {2010},
+volume = {11},
+number = {3},
+pages = {R25},
+annote = {* most methods use total read counts.
+* some methods alter the distribution, thus count based methods can not be applied.
+
+* assumption of library size scaling: sequencing a sample to half the depth results approximately in half of the reads per gene.
+* not always true! bias towards highly abundant genes, especially if they are also long, since these are most likely sequenced.
+* reads of a gene depend on the expression of the gene, the length but also on the expression properties of the whole sample (see example in text).
+
+* TMM (trimmed mean of M-values) estimates scale estimators on trimmed means of M-values between samples. trimming removes by default 30% of high and low (?) M-values.
+
+my summary: reference for "library size normalization is biased". if I got it right someing like this is also implemented in DEseq.}
+}
