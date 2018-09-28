@@ -99,14 +99,35 @@ year = {2010},
 volume = {11},
 number = {3},
 pages = {R25},
-annote = {* most methods use total read counts.
-* some methods alter the distribution, thus count based methods can not be applied.
-
-* assumption of library size scaling: sequencing a sample to half the depth results approximately in half of the reads per gene.
-* not always true! bias towards highly abundant genes, especially if they are also long, since these are most likely sequenced.
-* reads of a gene depend on the expression of the gene, the length but also on the expression properties of the whole sample (see example in text).
-
-* TMM (trimmed mean of M-values) estimates scale estimators on trimmed means of M-values between samples. trimming removes by default 30% of high and low (?) M-values.
-
-my summary: reference for "library size normalization is biased". if I got it right someing like this is also implemented in DEseq.}
 }
+
+@article{SysiAho:2007bt,
+author = {Sysi-Aho, Marko and Katajamaa, Mikko and Yetukuri, Laxman and Oresic, Matej},
+title = {{Normalization method for metabolomics data using optimal selection of multiple internal standards.}},
+journal = {BMC Bioinformatics},
+year = {2007},
+volume = {8},
+number = {1},
+pages = {93},
+month = mar,
+publisher = {BioMed Central},
+affiliation = {VTT Technical Research Centre of Finland, Tietotie 2, FIN-02044 VTT, Espoo, Finland. marko.sysi-aho@vtt.fi <marko.sysi-aho@vtt.fi>},
+doi = {10.1186/1471-2105-8-93},
+pmid = {17362505},
+pmcid = {PMC1838434},
+language = {English},
+read = {Yes},
+rating = {0},
+date-added = {2017-12-05T07:28:41GMT},
+date-modified = {2018-09-27T11:46:56GMT},
+abstract = {BACKGROUND:Success of metabolomics as the phenotyping platform largely depends on its ability to detect various sources of biological variability. Removal of platform-specific sources of variability such as systematic error is therefore one of the foremost priorities in data preprocessing. However, chemical diversity of molecular species included in typical metabolic profiling experiments leads to different responses to variations in experimental conditions, making normalization a very demanding task.
+
+RESULTS:With the aim to remove unwanted systematic variation, we present an approach that utilizes variability information from multiple internal standard compounds to find optimal normalization factor for each individual molecular species detected by metabolomics approach (NOMIS). We demonstrate the method on mouse liver lipidomic profiles using Ultra Performance Liquid Chromatography coupled to high resolution mass spectrometry, and compare its performance to two commonly utilized normalization methods: normalization by l2 norm and by retention time region specific standard compound profiles. The NOMIS method proved superior in its ability to reduce the effect of systematic error across the full spectrum of metabolite peaks. We also demonstrate that the method can be used to select best combinations of standard compounds for normalization.
+
+CONCLUSION:Depending on experiment design and biological matrix, the NOMIS method is applicable either as a one-step normalization method or as a two-step method where the normalization parameters, influenced by variabilities of internal standard compounds and their correlation to metabolites, are first calculated from a study conducted in repeatability conditions. The method can also be used in analytical development of metabolomics methods by helping to select best combinations of standard compounds for a particular biological matrix and analytical platform.},
+url = {http://bmcbioinformatics.biomedcentral.com/articles/10.1186/1471-2105-8-93},
+local-url = {file://localhost/Users/jo/ownCloud/Papers/Library.papers3/2007/BMC_Bioinformatics/Sysi-Aho/BMC_Bioinformatics_2007_Sysi-Aho.pdf},
+file = {{BMC_Bioinformatics_2007_Sysi-Aho.pdf:/Users/jo/ownCloud/Papers/Library.papers3/2007/BMC_Bioinformatics/Sysi-Aho/BMC_Bioinformatics_2007_Sysi-Aho.pdf:application/pdf}},
+uri = {\url{papers3://publication/doi/10.1186/1471-2105-8-93}}
+}
+
