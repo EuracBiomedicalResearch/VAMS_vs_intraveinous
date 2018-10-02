@@ -601,7 +601,7 @@ without any filled-in information.
 ##' Use method = "sum"... for now.
 fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
 fv_raw <- fv
-fv_nofill <- featureValues(data_pos, method = "max",
+fv_nofill <- featureValues(data_pos, method = "sum",
                            value = "into", filled = FALSE)[fts_used, ]
 
 ```
@@ -943,12 +943,6 @@ calculations are based on abundances of detected peaks. Subsequently we
 normalize the feature abundance (also of filled-in signal) based on the
 estimated sample-wise normalization factors.
 
-**TODO**: consider performing the normalization on filled-in and imputed data:
-- using only the detected signal ignores that e.g. many peaks are simply not
-  detected in that sample, i.e. the overall sample might have been added in a
-  too low concentration and hence many features might be below detection limit.
-
-
 ```{r, eval = FALSE, echo = FALSE}
 #' compare: median abundance
 #' - only detected signal
@@ -1261,6 +1255,10 @@ for the methods using global, per sample, abundance levels remained the same.
 ```{r between-sample-choose-best}
 
 fv <- fv_mdn
+tmp <- fv
+tmp[is.na(fv_nofill)] <- NA
+fv_nofill <- tmp
+rm(tmp)
 ```
 
 
@@ -1506,10 +1504,10 @@ for (ft in fts) {
 ##' Mostly nice fits but with slope ~ 0 or those that don't fit that nicely.
 
 ##' Features with very good R2
-fts <- names(sort(abs(adjr_a), decreasing = TRUE))[1:20]
+fts_a <- names(sort(abs(adjr_a), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_a/")
 dir.create(dr, showWarnings = FALSE)
-for (ft in fts) {
+for (ft in fts_a) {
     png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
         res = 200, units = "cm")
     plot_feature_slopes_batch(y = log2(fv[ft, ]),
@@ -1518,10 +1516,10 @@ for (ft in fts) {
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
-fts <- names(sort(abs(adjr_b), decreasing = TRUE))[1:20]
+fts_b <- names(sort(abs(adjr_b), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_b/")
 dir.create(dr, showWarnings = FALSE)
-for (ft in fts) {
+for (ft in fts_b) {
     png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
         res = 200, units = "cm")
     plot_feature_slopes_batch(y = log2(fv[ft, ]),
@@ -1538,11 +1536,13 @@ Some examples for nice model fits for features with large injection order
 dependent drifts are shown below.
 
 ```{r out.width = "750px", echo = FALSE}
-knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/FT00642.png"))
+knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/",
+                               fts_a[1], ".png"))
 ```
 
 ```{r out.width = "750px", echo = FALSE}
-knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/FT07853.png"))
+knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_b/",
+                              fts_b[1], ".png"))
 ```
 
 
@@ -1553,10 +1553,10 @@ knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/FT07853.png"))
 tmp_slps <- vapply(mdls_res_a, function(z) {
     coefficients(z)[2]
 }, numeric(1))
-fts <- names(sort(abs(tmp_slps), decreasing = TRUE))[1:20]
+fts_a <- names(sort(abs(tmp_slps), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "largest_slopes_batch_a_residuals_excluded/")
 dir.create(dr, showWarnings = FALSE)
-for (ft in fts) {
+for (ft in fts_a) {
     png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
         res = 200, units = "cm")
     plot_feature_slopes_batch(y = log2(fv[ft, ]),
@@ -1568,10 +1568,10 @@ for (ft in fts) {
 tmp_slps <- vapply(mdls_res_b, function(z) {
     coefficients(z)[2]
 }, numeric(1))
-fts <- names(sort(abs(tmp_slps), decreasing = TRUE))[1:20]
+fts_b <- names(sort(abs(tmp_slps), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "largest_slopes_batch_b_residuals_excluded/")
 dir.create(dr, showWarnings = FALSE)
-for (ft in fts) {
+for (ft in fts_b) {
     png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
         res = 200, units = "cm")
     plot_feature_slopes_batch(y = log2(fv[ft, ]),
@@ -1594,14 +1594,16 @@ compounds.
 ```{r out.width = "750px", echo = FALSE}
 knitr::include_graphics(
            paste0(IMAGE_PATH,
-                  "largest_slopes_batch_a_residuals_excluded/FT06751.png"))
-```
+                  "largest_slopes_batch_a_residuals_excluded/",
+                  fts_a[1], ".png"))
+```	
 
 ```{r out.width = "750px", echo = FALSE}
 knitr::include_graphics(
            paste0(IMAGE_PATH,
-                  "largest_slopes_batch_b_residuals_excluded/FT05318.png"))
-```
+                  "largest_slopes_batch_b_residuals_excluded/",
+                  fts_b[1], ".png"))
+```	
 
 
 ```{r features-excluded-inj-range, echo = FALSE, warning = FALSE, message = FALSE}
@@ -1961,6 +1963,10 @@ fv_adj <- 2^xcms:::applyModelAdjustment(y = log2(fv_adj),
                                         lmod = mdls_batch,
                                         shiftNegative = "replaceHalfMin")
 fv <- fv_adj
+tmp <- fv
+tmp[is.na(fv_nofill)] <- NA
+fv_nofill <- tmp
+rm(tmp)
 ```
 
 # Final QA
@@ -1968,7 +1974,7 @@ fv <- fv_adj
 At last we evaluate the performance of the normalization that includes
 between-samples, within-batch and between-batch normalization.
 
-```{r final-qa-boxplots, fig.path = IMAGE_PATH, fig.width = 14, fig.height = 9, fig.cap = "Boxplots representing the per-sample distribution of signal. Shown are log2 abundances before (upper panel) and after normalization (below)."}
+```{r final-qa-boxplots, fig.path = IMAGE_PATH, fig.width = 14, fig.height = 9, fig.cap = "Boxplots representing the per-sample distribution of signal. Shown are log2 abundances before (upper panel) and after normalization (below). Only detected signal is considered.", echo = FALSE}
 
 par(mfrow = c(2, 1), mar = c(1, 4.5, 1, 0.5))
 dobox(log2(fv_raw), main = "raw data", only_detected = TRUE)
@@ -1981,7 +1987,7 @@ distributions.
 
 Next we create RLA plots.
 
-```{r final-qa-rla, fig.path = IMAGE_PATH, fig.width = 14, fig.height = 9, fig.cap = "RLA plots before and after normalization."}
+```{r final-qa-rla, fig.path = IMAGE_PATH, fig.width = 14, fig.height = 9, fig.cap = "RLA plots before and after normalization. Only detected signal is considered.", echo = FALSE}
 
 par(mfrow = c(2, 1), mar = c(1, 4.5, 1, 0.5))
 dobox(rowRla(fv_raw, data_pos$source), main = "raw data",
