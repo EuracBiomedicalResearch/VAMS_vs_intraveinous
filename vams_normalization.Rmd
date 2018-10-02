@@ -127,14 +127,14 @@ these samples.
 library(xcms)
 library(RColorBrewer)
 library(pander)
-## register(bpstart(MulticoreParam(ncores)))
+#' register(bpstart(MulticoreParam(ncores)))
 library(doParallel)
 registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
 library(DESeq2)
 library(edgeR)
 
-##' Define colors for the groups.
+#' Define colors for the groups.
 col_source <- brewer.pal(5, name = "Set1")
 names(col_source) <- c("RBC",           #' red
                        "plasma",        #' blue
@@ -906,7 +906,11 @@ plot_pca(pc_int, pc_x = 3, pc_y = 4, col = col_2)
 
 For all samples a clear grouping by source is visible. Also some source-related
 separation is visible for the internal standards, for which this is rather
-unexpected and could indicate that some internal standards might be problematic.
+unexpected and could indicate that some internal standards might be
+problematic. Also, the presence of blood cells in some, but not in all samples
+might also have an influence on the abundance levels of internal standards (as
+well as endogenous metabolites). This might in part also explain the differences
+for internal standards L-Cystine and Glucose.
 
 
 # Between-sample normalization
@@ -1583,7 +1587,9 @@ for (ft in fts) {
 ```
 
 Examples for linear models that were **excluded** because of too large residuals
-are shown below (the first excluded in batch a and the second in batch b).
+are shown below (the first excluded in batch a and the second in batch b). The
+feature abundances in QC samples (green point) are highly variable for these
+compounds.
 
 ```{r out.width = "750px", echo = FALSE}
 knitr::include_graphics(
@@ -1702,11 +1708,11 @@ for (ft in fts) {
 The plots below show some examples for feature signals before and after
 within-batch correction.
 
-```{r out.width = 8, echo = FALSE, fig.cap = "Feature abundances before adjustment."}
+```{r within-batch-before-example, out.width = "750px", echo = FALSE, fig.cap = "Feature abundances before adjustment."}
 knitr::include_graphics(paste0(dr, "FT09056_raw.png"))
 ```
 
-```{r out.width = 8, echo = FALSE, fig.cap = "Feature abundances after within-batch adjustment."}
+```{r within-batch-after-example, out.width = "750px", echo = FALSE, fig.cap = "Feature abundances after within-batch adjustment."}
 knitr::include_graphics(paste0(dr, "FT09056_adj.png"))
 ```
 
@@ -2019,7 +2025,7 @@ abline(h = 0.3)
 
 The table below summarizes the RSD calculations.
 
-```{r final-qa-rsd-table}
+```{r final-qa-rsd-table, echo = FALSE, results = "asis"}
 T <- rbind(`mean RSD` = c(raw = mean(rsd_raw, na.rm = TRUE),
                           normalized = mean(rsd_adj, na.rm = TRUE),
                           `raw detected` = mean(rsd_raw_det, na.rm = TRUE),
@@ -2126,10 +2132,74 @@ pandoc.table(T, style = "rmarkdown", caption = cpt)
 
 # Averaging replicates
 
-- Average replicates:
-- If detected in both, take average.
-- If detected in one, take that one.
-- If not detected in any, take average.
+At last we average replicated measurements for each sample and store the data as
+an `ExpressionSet`. The mean abundance is reported for a feature if either a
+peak was detected in both replicates or in none, while in cases in which a peak
+was detected in only one of the two replicates, the detected signal is reported
+and the filled-in discarded.
+
+```{r average-reps, message = FALSE, warning = FALSE}
+grp <- paste0(data_pos$source, "-", data_pos$sample)
+pd <- cbind(pData(data_pos), sample_name = grp)
+
+res <- lapply(unique(grp), function(z) {
+    dta <- fv[, pd$sample_name == z, drop = FALSE]
+    if (ncol(dta) == 1) {
+        dta[, 1]
+    } else {
+        dta_nofill <- dta
+        dta_nofill[is.na(
+            fv_nofill[, pd$sample_name == z, drop = FALSE])] <- NA
+        abund <- rowMeans(dta_nofill, na.rm = TRUE)
+        #' for those with NAs, use the filled-in data.
+        nas <- is.na(abund)
+        abund[nas] <- rowMeans(dta[nas, , drop = FALSE], na.rm = TRUE)
+        abund[is.na(abund)] <- NA
+        abund
+    }
+})
+res <- do.call(cbind, res)
+colnames(res) <- unique(grp)
+
+#' Also define "weights", 1 if it is detected, 0.5 if is filled-in,
+#' 0 if it is NA.
+wghts <- lapply(unique(grp), function(z) {
+    dta_nofill <- fv_nofill[, pd$sample_name == z, drop = FALSE]
+    wght <- rep(0, nrow(dta_nofill))
+    wght[rowSums(dta_nofill, na.rm = TRUE) > 0] <- 1
+    #' filled in will get an 0.5
+    dta <- fv[, pd$sample_name == z, drop = FALSE]
+    wght[wght == 0] <- ifelse(
+        rowSums(dta[wght == 0, , drop = FALSE], na.rm = TRUE) > 0,
+        yes = 0.5, no = 0)
+    wght
+})
+wghts <- do.call(cbind, wghts)
+colnames(wghts) <- unique(grp)
+rownames(wghts) <- rownames(res)
+
+library(SummarizedExperiment)
+pd <- pd[pd$sample_name != "all-POOL", ]
+pd <- unique(pd[, c("sample", "sample_name", "batch",
+                    "polarity", "source")])
+rownames(pd) <- pd$sample_name
+
+res <- res[, colnames(res) != "all-POOL"]
+wghts <- wghts[, colnames(wghts) != "all-POOL"]
+pd <- pd[colnames(res), ]
+
+#' Define feature data.
+fd <- cbind(featureDefinitions(data_pos),
+            featureSummary(data_pos, group = data_pos$source))
+
+vams_pos <- SummarizedExperiment(
+    assays = list(abundances = res, weights = wghts),
+    colData = DataFrame(pd),
+    rowData = fd[rownames(res), colnames(fd) != "peakidx"])
+
+save(vams_pos, file = paste0(RDATA_PATH, "vams_pos.RData"))
+```
+
 
 # Session information
 
