@@ -102,11 +102,12 @@ with the two replicates per individual being put on the same well. The two
 plates were measured on consecutive days.
 
 QC samples, that are by design independent of the sample preparation step, can
-hence be used to estimate and correct LC-MS specific biases, including a
-potential injection order dependent signal drift and batch/run specific
-biases. Such effects are thought to be specific for each metabolite. Sample
-preparation dependent biases between samples (but independent of the metabolite)
-can be estimated or evaluated using internal standards and replicated samples.
+be used to estimate and correct LC-MS specific biases, including a potential
+injection order dependent signal drift and batch/run specific biases. Such
+effects are thought to be specific for each metabolite. Sample preparation
+dependent biases between samples (but independent of the metabolite) can be
+estimated or evaluated using internal standards and replicated samples (two
+samples for each individual and matrix).
 
 It is not clear whether between-sample normalization should be performed before
 or after adjustment for LC-MS specific biases. If batch and injection-order
@@ -470,6 +471,12 @@ mra_summary_count <- function(x, cut = 2, na.rm = TRUE) {
         else sum(z > cut, na.rm = na.rm)
     })
 }
+mra_summary_perc <- function(x, cut = 2, na.rm = TRUE) {
+    apply(x, 2, function(z) {
+        if (all(is.na(z))) NA
+        else sum(z > cut, na.rm = na.rm) * 100 / sum(!is.na(z))
+    })
+}
 
 dobox <- function(x, only_detected = FALSE,
                   col = paste0(col_source[data_pos$source], "ff"),
@@ -482,6 +489,16 @@ dobox <- function(x, only_detected = FALSE,
     boxplot(x, col = col, outline = outline, notch = notch, range = range,
             border = border, ylab = ylab, xaxt = xaxt, xlab = xlab, ...)
     grid(nx = NA, ny = NULL)
+}
+
+#' Calculate the mean only if we'be got enough values and report `NA`
+#' otherwise
+mean_if <- function(x, n = 6, na.rm = TRUE) {
+    if (na.rm)
+        x <- x[!is.na(x)]
+    if (length(x) >= n)
+        mean(x)
+    else NA_real_
 }
 
 ```
@@ -533,10 +550,13 @@ the same effects than the *real* signal. Imputation of signals that are still
 missing after filling in will be performed **after** normalization.
 
 Below we fill-in missing peak data by expanding the retention time window of
-each feature by a constant value (1 second on each side) and the m/z by 20 ppm.
+each feature by a constant value (median of the retention time widths) and the
+m/z by 20 ppm.
 
 ```{r fill-in, message = FALSE, warning = FALSE, eval = !use_cached}
-fcp <- FillChromPeaksParam(ppm = 20, fixedRt = 1)
+fcp <- FillChromPeaksParam(
+    ppm = 20, fixedRt = median(chromPeaks(data_pos)[, "rtmax"] -
+                               chromPeaks(data_pos)[, "rtmin"]) / 2)
 data_pos <- fillChromPeaks(data_pos, param = fcp)
 
 save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
@@ -915,18 +935,18 @@ for internal standards L-Cystine and Glucose.
 
 # Between-sample normalization
 
-Per-sample normalization aims to remove global abundance differences between
+Between-sample normalization aims to remove global abundance differences between
 samples due to variations in sample collection, extraction, processing and
-possibly amount. The simplest approach is to normalize abundances based on
-either the total signal sum or the median abundance. They rely however on the
+possibly amount. The simplest approach is to normalize abundances based on the
+total sum of the signal or its median. Such approaches rely however on the
 self-averaging property assuming that an increase in abundances of a group of
 metabolites is balanced by a decrease in abundances in another group
 [@Livera:2015bo]. Also, these approaches tend to be biased by highly abundant
 metabolites. Methods robust against such a bias, like the median ratio method
 (MRM [@Anders:2010fu]) or the trimmed mean of M-values (TMM [@Robinson:2010dd])
-used in RNAseq data normalization might be used instead. Note that we did
+used in RNAseq data normalization could be used instead. Note that we did
 exclude the TMM from our analyses due to the lower performance compared to the
-MRM. 
+MRM.
 
 Alternatively, we will evaluate also the performance of RUV [@Livera:2015bo]
 which requires however internal standards (or metabolites correlating with their
@@ -935,13 +955,13 @@ abundance) to estimate the technical variance in the data and the NOMIS method
 
 Note that, since the internal standards were added before sample preparation,
 but after sample collection and extraction, they can only assess
-sample-preparation-related effects.
+sample-preparation related effects.
 
 Below we calculate normalization factors based on the total sum of the signal,
 the median abundance per sample and using the MRM and TMM methods. The
-calculations are based on abundances of detected peaks. Subsequently we
-normalize the feature abundance (also of filled-in signal) based on the
-estimated sample-wise normalization factors.
+calculations are based on abundances of detected peaks (i.e. excluding filled-in
+peak data). Subsequently we normalize the feature abundance (also of filled-in
+signal) based on the estimated sample-wise normalization factors.
 
 ```{r, eval = FALSE, echo = FALSE}
 #' compare: median abundance
@@ -970,14 +990,14 @@ abline(0, 1)
 ```
 
 ```{r estimate-norm-factors, message = FALSE, warning = FALSE}
-fv_imp <- imputeRowMinRand(fv)
+fv_imp <- imputeRowMinRand(fv, min_fraction = 0.5)
 
 tmp <- fv
 tmp[is.na(fv_nofill)] <- NA
 
 #' sum of signal.
 sms <- colSums(tmp, na.rm = TRUE)
-nf_sm <- sms / mean(sms)
+nf_sm <- sms / median(sms)
 
 #' median signal
 mdns <- apply(tmp, MARGIN = 2, median, na.rm = TRUE)
@@ -1068,7 +1088,7 @@ replicates are thus ideal to evaluate the performance of the between-sample
 normalization as that aims to remove sample processing related variances.
 
 We thus calculate below the MRA (maximum ratio of abundances) between replicated
-samples (using only the detected signal). From these we calculate the 75%
+measurements (using only the detected signal). From these we calculate the 75%
 quantile of the absolute MRM per sample as a proxy for between replicate
 difference. Seventy five percent of the features per sample have an absolute
 difference between replicated measurement that is smaller than this value.
@@ -1094,20 +1114,27 @@ the boxplots below.
 ```{r per-sample-mra-75-boxplot, message = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Impact of normalization on differences between replicates. Distribution of per-sample 75% quantile MRA for the raw and between-sample normalized data (left) and number of features (per replicate pair) with a more than two-fold difference in abundances. Only detected peak signal is considered.", fig.width = 8, fig.height = 5}
 
 #' Calculate summary statistics
-mra_raw_q <- mra_summary_quant(mra_raw)
+mra_raw_q <- mra_summary_quant(mra_raw, 0.75)
 mra_raw_c <- mra_summary_count(mra_raw)
-mra_sm_q <- mra_summary_quant(mra_sm)
+mra_raw_p <- mra_summary_perc(mra_raw)
+mra_sm_q <- mra_summary_quant(mra_sm, 0.75)
 mra_sm_c <- mra_summary_count(mra_sm)
-mra_mdn_q <- mra_summary_quant(mra_mdn)
+mra_sm_p <- mra_summary_perc(mra_sm)
+mra_mdn_q <- mra_summary_quant(mra_mdn, 0.75)
 mra_mdn_c <- mra_summary_count(mra_mdn)
-mra_mrm_q <- mra_summary_quant(mra_mrm)
+mra_mdn_p <- mra_summary_perc(mra_mdn)
+mra_mrm_q <- mra_summary_quant(mra_mrm, 0.75)
 mra_mrm_c <- mra_summary_count(mra_mrm)
-mra_ruvr_q <- mra_summary_quant(mra_ruvr)
+mra_mrm_p <- mra_summary_perc(mra_mrm)
+mra_ruvr_q <- mra_summary_quant(mra_ruvr, 0.75)
 mra_ruvr_c <- mra_summary_count(mra_ruvr)
-mra_ruv3_q <- mra_summary_quant(mra_ruv3)
+mra_ruvr_p <- mra_summary_perc(mra_ruvr)
+mra_ruv3_q <- mra_summary_quant(mra_ruv3, 0.75)
 mra_ruv3_c <- mra_summary_count(mra_ruv3)
-mra_nms_q <- mra_summary_quant(mra_nms)
+mra_ruv3_p <- mra_summary_perc(mra_ruv3)
+mra_nms_q <- mra_summary_quant(mra_nms, 0.75)
 mra_nms_c <- mra_summary_count(mra_nms)
+mra_nms_p <- mra_summary_perc(mra_nms)
 
 #' Note: median and 80% quantile did not show any improvement.
 mra_df <- data.frame(raw = mra_raw_q,
@@ -1130,7 +1157,14 @@ mra_c_df <- data.frame(raw = mra_raw_c,
                        `RUV rand` = mra_ruvr_c,
                        RUVIII = mra_ruv3_c,
                        NOMIS = mra_nms_c)
-boxplot(mra_c_df, las = 2, ylab = "count M > 1")
+mra_p_df <- data.frame(raw = mra_raw_p,
+                       sum = mra_sm_p,
+                       median = mra_mdn_p,
+                       MRM = mra_mrm_p,
+                       `RUV rand` = mra_ruvr_p,
+                       RUVIII = mra_ruv3_p,
+                       NOMIS = mra_nms_p)
+boxplot(mra_p_df, las = 2, ylab = "% M > 1")
 grid(nx = NA, ny = NULL)
 
 ```
@@ -1147,22 +1181,22 @@ A summary of the boxplots above is provided in the table below.
 
 T <- apply(mra_df, 2, quantile, na.rm = TRUE)
 T <- rbind(T,
-           `count M > 1` = c(mean(mra_raw_c, na.rm = TRUE),
-                             mean(mra_sm_c, na.rm = TRUE),
-                             mean(mra_mdn_c, na.rm = TRUE),
-                             mean(mra_mrm_c, na.rm = TRUE),
-                             mean(mra_ruvr_c, na.rm = TRUE),
-                             mean(mra_ruv3_c, na.rm = TRUE),
-                             mean(mra_nms_c, na.rm = TRUE)))
+           `% M > 1` = c(mean(mra_raw_p, na.rm = TRUE),
+                             mean(mra_sm_p, na.rm = TRUE),
+                             mean(mra_mdn_p, na.rm = TRUE),
+                             mean(mra_mrm_p, na.rm = TRUE),
+                             mean(mra_ruvr_p, na.rm = TRUE),
+                             mean(mra_ruv3_p, na.rm = TRUE),
+                             mean(mra_nms_p, na.rm = TRUE)))
 cpt <- paste0("Distribution of per-replicate 75% MRA quantile for the raw ",
-              "and between-sample normalized data and average count of ",
+              "and between-sample normalized data and mean percentage of ",
               "features with a more than 2-fold difference in abundance.")
 pandoc.table(T, style = "rmarkdown", caption = cpt)
 ```
 
 The improvement of the between-sample normalization is only marginal with the
 best performing methods, in terms of reducing the average 75% quantile MRA and
-the average number of replicates with a more than two-fold difference in
+the average percentage of replicates with a more than two-fold difference in
 abundance, being the median scaling and the MRM. Methods using the internal
 standards for normalization (RUV and NOMIS) result in larger differences between
 replicates.
@@ -1248,7 +1282,10 @@ points(colMeans(log2(fv_nms), na.rm = TRUE), type = "l")
 ```
 
 No big improvements/changes can be observed between the raw and normalized
-abundance distributions. Note however that the methods using internal standards
+abundance distributions. The boxplots represent however the abundances of the
+full (detected and filled-in) data.
+
+Be also aware that the methods using internal standards
 for the normalization drastically changed the abundance levels while the scale
 for the methods using global, per sample, abundance levels remained the same.
 
@@ -1260,7 +1297,6 @@ tmp[is.na(fv_nofill)] <- NA
 fv_nofill <- tmp
 rm(tmp)
 ```
-
 
 
 # Within-batch normalization
@@ -1333,7 +1369,8 @@ mdls_b <- xcms:::rowFitModel(
 
 We next remove fitted linear models for features for which valid measurements do
 not span at least 2/3 of the injection index range or for which the mean of the
-absolute residuals is larger than 0.5.
+absolute residuals is larger than 0.5. This avoids extrapolation of the signal
+drift and adjustment based on noisy signals in QC samples.
 
 ```{r fit-model-table-batch, message = FALSE, echo = FALSE, fig.cap = "Distribution of slopes of the fitted models for batch a and b. Red and blue represents slopes for models flagged because of too large range of residuals and too low span of injection index, respectively.", fig.width = 8, fig.height = 4, fig.path = IMAGE_PATH}
 
@@ -1648,7 +1685,7 @@ for (ft in fts) {
 ```
 
 Next we apply the within batch correction adjusting all feature abundances (also
-filled-in values) based on the estimated models. Adjustment resulted in three
+filled-in values) based on the estimated models. Adjustment resulted in 15
 measurements with negative (log2) abundances. These were replaced by half of the
 minimum non negative intensity for that feature. Note however that quite some
 log2 abundances are smaller than 1, which represents negative intensities in
@@ -1746,8 +1783,10 @@ pair.
 ```{r mra-75, message = FALSE, warnings = FALSE}
 mra_raw_q <- mra_summary_quant(mra_raw)
 mra_raw_c <- mra_summary_count(mra_raw)
+mra_raw_p <- mra_summary_perc(mra_raw)
 mra_adj_q <- mra_summary_quant(mra_adj)
 mra_adj_c <- mra_summary_count(mra_adj)
+mra_adj_p <- mra_summary_perc(mra_adj)
 ```
 
 A comparison between the raw and adjusted 75% MRAs is shown in the plot below.
@@ -1799,11 +1838,13 @@ mra_df <- data.frame(raw = mra_raw_q,
                      adj = mra_adj_q)
 mra_c_df <- data.frame(raw = mra_raw_c,
                        adj = mra_adj_c)
+mra_p_df <- data.frame(raw = mra_raw_p,
+                       adj = mra_adj_p)
 
 par(mar = c(6, 4.5, 1, 0.5), mfrow = c(1, 2))
 boxplot(mra_df, las = 2, ylab = "75% quantile MRA", ylim = c(1, 3))
 grid(nx = NA, ny = NULL)
-boxplot(mra_c_df, las = 2, ylab = "count M > 1")
+boxplot(mra_p_df, las = 2, ylab = "perc M > 1")
 grid(nx = NA, ny = NULL)
 
 ```
@@ -1814,35 +1855,46 @@ The table below summarizes the results.
 
 T <- apply(mra_df, 2, quantile, na.rm = TRUE)
 T <- rbind(T,
-           `count M > 1` = c(mean(mra_raw_c, na.rm = TRUE),
-                             mean(mra_adj_c, na.rm = TRUE)))
+           `% M > 1` = c(mean(mra_raw_p, na.rm = TRUE),
+                             mean(mra_adj_p, na.rm = TRUE)))
 cpt <- paste0("Distribution of per-replicate 75% MRA quantile for the raw ",
-              "and within-batch normalized data and average count of ",
+              "and within-batch normalized data and mean percentage of ",
               "features with a more than 2-fold difference in abundance.")
 pandoc.table(T, style = "rmarkdown", caption = cpt)
 ```
 
-Within-batch adjustment did reduce the 75% MRAs slightly, especially the 75%
-quantile and the value ranges. The impact of within-batch normalization is more
-pronounced if we consider only features that were actually adjusted:
+Within-batch adjustment did reduce the 75% MRAs slightly, especially its 75%
+quantile and the value ranges. Also the percentage features of replicated
+samples with more than 2-fold differences is reduced. The impact of within-batch
+normalization is more pronounced if we consider only features that were actually
+adjusted:
 
 ```{r within-batch-mra-table-adjusted-features, echo = FALSE, results = "asis"}
 mra_raw <- mra_for_mat(fv_raw[fts_adj, ], fv_nofill[fts_adj, ], grp, "all-POOL")
 mra_adj <- mra_for_mat(fv_adj[fts_adj, ], fv_nofill[fts_adj, ], grp, "all-POOL")
 mra_raw_q <- mra_summary_quant(mra_raw)
 mra_raw_c <- mra_summary_count(mra_raw)
+mra_raw_p <- mra_summary_perc(mra_raw)
 mra_adj_q <- mra_summary_quant(mra_adj)
 mra_adj_c <- mra_summary_count(mra_adj)
+mra_adj_p <- mra_summary_perc(mra_adj)
 mra_df <- data.frame(raw = mra_raw_q,
                      adj = mra_adj_q)
 mra_c_df <- data.frame(raw = mra_raw_c,
                        adj = mra_adj_c)
+mra_p_df <- data.frame(raw = mra_raw_p,
+                       adj = mra_adj_p)
+##' par(mar = c(6, 4.5, 1, 0.5), mfrow = c(1, 2))
+##' boxplot(mra_df, las = 2, ylab = "75% quantile MRA", ylim = c(1, 3))
+##' grid(nx = NA, ny = NULL)
+##' boxplot(mra_p_df, las = 2, ylab = "perc M > 1")
+##' grid(nx = NA, ny = NULL)
 T <- apply(mra_df, 2, quantile, na.rm = TRUE)
 T <- rbind(T,
-           `count M > 1` = c(mean(mra_raw_c, na.rm = TRUE),
-                             mean(mra_adj_c, na.rm = TRUE)))
+           `% M > 1` = c(mean(mra_raw_p, na.rm = TRUE),
+                             mean(mra_adj_p, na.rm = TRUE)))
 cpt <- paste0("Distribution of per-replicate 75% MRA quantile for the raw ",
-              "and within-batch normalized data and average count of ",
+              "and within-batch normalized data and mean percentage of ",
               "features with a more than 2-fold difference in abundance. ",
               "Only features with data normalized for injection order ",
               "dependent signal drift in at least one of the two batches ",
@@ -1850,7 +1902,6 @@ cpt <- paste0("Distribution of per-replicate 75% MRA quantile for the raw ",
 pandoc.table(T, style = "rmarkdown", caption = cpt)
 
 ```
-
 
 # Between-batch normalization
 
@@ -1868,8 +1919,16 @@ abundances for both replicates for each sample are measured in the same batch.
 Below we use linear models on (log2 transformed) detected signal in QC samples
 to estimate the (per-feature) batch effect. We require at least 6 valid
 measurements in QC samples of each batch from all features and mean absolute
-residuals that are smaller than 0.5. Features that do not fulfill this criteria
-will be normalized with a global model.
+residuals that are smaller than 0.5. Also, we flag features for which the ratio
+of the average signal between study and QC samples differs by more than two-fold
+between the batches. Assuming an unbiased sampling in both batches we expect
+this signal to QC ratio the ratio to be comparable between the two batches. For
+a considerable number of features this differs however between the batches. A
+feature-wise normalization based on QC samples would introduce a bias instead of
+removing it for these cases.
+
+Features that do not fulfill the above mentioned criteria will be normalized
+with a global model.
 
 ```{r estimate-betwee-batch-effect, message = FALSE, warning = FALSE}
 #' Use the linear model fit on DETECTED QC samples
@@ -1890,6 +1949,28 @@ flags_res <- vapply(mdls_batch, flag_model_mean_residual, logical(1),
                     cut_off = 0.5)
 mdls_batch[which(flags_res)] <- NA
 
+#' Flag models for feature for which the average signal to QC ratio is more
+#' two-fold different between the batches.
+#' 
+#' First calculate mean (log2) abundances for each group within each batch
+src_btch <- paste(data_pos$source, data_pos$batch)
+src_btch_avg <- apply_colgroup(log2(tmp), source_batch,
+                               function(z) apply(z, 1, mean_if, n = 6))
+#' Difference between each source and the pool within each batch
+btch_a <- grep("31012018", colnames(src_btch_avg))
+src_btch_avg[, btch_a] <- src_btch_avg[, btch_a] -
+    src_btch_avg[, "all 31012018"]
+btch_b <- grep("1022018", colnames(src_btch_avg))
+src_btch_avg[, btch_b] <- src_btch_avg[, btch_b] -
+    src_btch_avg[, "all 1022018"]
+#' Calculate differences (per group/source) between batches
+diff_btch <- src_btch_avg[, paste(c("venous", "RBC", "capillary", "plasma"),
+                                  "31012018")] -
+    src_btch_avg[, paste(c("venous", "RBC", "capillary", "plasma"),
+                         "1022018")]
+flags_diff <- abs(rowMeans(diff_btch, na.rm = TRUE)) > 1
+mdls_batch[which(flags_diff)] <- NA
+
 #' Fit a global model on all features.
 glbl_mdl_batch <- xcms:::fitModel(y ~ batch,
                                   data = pData(data_pos)[qcs_a | qcs_b, ],
@@ -1898,11 +1979,16 @@ glbl_mdl_batch <- xcms:::fitModel(y ~ batch,
 
 ```
 
+The plots below show examples for features being flagged because of large
+residuals in the linear model fit or large difference in signal to QC ratio. The
+last example shows the data for a feature with a large difference in QC values
+that will also be adjusted based on these.
+
 ```{r between-features-flag-res, echo = FALSE, warning = FALSE, message = FALSE}
 #' Plot the data for features with a too large mean residual.
-plot_ft_int <- function(x, ft, ...) {
+plot_ft_int <- function(x, ft, main = ft, ...) {
     pchs <- ifelse(is.na(fv_nofill[ft, ]), yes = 1, no = 16)
-    plot(log2(x[ft, ]), main = ft, col = col_source[data_pos$source],
+    plot(log2(x[ft, ]), main = main, col = col_source[data_pos$source],
          pch = pchs)
     abline(v = sum(data_pos$batch == data_pos$batch[1]))
 }
@@ -1916,8 +2002,33 @@ for (ft in fts) {
     dev.off()
 }
 
+```
+
+```{r large-difference-sample-qc-ex1, out.width = "750px", echo = FALSE, fig.cap = "Feature with large residuals in the feature-wise model. The feature will be adjusted globally."}
+knitr::include_graphics(
+           paste0(IMAGE_PATH, "between-batch/large_mean_residual/",
+                  fts[1], ".png"))
+```	
+
+```{r large-difference-sample-qc, echo = FALSE, warning = FALSE, message = FALSE}
+diffs <- rowMeans(diff_btch, na.rm = TRUE)[which(flags_diff)]
+fts <- names(diffs[order(abs(diffs), decreasing = TRUE)])[1:20]
+dr <- paste0(IMAGE_PATH, "between-batch/largest_diff_qc_sample/")
+dir.create(dr, showWarnings = FALSE, recursive = TRUE)
+for (ft in fts) {
+    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+        res = 200, units = "cm")
+    plot_ft_int(fv_adj, ft)
+    dev.off()
+}
 
 ```
+
+```{r large-difference-sample-qc-ex1, out.width = "750px", echo = FALSE, fig.cap = "Feature with a large difference in signal to QC ratio between the batches. The feature will be adjusted globally."}
+knitr::include_graphics(
+           paste0(IMAGE_PATH, "between-batch/largest_diff_qc_sample/",
+                  fts[1], ".png"))
+```	
 
 ```{r between-batch-top-slope-features, echo = FALSE, warning = FALSE, message = FALSE}
 #' Plot the data for the top 20 features with the largest slopes.
@@ -1939,6 +2050,13 @@ for (ft in fts) {
 }
 
 ```
+
+```{r between-batch-top-slope-ex1, out.width = "750px", echo = FALSE, fig.cap = "Feature with a large slope for the between-batch normalization model."}
+knitr::include_graphics(
+           paste0(IMAGE_PATH, "between-batch/largest_slopes/",
+                  fts[11], ".png"))
+```	
+
 
 The table below lists the number of features that are adjusted with feature-wise
 models and the number of features for which a global batch correction will be
@@ -1968,6 +2086,8 @@ tmp[is.na(fv_nofill)] <- NA
 fv_nofill <- tmp
 rm(tmp)
 ```
+
+
 
 # Final QA
 
