@@ -85,7 +85,7 @@ register(DoparParam(), default = TRUE)
 
 pd <- read.table("data/phenodata.txt", sep = "\t", as.is = TRUE, header = TRUE)
 pd_neg <- pd[pd$polarity == "NEG", ]
-LLLLL
+
 ## Define colors for the groups.
 col_source <- brewer.pal(5, name = "Set1")
 names(col_source) <- c("RBC",           # red
@@ -108,7 +108,7 @@ validatePdata <- function(x) {
     fn <- strsplit(x$mzML_file, split = "_")
     for (i in 1:nrow(x)) {
         splt <- fn[[i]]
-        if (splt[1] != x$batch[i])
+        if (substr(splt[1], 2, nchar(splt[1])) != x$batch[i])
             message("Row ", i, ": batch wrong")
         if (length(splt) == 5) {
             if (as.numeric(splt[2]) != x$sample[i])
@@ -141,7 +141,7 @@ sources and samples) was used as quality control and repeatedly measured (every
 measurement run is visualized below.
 
 ```{r neg-run-plot, fig.width = 10, fig.height = 2, fig.path = IMAGE_PATH, fig.cap = "Layout of a measurement run."}
-tmp <- pData(data_neg)[data_neg$batch == 31012018, ]
+tmp <- pData(data_neg)[data_neg$batch == 6022018, ]
 par(mar = c(2, 0, 2, 0))
 plot(3, 3, pch = NA, xaxt = "n", yaxt = "n", ylim = c(0, 2),
      xlim = c(0.5, nrow(tmp) + 0.5), bty = "n")
@@ -174,13 +174,11 @@ legend("topright", col = col_source, legend = names(col_source), lwd = 2)
 ```
 
 The base peak chromatograms are quite different between the different sample
-sources. Plasma and venous samples have considerably higher signal in the
-retention time range from 170 to 200 seconds. For most other parts similar the
-BPC shows similar signal suggesting that similar compounds are
-detected. Individual capillary blood samples show a distinct BPC potentially
-indicating problems in sample preparation and/or measurement.
-We next cluster samples based on pair-wise correlations of their (log2) base
-peak intensities.
+sources. Similar to the positive polarity mode, the largest differences between
+sample sources can be observed in the retention time range from 170 to 210
+seconds. Especially capillary samples show much lower signal in that area. We
+next cluster samples based on pair-wise correlations of their (log2) base peak
+intensities.
 
 ```{r neg-bin-chr, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 12, fig.height = 12, fig.cap = "Samples clustered by base peak chromatogram. Clustering bases on complete linkage hierarchical clustering of pairwise correlations of log2 base peak signals."}
 ## First we have to bin the chromatograms to force them having the same
@@ -191,51 +189,18 @@ chrs_bin <- bin(chrs_bpc)
 cormat <- cor(log2(do.call(cbind, lapply(chrs_bin, intensity))))
 colnames(cormat) <- rownames(cormat) <- sampleNames(data_neg)
 ann <- pData(data_neg)[, c("batch", "source")]
-ann$batch <- factor(ann$batch, levels = c("31012018", "1022018"))
+ann$batch <- factor(ann$batch, levels = c("6022018", "7022018"))
 res <- pheatmap(cormat, annotation_col = ann, cutree_cols = 3,
                 annotation_color = list(source = col_source))
 
 ```
 
-The base peak chromatograms cluster mainly by the sample source, separating
-mostly capillary samples and red blood cells from other sources (i.e. plasma,
-all, and venous samples). One cluster of samples, consisting exclusively of
-capillary and red blood cell samples, mostly from the second batch, separates
-from all others samples.
+The base peak chromatograms cluster mainly by the sample source, separating all
+capillary samples and most red blood cell samples from other sources
+(i.e. plasma, all, and venous samples). No clear separation by batch is present.
 
-The samples belonging to the first cluster of capillary and red blood samples
-that separates from all other samples are listed in the table below.
-
-```{r neg-cluster-one-sample-table, echo = FALSE, results = "asis"}
-clust_one <- cutree(res$tree_col, 2)
-clust_one_idx <- which(clust_one == 2)
-tab <- pData(data_neg)[clust_one_idx, c("batch", "sample",
-                                        "source", "replicate", "inj_idx")]
-pandoc.table(tab[order(tab$sample), ], style = "rmarkdown",
-             caption = paste("Samples separating from all others based on",
-                             "their base peak chromatograms."))
-```
-
-As described already above, the potential outlier samples are exclusively RBC
-and capillary blood samples. For individuals *12*, *16*, *17* and *19* both
-replicates are affected suggesting a potential problem with the extraction or
-the sample tube. All the others the actual measurement might be failed, since
-the other replicate was not affected. Note that all except one measurement are
-from the second batch.
-
-In the plot below the base peak chromatogram of samples from this cluster are
-highlighted.
-
-```{r neg-cluster-one-bpc-plot, echo = FALSE, fig.width = 12, fig.height = 5, fig.cap = "Base peak chromatogram with samples identified as potential outliers being highlighted in red."}
-col_clust <- c("#00000020", "#ff000080")
-plot(chrs_bpc, col = col_clust[clust_one])
-
-## cols <- rep("#00000020", length(chrs_bpc$source))
-## cols[chrs_bpc$sample %in% c("16", "19")] <- "#ff000080"
-## ##cols[c(74, 178)] <- "#ff000080"
-## plot(chrs_bpc, col = cols)
-
-```
+In contrast to the positive polarity data, no clear set of outlier samples can
+be identified.
 
 ```{r, echo = FALSE, eval = FALSE}
 ## Perform the PCA
@@ -281,26 +246,17 @@ grid(nx = NULL)
 par(mar = c(3, 4.3, 0.5, 0.1))
 bpcs_rla <- rla(vapply(bpcs, mean, numeric(1)), group = chrs_bpc$source)
 pch <- rep(16, length(bpcs_rla))
-pch[clust_one_idx] <- 15
 plot(bpcs_rla, xlab = "", ylab = "average RLA", xlim = xl,
      col = paste0(col_source[chrs_bpc$source], 80), pch = pch)
 grid(nx = NULL)
 
 ```
 
-Overall seen, the signal in the second batch is higher than in the first,
-specifically if the QC samples from both batches are compared (green colored
-boxes or points), that show an about two-fold higher overall signal in the
-second batch. The distribution of base peak signals varies between samples with
-stretches of measurements in both batches showing lower distribution than
-samples measured before or after. Two red blood cell samples (one in the first
-and one in the second) have much lower average base peak intensities, most
-likely due to a failed injection (because the signal of the replicated
-measurement is *normal*) and should thus be excluded from the analysis.  Only 4
-of the 19 samples identified as potential outliers based on the correlation of
-their base peak chromatograms deviate from other samples based on their base
-peak RLA value.  Below we list all samples for which one replicate yielded a
-more than two-fold difference in average base peak signal.
+The (base peak) signal from capillary blood samples is generally lower than that
+of all other sample types. According to the RLA, only 3 samples, all
+representing red blood cell-samples show a generally lower intensity than all
+other samples from the same sample type. Below we list the samples with a more
+than two-fold lower signal compared to other samples of the same source/matrix.
 
 ```{r neg-bpc-outlier, echo = FALSE, message = FALSE, results = "asis"}
 outl <- abs(bpcs_rla) > 1
@@ -309,30 +265,27 @@ all_outl <- paste0(chrs_bpc$sample, chrs_bpc$source) %in% outl_smps
 tab <- cbind(pData(chrs_bpc)[all_outl, ], bpc_rla = bpcs_rla[all_outl])
 
 pandoc.table(tab[order(abs(tab$bpc_rla), decreasing = TRUE), ],
-             style = "rmarkdown", 
+             style = "rmarkdown", split.table=Inf)
              caption = paste0("Samples for which one replicated measurement ",
                               "had a more than two-fold difference in average",
                               " base peak intensity."))
 ```
 
 For all of the above samples one of the two replicates yielded a more than
-two-fold difference in average base peak intensity, while the other did not. We
-might thus exclude the problematic replicate for these samples. The two
-capillary blood samples with a higher average intensity are most likely those
-that showed also higher signal in the base peak chromatogram plot above. The
-results on the total ion signal (i.e. the sum of signal per spectrum) is
-comparable, but less pronounced (data not shown).
+two-fold difference in average base peak intensity, while the other did
+not. Also, two of the above outlier samples (second replicates for individuals
+22 and 11) were also identified as outliers in the positive polarity mode
+arguing for a problem with the respective Mitra tip. We will remove the 3
+affected outlier samples from the further analysis.
 
 ### Summary
 
-The base peak and total ion chromatogram between samples from the various
-sources are different. The distribution of signals does also show a relatively
-large variation between all samples and batches, with the signal being generally
-higher in the second batch. Four potentially problematic samples have been
-spotted that show either more than two-fold lower or higher average base peak
-intensity than other samples from the same source. These are two RBC and two
-capillary blood samples. This is most likely caused by a failed/problematic
-injection, because one replicate is affected.
+The base peak and total ion chromatogram of capillary blood samples are
+different to those from all other matrices/sample types. Also, their average
+base peak signal is considerably lower, but consistent between samples of the
+same type. 3 Potentially problematic samples have been identified, two of which
+were also identified as outliers in the positive polarity data. These will be
+excluded from the further analysis.
 
 
 ## Chromatographic peak detection
