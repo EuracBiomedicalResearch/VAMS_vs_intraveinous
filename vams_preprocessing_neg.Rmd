@@ -320,11 +320,15 @@ dir.create(paste0(IMAGE_PATH, "/tmp"), showWarnings = FALSE)
 
 for (i in 1:nrow(neg_cmps)) {
     fn <- paste0(IMAGE_PATH, "/tmp/", neg_cmps$id[i], ".png")
-    mzr <- c(neg_cmps$mz[i] - 0.01, neg_cmps$mz[i] + 0.01)
-    rtr <- as.numeric(unlist(strsplit(neg_cmps$rt_range[i], split = "-")))
-    tmp_chr <- chromatogram(qc_neg, rt = rtr, mz = mzr)
+    mz_exp <- neg_cmps$mz[i]
+    mz_ppm <- mz_exp * 20 / 1e6         # for a ppm = 40
+    mzr <- mz_exp + c(-mz_ppm, mz_ppm)
+    rtr <- neg_cmps$rt_expected[i] + c(-20, 20)
+    tmp_chr <- chromatogram(qc_neg, rt = rtr + c(-5, 5), mz = mzr)
     png(fn, width = 8, height = 6, units = "cm", res = 200, pointsize = 6)
-    plot(tmp_chr)
+    plot(tmp_chr, main = paste0(neg_cmps[i, "name"], ": ",
+                                paste(format(mzr, digits = 6), collapse = "-")))
+    abline(v = neg_cmps$rt_expected[i], lty = 3)
     dev.off()
     ## png(fn, width = 20, height = 20, units = "cm", res = 200, pointsize = 6)
     ## plot(filterMz(filterRt(qc_neg, rtr), mzr), type = "XIC")
@@ -344,55 +348,130 @@ across files is shown below in the table listing the compounds used in this
 analysis.
 
 ```{r known-cmps-neg-define, echo = FALSE, message = FALSE, warning = FALSE, results = "asis"}
+
 ## In this code block we manually select known compounds and define their rt
 kcs <- rbind(
-    kc_1 = c(167, 173),            # 4000
-    kc_3 = c(161, 167),            # 7000
-    kc_7 = c(161, 167),            # 800
-    kc_10 = c(178, 183),           # 5000
-    kc_13 = c(155, 167),           # 5000-20000, two peaks
-    kc_18 = c(155, 162),           # 15000, mixed single/double peak
-    kc_19 = c(155, 163),           # overlapping with kc_18
-    kc_21 = c(168, 175),           # 20000
-    kc_22 = c(31, 35),             # 6000, tricky peak, batch differences?
-    kc_23 = c(40, 53),             # 1500, very broad peak.
-    kc_24 = c(166, 171),           # 15000
-    kc_26 = c(155, 160),           # 500 (second peak next by)
-    kc_28 = c(169, 175),           # 4000
-    kc_30 = c(156, 165),           # 40000, mis-aligned (between batch?)
-    kc_31 = c(142, 153),           # 8000, double (multi)-peak with kc_32
-    kc_32 = c(142, 153),           # 8000, double peak with kc_31
-    kc_34 = c(181, 186),           # 8000
-    kc_35 = c(194, 202),           # 15000, mis-aligned
-    kc_36 = c(184, 192),           # 4000, broad peak.
-    kc_43 = c(176, 182),           # 70000
-    kc_44 = c(191, 198),           # 20000, mis-aligned
-    kc_46 = c(170, 176),           # 40000
-    kc_52 = c(191, 198),           # 30000, slightly mis-aligned
-    kc_54 = c(26, 29),             # 1000
-    kc_56 = c(165, 169),           # 2000
-    kc_61 = c(153, 157),           # 12000, slightly mis-aligned
-    kc_67 = c(185, 197),           # 15000, mis-aligned, two peaks (kc_68)
-    kc_68 = c(185, 197),           # 15000, mis-aligned, two peaks (kc_67)
-    kc_71 = c(148, 154),           # 2500, mis-aligned
-    kc_72 = c(189, 197),           # 20000, mis-aligned
-    kc_75 = c(180, 185),           # 10000, slightly mis-aligned
-    kc_79 = c(163, 170),           # 400
-    kc_81 = c(158, 168),           # 6000, mis-aligned, two peaks (kc_82)
-    kc_82 = c(158, 168),           # 6000, mis-aligned, two peaks (kc_81)
-    kc_85 = c(159, 166),           # 8000, mis-aligned
-    kc_86 = c(145, 149),           # 2500, mis-aligned (between batch?)
-    kc_88 = c(159, 165),           # 800, heavily mis-aligned
-    kc_90 = c(190, 200),           # 2000, mis-aligned
-    kc_95 = c(30, 34),             # 25000
-    kc_100 = c(178, 186),          # 6000, slightly mis-aligned, kc_101
-    kc_103 = c(145, 154),          # 2500, mis-aligned (between batch?) double peak
-    kc_106 = c(183, 189),          # 1500
-    kc_122 = c(28, 31),            # 80000
-    kc_123 = c(165, 170),          # 1500, slightly mis-aligned
-    kc_125 = c(183, 193)           # 800, double peak, kc_126.
+    kc_1 = c(165, 175, 0),            # SKIP 150, noisy thing
+    kc_2 = c(31, 44, 1),              # 2000 two fused peaks (?)
+    kc_3 = c(157, 167, 1),            # 600 two close peaks
+    kc_4 = c(31, 45, 1),              # 60000, nice peak and broad second one (?)
+    kc_5 = c(30, 35, 1),              # 350 low intensity peak
+    kc_6 = c(169, 175, 0),            # SKIP nothing there
+    kc_7 = c(169, 175, 1),            # 600 but 10 seconds off expected peak
+    kc_8 = c(31, 37, 1),              # 10000 OK
+    kc_10 = c(176, 183, 1),           # 1400 OK
+    kc_11 = c(60, 70, 0),             # SKIP ugly broad unclear peak.
+    kc_12 = c(133, 143, 0),           # SKIP 400, unclear signal.
+    kc_13 = c(160, 166, 1),           # 1000 OK
+    kc_14 = c(31, 36, 0),             # SKIP two peaks, not clear which one
+    kc_15 = c(30, 35, 1),             # 15000 OK
+    kc_16 = c(31, 55, 0),             # SKIP broad unclear signal
+    kc_17 = c(150, 160, 0),           # SKIP nothing there
+    kc_19 = c(156, 161, 1),           # 1000 OK, but there is another peak left
+    kc_20 = c(31, 37, 1),             # 7000 OK
+    kc_21 = c(168, 175, 1),           # 9000 OK
+    kc_24 = c(165, 172, 1),           # 40000 OK
+    kc_25 = c(50, 60, 0),             # SKIP broad unclear signal.
+    kc_26 = c(150, 160, 0),           # SKIP nothing there
+    kc_27 = c(29, 35, 1),             # 70000 OK
+    kc_28 = c(169, 175, 1),           # 500 OK
+    kc_29 = c(31, 50, 1),             # 1200 two peaks, unclear which (?)
+    kc_30 = c(155, 165, 1),           # 1400 two peaks, one matches expected rt
+    kc_31 = c(140, 148, 1),           # 1000 double peak with kc_32
+    kc_32 = c(146, 153, 1),           # 200 double peak with kc_31
+    kc_33 = c(32, 37, 1),             # 3000 OK
+    kc_34 = c(180, 186, 1),           # 2500 OK
+    kc_35 = c(192, 200, 1),           # 2500 OK
+    kc_36 = c(184, 193, 1),           # 6000 two peaks, unclear which (?)
+    kc_37 = c(110, 120, 0),           # SKIP nothing there
+    kc_38 = c(100, 125, 1),           # 8000 OK, broad (hilic) peak
+    kc_40 = c(30, 35, 1),             # 4000 OK
+    kc_41 = c(192, 200, 1),           # 1500 OK
+    kc_42 = c(70, 80, 0),             # SKIP nothing there
+    kc_43 = c(175, 182, 1),           # 10000 OK
+    kc_44 = c(189, 196, 1),           # 3000 OK
+    kc_45 = c(48, 78, 1),             # 800 OK, broad (hilic) peak
+    kc_46 = c(169, 176, 1),           # 30000 OK
+    kc_47 = c(30, 50, 0),             # SKIP no clear signal
+    kc_48 = c(155, 161, 1),           # 300 OK, second peak left
+    kc_49 = c(NA, NA, 0),             # SKIP nothing there
+    kc_50 = c(130, 140, 0),           # SKIP poor signal
+    kc_51 = c(27, 33, 1),             # 8000 OK but second small peak close
+    kc_52 = c(190, 197, 1),           # 25000 OK
+    kc_53 = c(130, 140, 1),           # 800 OK, broad peak
+    kc_54 = c(30, 38, 1),             # 500 OK, but potential double peak.
+    kc_55 = c(30, 40, 0),             # SKIP 200, low intensity, no nice peak.
+    kc_56 = c(163, 170, 0),           # SKIP 300, low intensity, no nice peak.
+    kc_57 = c(NA, NA, 0),             # SKIP nothing there
+    kc_59 = c(NA, NA, 0),             # SKIP nothing there
+    kc_60 = c(178, 182, 0),           # SKIP 150, low intensity, no peak.
+    kc_61 = c(143, 152, 1),           # 800 OK, but two peaks there (?)
+    kc_62 = c(NA, NA, 0),             # SKIP fused broad peak with kc_63, kc_64
+    kc_63 = c(NA, NA, 0),             # SKIP fused broad peak with kc_62, kc_64
+    kc_64 = c(NA, NA, 0),             # SKIP fused broad peak with kc_62, kc_63
+    kc_65 = c(218, 230, 1),           # 3000 OK, but peak more than 10 seconds away
+    kc_66 = c(163, 170, 1),           # 120000 OK
+    kc_67 = c(188, 193, 1),           # 2000 OK, but not clear if its kc_68
+    kc_68 = c(188, 193, 1),           # 2000 OK, but not clear if its kc_67
+    kc_69 = c(NA, NA, 0),             # SKIP peak about 15 seconds to right.
+    kc_70 = c(31, 37, 1),             # 700 OK
+    kc_71 = c(149, 155, 1),           # 300 OK, but there are 3 peaks (?)
+    kc_72 = c(188, 194, 1),           # 4000 OK
+    kc_73 = c(NA, NA, 0),             # SKIP noisy broad (hilic) signal
+    kc_74 = c(30, 35, 1),             # 150 OK, but low signal
+    kc_75 = c(178, 185, 1),           # 2000 OK
+    kc_76 = c(NA, NA, 0),             # SKIP broad noisy peak ~ 15 seconds left
+    kc_78 = c(31, 37, 1),             # 400 OK, but low signal
+    kc_79 = c(NA, NA, 0),             # SKIP peaks about 15 seconds left/right (?)
+    kc_80 = c(31, 37, 1),             # 500 OK
+    kc_81 = c(160, 165, 1),           # 60000 OK, double peak with kc_82 (?)
+    kc_82 = c(165, 170, 1),           # 50000 OK, double peak with kc_81 (?)
+    kc_83 = c(163, 171, 1),           # 150000 OK
+    kc_84 = c(187, 192, 1),           # 2000 OK
+    kc_85 = c(159, 165, 1),           # 2500 OK
+    kc_86 = c(138, 145, 0),           # SKIP 150 noisy peak
+    kc_87 = c(32, 37, 1),             # 1500 OK but 2 peaks, which correct (?)
+    kc_88 = c(156, 163, 1),           # 1500 OK, identical to kc_88
+    kc_89 = c(156, 163, 1),           # 1500 OK, identical to kc_88
+    kc_90 = c(NA, NA, 0),             # SKIP but peak 20 seconds left
+    kc_91 = c(NA, NA, 0),             # SKIP nothing there
+    kc_92 = c(NA, NA, 0),             # SKIP noisy background signal only
+    kc_93 = c(31, 37, 1),             # 800 OK
+    kc_94 = c(163, 175, 1),           # 1200 OK, but 3 peaks there (?)
+    kc_96 = c(NA, NA, 0),             # SKIP noisy background signal only
+    kc_97 = c(NA, NA, 0),             # SKIP noisy background signal only
+    kc_98 = c(NA, NA, 0),             # SKIP nothing there
+    kc_99 = c(NA, NA, 0),             # SKIP nothing there
+    kc_100 = c(NA, NA, 0),            # SKIP nothing there
+    kc_101 = c(NA, NA, 0),            # SKIP nothing there
+    kc_103 = c(149, 154, 1),          # 500 OK, but there are two peaks.
+    kc_104 = c(32, 37, 1),            # 800 OK
+    kc_105 = c(NA, NA, 0),            # SKIP nothing there
+    kc_106 = c(182, 190, 1),          # 1400 OK
+    kc_107 = c(NA, NA, 0),            # SKIP nothing there
+    kc_108 = c(NA, NA, 0),            # SKIP peak 20 sec left, noisy at exp rt
+    kc_109 = c(150, 156, 1),          # 500 OK
+    kc_110 = c(188, 194, 1),          # 500 OK
+    kc_112 = c(208, 212, 1),          # 700 OK
+    kc_113 = c(NA, NA, 0),            # SKIP nothing there
+    kc_114 = c(NA, NA, 0),            # SKIP broad hilic peak left.
+    kc_116 = c(NA, NA, 0),            # SKIP nothing there
+    kc_117 = c(NA, NA, 0),            # SKIP nothing there
+    kc_118 = c(137, 145, 1),          # 700 OK
+    kc_119 = c(207, 220, 1),          # 2000 OK double peak not clear which (?)
+    kc_120 = c(NA, NA, 0),            # SKIP nothing there
+    kc_121 = c(NA, NA, 0),            # SKIP nothing there
+    kc_123 = c(162, 174, 1),          # 2500 OK but 3 peaks there
+    kc_124 = c(186, 191, 1),          # 300 OK low intensity
+    kc_125 = c(180, 186, 1),          # 500 OK two peaks with kc_126
+    kc_126 = c(186, 194, 1),          # 600 OK double peak, with kc_125
+    kc_127 = c(NA, NA, 0),            # SKIP peak ~ 15 seconds right
+    kc_128 = c(158, 165, 1)           # 5000 OK
 )
-colnames(kcs) <- c("rt_min", "rt_max")
+colnames(kcs) <- c("rt_min", "rt_max", "OK")
+
+## Subset to *good* compounds
+kcs <- kcs[kcs[, 3] == 1, 1:2]
 
 neg_cmps <- cbind(neg_cmps[rownames(kcs), ], kcs)
 
@@ -438,7 +517,7 @@ cwp <- CentWaveParam(ppm = 50,
                      peakwidth = c(2, 14),
                      snthresh = 5,
                      mzdiff = 0.001,
-                     prefilter = c(4, 300),
+                     prefilter = c(4, 200),
                      noise = 100,
                      integrate = 1)
 
@@ -517,8 +596,15 @@ for (i in 1:nrow(neg_cmps)) {
     chr <- chromatogram(data_neg, rt = rt_pks, mz = mz_pks)
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
     plot(chr, col = paste0(col_source[data_neg$source], 60))
+    ## Draw ALL peaks within the region
     highlightChromPeaks(data_neg, rt = rt_pks, mz = mz_pks,
-                        border = paste0(col_source[data_neg$source], 20))
+                        border = paste0(col_source[data_neg$source], 20),
+                        whichPeaks = "apex_within")
+    ## Draw only peaks that have the apex within the expected rt
+    highlightChromPeaks(data_neg, rt = rtr, mz = mzr,
+                        col = paste0(col_source[data_neg$source], 20),
+                        whichPeaks = "apex_within", type = "polygon")
+    abline(v = rtr, col = "lightgrey", lty = 3)
     dev.off()
     ## Identify samples in which we have multiple peaks.
     tbl <- table(pks[, "sample"])
@@ -588,19 +674,12 @@ boxplot(lapply(pk_list, function(z) log2(z[, "into"])), outline = FALSE,
 
 ```
 
-The numbers of detected peaks is between 6000 and 9000 with more peaks being
-found in venous and capillary samples, while fewer were found in plasma
-samples. RBC samples show the highest variability in the numbers of identified
-peaks with three samples yielding a very low number of peaks (between 2000 and
-4000). These are from samples 11, 20 and 22 replicates 2, 1 and 2,
-respectively. The m/z widths of identified peaks is on average below 10ppm. Most
-of the peaks are between 3 and 5 seconds wide with the retention time width
-being highly comparable between samples (not shown). Interestingly, the
-distribution of integrated peak signals between samples is also highly similar,
-which is relatively unexpected, since some samples did show considerably lower
-base peak intensity signals. In the two RBC samples that had a significantly lower
-base peak intensity RLA (samples 11 and 22, replicate 2 for both)  much fewer
-peaks were however detected.
+The numbers of detected peaks is with 8000 to 10000 slightly higher than for the
+positive-mode data, with the most peaks being found in venous samples and the
+fewest in RBC samples. Also, RBC samples show the highest variability in the
+numbers of identified peaks with three samples yielding a very low number of
+peaks (between 4000 and 6000). These are the second replicate for sample 11, 16
+and 22, the same samples that have already been identified further above.
 
 The table below shows the per-sample median values
 summarized per source type.
@@ -636,7 +715,7 @@ The settings for the centWave-based chromatographic peak detection might still
 have to be slightly modified, specifically the `ppm` and the `mzdiff`
 parameters.
 
-On average about 8000 chromatographic peaks were identified per sample, with the
+On average about 9000 chromatographic peaks were identified per sample, with the
 median m/z width of these peaks being quite small.
 
 
