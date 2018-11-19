@@ -747,7 +747,7 @@ can be identified by visualizing the position of identified peaks on the 2
 dimensional MS data map with the `plotChromPeaks` function. The `bw` parameter
 should be defined in a way that allows separation of these peaks.
 
-```{r neg-bw-definition-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result on a m/z slice. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks in that slice along the retention time axis (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
+```{r neg-bw-definition-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result on the m/z slice containing Fructose and Mannose. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks in that slice along the retention time axis (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
 
 plot_grouping <- function(x, mz, rt, param, col = "#00000080",
                           peak_type = "point", lwd = 1, ...) {
@@ -769,51 +769,49 @@ plot_grouping <- function(x, mz, rt, param, col = "#00000080",
 
 mzr <- c(202.18, 202.2)
 rtr <- c(30, 150)
-pdp_tmp <- PeakDensityParam(sampleGroups = data_neg$source, bw = 1.3)
+mzr <- neg_cmps[c("kc_81"), "mz"] + c(-0.002, 0.002)
+rtr <- c(155, 175)
+pdp_tmp <- PeakDensityParam(sampleGroups = data_neg$source, bw = 1.1)
 plot_grouping(data_neg, mz = mzr, rt = rtr, param = pdp_tmp,
               col = paste0(col_source[data_neg$source], "80"))
 ```
 
-While there might be a lot of background noise in this selected MS data slice,
-there seem to be several peaks at discrete retention times that are seem to be
-grouped correctly based on the selected bandwidth (i.e. `bw = 1.3`).
+With a smoothing bandwidth `bw = 1.1` we are able to separate the Fructose and
+Mannose peak.
 
-In addition we evaluate the bandwidth setting on the peaks for 1-Methylhistidine
-and 3-Methylhistidine.
+In addition we evaluate the bandwidth setting on the peaks for Sucrose and
+alpha-Lactose.
 
-```{r neg-bw-definition-2-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result for Methylhistidine. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks for 1-Methylhistidine and 3-Methylhistidine (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
+```{r neg-bw-definition-2-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result for Sucrose and alpha-Lactose. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks for Sucrose and alpha-Lactose (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
 
-
-## mzr <- neg_cmps["kc_31", "mz"] + c(0.01, -0.01)
-## rtr <- as.numeric(neg_cmps["kc_31", c("rt_min", "rt_max")])
-## rtr[1] <- rtr[1] - 2
-## rtr[2] <- rtr[2] + 2
-## plot_grouping(data_neg, rt = rtr, mz = mzr, param = pdp_tmp,
-##               col = paste0(col_source[data_neg$source], 80))
-
-mzr <- neg_cmps["kc_67", "mz"] + c(0.01, -0.01)
-rtr <- as.numeric(neg_cmps["kc_67", c("rt_min", "rt_max")])
-rtr[1] <- rtr[1] - 2
-rtr[2] <- rtr[2] + 2
+mzr <- neg_cmps["kc_125", "mz"] + c(-0.002, 0.0021)
+rtr <- c(175, 198)
 plot_grouping(data_neg, rt = rtr, mz = mzr, param = pdp_tmp,
               col = paste0(col_source[data_neg$source], 80))
 
-## mzr <- neg_cmps["kc_81", "mz"] + c(0.01, -0.01)
-## rtr <- as.numeric(neg_cmps["kc_81", c("rt_min", "rt_max")])
-## rtr[1] <- rtr[1] - 2
-## rtr[2] <- rtr[2] + 2
-## plot_grouping(data_neg, rt = rtr, mz = mzr, param = pdp_tmp,
-##               col = paste0(col_source[data_neg$source], 80))
+
+mzr <- neg_cmps["kc_94", "mz"] + c(-0.002, 0.0021)
+rtr <- c(160, 180)
+plot_grouping(data_neg, rt = rtr, mz = mzr, param = pdp_tmp,
+              col = paste0(col_source[data_neg$source], 80))
 
 ```
 
-With a `bw = 1.3` it is thus possible to separate the peaks for
-1-Methylhistidine and 3-Methylhistidine. Note that this setting also separated
-the peaks for Leucine and Isoleucine, as well as for Fructose and Mannose (data
-not shown). Below we perform the peak grouping on the defined settings and
-subsequently the alignment. For the alignment we require a *hook* peak to be
-present in at least 90% of samples. We also increase the smoothing parameter for
-the loess function (`span = 0.3`). With the default value of `span = 0.2`
+Also, with the bandwidth setting we can discriminate between two peaks measured
+at the m/z and rt for Glucoronic Acid.
+
+```{r neg-bw-definition-3-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result for Glucoronic acid. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks found in the m/z-rt slice (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
+
+mzr <- neg_cmps["kc_94", "mz"] + c(-0.002, 0.0021)
+rtr <- c(160, 180)
+plot_grouping(data_neg, rt = rtr, mz = mzr, param = pdp_tmp,
+              col = paste0(col_source[data_neg$source], 80))
+
+```
+
+For the alignment we require a *hook* peak to be present in at least 90% of
+samples. We also increase the smoothing parameter for the loess function 
+(`span = 0.3`). With the default value of `span = 0.2`
 alignment resulted in spectra within some files to be not ordered by retention
 time anymore. Setting the parameter `extraPeaks = 50` ensured *hook* peaks not
 being discarded because of the grouping of additional peaks within the same
@@ -822,7 +820,7 @@ sample to the same feature. Setting this parameter to a large value resulted in
 
 ```{r neg-alignment-group, message = FALSE, warning = FALSE}
 ## Remove potentially problematic samples. These were manually defined.
-bad_idx <- c(74, 178, 166, 167)
+bad_idx <- c(74, 152, 178)
 
 ## ## Use the definition from the cluster analysis
 ## bad_idx <- clust_one_idx
@@ -835,7 +833,7 @@ pdp <- PeakDensityParam(sampleGroups = data_neg$source,
                         minFraction = 0.8,
                         minSamples = 5,
                         binSize = 0.02,
-                        bw = 1.3)
+                        bw = 1.1)
 data_neg <- groupChromPeaks(data_neg, param = pdp)
 
 ## Next we perform the alignemnt.
@@ -872,7 +870,7 @@ data_raw <- dropAdjustedRtime(data_neg)
 ## Visualizing alignment results for known compounds.
 for (i in 1:nrow(neg_cmps)) {
     rtr <- as.numeric(neg_cmps[i, c("rt_min", "rt_max")])
-    mzr <- c(neg_cmps$mz[i] - 0.01, neg_cmps$mz[i] + 0.01)
+    mzr <- c(neg_cmps$mz[i] - 0.002, neg_cmps$mz[i] + 0.002)
     ## A plot.
     pks <- chromPeaks(data_neg, rt = rtr, mz = mzr, type = "apex_within")
     rtr <- range(pks[, c("rtmin", "rtmax")], rtr)
@@ -903,24 +901,21 @@ for (i in 1:nrow(neg_cmps)) {
 
 ```
 
-For most known compounds alignment worked nicely, see e.g. the plot for Serine
-or 1- and 3-Methylhistidine below, others could not be aligned perfectly, such
-as Taurine (see last image below).
+For almost all compounds the retention time correction resulted in better
+aligned chromatograms (see e.g. Succinic Acid and Acetylmethionine below). Few
+exceptions exist, such as Phosphoenolpyruvic Acid (the third plot below).
 
-![](images/vams_preprocessing/kc_10_chrom_plot_adjusted.png)
+![](images/vams_preprocessing/kc_20_chrom_plot_adjusted.png)
 
-![](images/vams_preprocessing/kc_68_chrom_plot_adjusted.png)
+![](images/vams_preprocessing/kc_93_chrom_plot_adjusted.png)
 
-![](images/vams_preprocessing/kc_24_chrom_plot_adjusted.png)
+![](images/vams_preprocessing/kc_65_chrom_plot_adjusted.png)
 
 
 ### Summary
 
 We used the peak groups method for alignment that uses *hook* peaks expected to
-be present in all samples for the alignment. We also tried *obiwarp*, but the
-results were not that good. While most of the samples could be aligned with
-*obiwarp* (using settings `response = 20` and `localAlignment = TRUE`), some
-samples were completely misaligned.
+be present in all samples for the alignment.
 
 ## Correspondence
 
