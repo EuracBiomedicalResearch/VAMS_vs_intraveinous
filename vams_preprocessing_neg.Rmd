@@ -54,7 +54,6 @@ rt_cut <- 250
 ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 ```
 
-
 # Introduction
 
 In this section we perform the pre-processing of negative polarity untargeted

@@ -24,7 +24,6 @@ BiocStyle::markdown()
 **Compiled**: `r date()`
 
 ```{r settings, echo = FALSE, results = "hide", message = FALSE}
-
 ## Set general options
 options(useFancyQuotes = FALSE)
 set.seed(18011977)
@@ -104,10 +103,10 @@ names(col_source) <- c("RBC",           # red
                        "capillary",     # purple
                        "venous")        # orange
 ## Read the data
-data_pos <- readMSData(paste0(MZML_PATH, sub(".mzML", "_csp1_SG6_dp33.mzML",
-                                             pd_pos$mzML_file)),
+data_pos <- readMSData(paste0(MZML_PATH, pd_pos$mzML_file),
                        pdata = as(AnnotatedDataFrame(pd_pos),
                                   "NAnnotatedDataFrame"), mode = "onDisk")
+data_pos <- filterRt(data_pos, rt = c(0, rt_cut))
 ```
 
 All samples of the experiment are listed below.
@@ -377,15 +376,16 @@ dir.create(paste0(IMAGE_PATH, "/tmp"), showWarnings = FALSE)
 
 for (i in 1:nrow(pos_cmps)) {
     fn <- paste0(IMAGE_PATH, "/tmp/", pos_cmps$id[i], ".png")
-    mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
-    rtr <- as.numeric(unlist(strsplit(pos_cmps$rt_range[i], split = "-")))
-    tmp_chr <- chromatogram(qc_pos, rt = rtr, mz = mzr)
+    mz_exp <- pos_cmps$mz[i]
+    mz_ppm <- mz_exp * 20 / 1e6         # for a ppm = 40
+    mzr <- mz_exp + c(-mz_ppm, mz_ppm)
+    rtr <- pos_cmps$rt_expected[i] + c(-20, 20)
+    tmp_chr <- chromatogram(qc_pos, rt = rtr + c(-5, 5), mz = mzr)
     png(fn, width = 8, height = 6, units = "cm", res = 200, pointsize = 6)
-    plot(tmp_chr)
+    plot(tmp_chr, main = paste0(pos_cmps[i, "name"], ": ",
+                                paste(format(mzr, digits = 6), collapse = "-")))
+    abline(v = pos_cmps$rt_expected[i], lty = 3)
     dev.off()
-    ## png(fn, width = 20, height = 20, units = "cm", res = 200, pointsize = 6)
-    ## plot(filterMz(filterRt(qc_pos, rtr), mzr), type = "XIC")
-    ## dev.off()
 }
 ## Now happily jump into the folder to look at the data and:
 ## a) select known compounds to keep
@@ -561,6 +561,7 @@ slice_peak_summary <- function(rtr, mzr, mz = NULL, x, group) {
 
 ## Iterate through rows to determine statistics for samples:
 pos_cmps_pks <- vector("list", nrow(pos_cmps))
+dir.create(paste0(IMAGE_PATH, "peak_detection/"))
 for (i in 1:nrow(pos_cmps)) {
     rtr <- as.numeric(pos_cmps[i, c("rt_min", "rt_max")])
     mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
@@ -570,27 +571,32 @@ for (i in 1:nrow(pos_cmps)) {
     pks <- chromPeaks(data_pos, rt = rtr, mz = mzr, type = "apex_within")
     rt_pks <- range(pks[, c("rtmin", "rtmax")])
     mz_pks <- range(pks[, c("mzmin", "mzmax")])
-    fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot.png")
+    fn <- paste0(IMAGE_PATH, "peak_detection/", pos_cmps$id[i],
+                 "_chrom_plot.png")
     chr <- chromatogram(data_pos, rt = rt_pks, mz = mz_pks)
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot(chr, col = paste0(col_source[data_pos$source], 60))
-    highlightChromPeaks(data_pos, rt = rt_pks, mz = mz_pks,
-                        border = paste0(col_source[data_pos$source], 20))
+    col_pks <- col_source[data_pos$source[chromPeaks(chr)[, "sample"]]]
+    plot(chr, col = paste0(col_source[data_pos$source], 60),
+         peakBg = paste0(col_pks, 20))
+    abline(v = rtr, col = "lightgrey", lty = 3)
     dev.off()
     ## Identify samples in which we have multiple peaks.
     tbl <- table(pks[, "sample"])
     multi_idx <- as.numeric(names(tbl)[tbl > 1])
     if (length(multi_idx)) {
-        fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot_multi.png")
+        fn <- paste0(IMAGE_PATH, "peak_detection/", pos_cmps$id[i],
+                     "_chrom_plot_multi.png")
         png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-        plot(chr[, multi_idx],
-             col = paste0(col_source[data_pos$source[multi_idx]], 60))
-        highlightChromPeaks(
-            filterFile(data_pos, multi_idx), rt = rt_pks, mz = mz_pks,
-            border = paste0(col_source[data_pos$source[multi_idx]], 20))
+        chr_sub <- chr[, multi_idx]
+        col_sub <- col_source[data_pos$source[chromPeaks(chr_sub)[, "sample"]]]
+        plot(chr_sub, peakBg = paste0(col_sub, 20))
+        rect(chromPeaks(chr_sub)[, "rtmin"], rep(0, nrow(chromPeaks(chr_sub))),
+             chromPeaks(chr_sub)[, "rtmax"], chromPeaks(chr_sub)[, "maxo"],
+             border = paste0(col_sub, 40))
         dev.off()
     }
 }
+
 pos_cmps_pks <- data.frame(name = pos_cmps$name, do.call(rbind, pos_cmps_pks),
                            stringsAsFactors = FALSE)
 rownames(pos_cmps_pks) <- rownames(pos_cmps)
@@ -725,36 +731,32 @@ can be identified by visualizing the position of identified peaks on the 2
 dimensional MS data map with the `plotChromPeaks` function. The `bw` parameter
 should be defined in a way that allows separation of these peaks.
 
-```{r pos-bw-definition-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result on a m/z slice. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks in that slice along the retention time axis (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
+```{r pos-bw-definition-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result on a m/z slice containing the Fructose and Mannose peaks. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks in that slice along the retention time axis (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
 
 plot_grouping <- function(x, mz, rt, param, col = "#00000080",
                           peak_type = "point", lwd = 1, ...) {
     if (missing(rt))
         rt <- range(rtime(x))
-    chrs <- chromatogram(data_pos, mz = mz, rt = rt)
-    par(mfrow = c(2, 1), mar = c(0, 4.3, 2, 0.1))
-    plot(chrs, col = col, xaxt = "n", lwd = lwd)
-    if (peak_type == "point")
-        highlightChromPeaks(x, mz = mz, rt = rt, type = peak_type, col = col,
-                            whichPeaks = "apex_within")
-    else 
-        highlightChromPeaks(x, mz = mz, rt = rt, type = peak_type, border = col,
-                            whichPeaks = "apex_within")
-    par(mar = c(2, 4.3, 0.1, 0.1))
-    plotChromPeakDensity(x, mz = mz, rt = rt, col = col, param = param,
-                         type = "apex_within", ...)
+    chr_tmp <- chromatogram(x, mz = mz, rt = rt)
+    col_tmp <- col[chromPeaks(chr_tmp)[, "sample"]]
+    plotChromPeakDensity(chr_tmp, param = pdp_tmp, peakPch = 16,
+                         col = paste0(col, 60),
+                         peakCol = paste0(col_tmp, 40),
+                         peakBg = paste0(col_tmp, 10))
 }
 
 mzr <- c(202.18, 202.2)
 rtr <- c(30, 150)
+mzr <- pos_cmps[c("kc_81"), "mz"] + c(-0.002, 0.002)
+rtr <- c(155, 175)
+
 pdp_tmp <- PeakDensityParam(sampleGroups = data_pos$source, bw = 1.3)
 plot_grouping(data_pos, mz = mzr, rt = rtr, param = pdp_tmp,
-              col = paste0(col_source[data_pos$source], "80"))
+              col = col_source[data_pos$source])
 ```
 
-While there might be a lot of background noise in this selected MS data slice,
-there seem to be several peaks at discrete retention times that are seem to be
-grouped correctly based on the selected bandwidth (i.e. `bw = 1.3`).
+With a smoothing bandwidth `bw = 1.1` we are able to separate the Fructose and
+Mannose peak (see plot abve).
 
 In addition we evaluate the bandwidth setting on the peaks for 1-Methylhistidine
 and 3-Methylhistidine.
@@ -762,19 +764,12 @@ and 3-Methylhistidine.
 ```{r pos-bw-definition-2-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result for Methylhistidine. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks for 1-Methylhistidine and 3-Methylhistidine (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
 
 
-## mzr <- pos_cmps["kc_31", "mz"] + c(0.01, -0.01)
-## rtr <- as.numeric(pos_cmps["kc_31", c("rt_min", "rt_max")])
-## rtr[1] <- rtr[1] - 2
-## rtr[2] <- rtr[2] + 2
-## plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
-##               col = paste0(col_source[data_pos$source], 80))
-
-mzr <- pos_cmps["kc_67", "mz"] + c(0.01, -0.01)
+mzr <- pos_cmps["kc_67", "mz"] + c(0.002, -0.002)
 rtr <- as.numeric(pos_cmps["kc_67", c("rt_min", "rt_max")])
 rtr[1] <- rtr[1] - 2
 rtr[2] <- rtr[2] + 2
 plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
-              col = paste0(col_source[data_pos$source], 80))
+              col = col_source[data_pos$source])
 
 ## mzr <- pos_cmps["kc_81", "mz"] + c(0.01, -0.01)
 ## rtr <- as.numeric(pos_cmps["kc_81", c("rt_min", "rt_max")])
@@ -785,14 +780,13 @@ plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
 
 ```
 
-With a `bw = 1.3` it is thus possible to separate the peaks for
-1-Methylhistidine and 3-Methylhistidine. Note that this setting also separated
-the peaks for Leucine and Isoleucine, as well as for Fructose and Mannose (data
-not shown). Below we perform the peak grouping on the defined settings and
-subsequently the alignment. For the alignment we require a *hook* peak to be
-present in at least 90% of samples. We also increase the smoothing parameter for
-the loess function (`span = 0.3`). With the default value of `span = 0.2`
-alignment resulted in spectra within some files to be not ordered by retention
+With a `bw = 1.3` it is also possible to separate the peaks for 
+1-Methylhistidine and 3-Methylhistidine. Note that this setting also separated 
+the peaks for Leucine and Isoleucine (data not shown). Below we perform the 
+peak grouping on the defined settings and subsequently the alignment. For the alignment we require a
+*hook* peak to be present in at least 90% of samples. We also increase the
+smoothing parameter for the loess function (`span = 0.3`). With the default
+value of `span = 0.2` alignment resulted in spectra within some files to be not ordered by retention
 time anymore. Setting the parameter `extraPeaks = 50` ensured *hook* peaks not
 being discarded because of the grouping of additional peaks within the same
 sample to the same feature. Setting this parameter to a large value resulted in
@@ -832,9 +826,10 @@ such a small experiment consisting of only two measurement runs.
 chr_raw <- chromatogram(data_pos, aggregationFun = "max", adjustedRtime = FALSE)
 chr_adj <- chromatogram(data_pos, aggregationFun = "max")
 par(mfrow = c(3, 1), mar = c(0, 4.3, 2, 0.1))
-plot(chr_raw, col = paste0(col_source[chr_raw$source], 40), main = "BPC, raw")
+plot(chr_raw, col = paste0(col_source[chr_raw$source], 40),
+     peakType = "none", main = "BPC, raw")
 plot(chr_adj, col = paste0(col_source[chr_raw$source], 40),
-     main = "BPC, adjusted")
+     peakType = "none", main = "BPC, adjusted")
 plotAdjustedRtime(data_pos, col = paste0(col_source[data_pos$source], 80))
 
 ```
@@ -847,34 +842,33 @@ shown below.
 ```{r pos-alignment-kc-plots, echo = FALSE, warning = FALSE, message = FALSE}
 
 data_raw <- dropAdjustedRtime(data_pos)
+dir.create(paste0(IMAGE_PATH, "alignment/"))
 ## Visualizing alignment results for known compounds.
 for (i in 1:nrow(pos_cmps)) {
     rtr <- as.numeric(pos_cmps[i, c("rt_min", "rt_max")])
     mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
     ## A plot.
     pks <- chromPeaks(data_pos, rt = rtr, mz = mzr, type = "apex_within")
-    rtr <- range(pks[, c("rtmin", "rtmax")], rtr)
-    rtr[1] <- rtr[1] - 2
-    rtr[2] <- rtr[2] + 2
-    mz_pks <- range(pks[, c("mzmin", "mzmax")])
-    fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot_adjusted.png")
-    chr_raw <- chromatogram(data_pos, rt = rtr, mz = mz_pks,
-                            adjustedRtime = FALSE)
-    chr_adj <- chromatogram(data_pos, rt = rtr, mz = mz_pks,
-                            adjustedRtime = TRUE)
+    if (nrow(pks)) {
+        rtr <- range(pks[, c("rtmin", "rtmax")], rtr)
+        rtr[1] <- rtr[1] - 2
+        rtr[2] <- rtr[2] + 2
+        mz_pks <- range(pks[, c("mzmin", "mzmax")])
+    } else mz_pks <- mzr
+    fn <- paste0(IMAGE_PATH, "alignment/", pos_cmps$id[i],
+                 "_chrom_plot_adjusted.png")
+    chr_raw <- chromatogram(data_raw, rt = rtr, mz = mz_pks)
+    chr_adj <- chromatogram(data_pos, rt = rtr, mz = mz_pks)
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
     par(mfrow = c(2, 1), mar = c(0, 4.3, 0.5, 0))
-    plot(chr_raw, col = paste0(col_source[data_pos$source], 60), xlim = rtr)
+    tmp_col <- col_source[data_pos$source][chromPeaks(chr_raw)[, "sample"]]
+    plot(chr_raw, col = paste0(col_source[data_pos$source], 60), xlim = rtr,
+         peakBg = paste0(tmp_col, 20))
     grid(ny = NA)
-    highlightChromPeaks(data_raw, rt = rtr, mz = mz_pks,
-                        border = paste0(col_source[data_pos$source], 60),
-                        type = "point", pch = 16, whichPeaks = "apex_within")
+    tmp_col <- col_source[data_pos$source][chromPeaks(chr_adj)[, "sample"]]
     plot(chr_adj, col = paste0(col_source[data_pos$source], 60), xaxt = "n",
-         xlim = rtr)
+         xlim = rtr, peakBg = paste0(tmp_col, 20))
     grid(ny = NA)
-    highlightChromPeaks(data_pos, rt = rtr, mz = mz_pks,
-                        border = paste0(col_source[data_pos$source], 60),
-                        type = "point", pch = 16, whichPeaks = "apex_within")
     dev.off()    
 }
 
@@ -885,11 +879,11 @@ For most known compounds alignment worked nicely, see e.g. the plot for Serine
 or 1- and 3-Methylhistidine below, others could not be aligned perfectly, such
 as Taurine (see last image below).
 
-![](images/vams_preprocessing/kc_10_chrom_plot_adjusted.png)
+![](images/vams_preprocessing/alignment/kc_10_chrom_plot_adjusted.png)
 
-![](images/vams_preprocessing/kc_68_chrom_plot_adjusted.png)
+![](images/vams_preprocessing/alignment/kc_68_chrom_plot_adjusted.png)
 
-![](images/vams_preprocessing/kc_24_chrom_plot_adjusted.png)
+![](images/vams_preprocessing/alignment/kc_24_chrom_plot_adjusted.png)
 
 
 ### Summary
@@ -922,20 +916,30 @@ data_pos <- groupChromPeaks(data_pos, param = pdp)
 ```
 
 ```{r pos-correspondence-kc-plots, echo = FALSE, warning = FALSE, message = FALSE}
+dir.create(paste0(IMAGE_PATH, "correspondence/"))
 for (i in 1:nrow(pos_cmps)) {
     rtr <- as.numeric(pos_cmps[i, c("rt_min", "rt_max")])
-    mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
-    q    ## A plot.
+    mzr <- c(pos_cmps$mz[i] - 0.002, pos_cmps$mz[i] + 0.002)
     pks <- chromPeaks(data_pos, rt = rtr, mz = mzr, type = "apex_within")
-    rtr <- range(pks[, c("rtmin", "rtmax")], rtr)
-    rtr[1] <- rtr[1] - 2
-    rtr[2] <- rtr[2] + 2
-    mz_pks <- range(pks[, c("mzmin", "mzmax")])
-    fn <- paste0(IMAGE_PATH, pos_cmps$id[i], "_chrom_plot_correspondence.png")
+    if (nrow(pks))
+        rtr_pks <- c(min(rtr[1], pks[, "rtmin"]), max(rtr[2], pks[, "rtmax"]))
+    else rtr_pks <- rtr
+    chrs <- chromatogram(data_pos, mz = mzr, rt = rtr_pks)
+    nfts <- nrow(featureDefinitions(chrs))
+    clrs <- brewer.pal(9, "Set1")[seq_len(nfts)]
+    fts <- featureDefinitions(chrs)
+    pk_col <- rep("#000000", nrow(chromPeaks(chrs)))
+    for (j in seq_len(nfts)) {
+        pk_col[featureDefinitions(chrs)$peakidx[[j]]] <- clrs[j]
+    }
+    fn <- paste0(IMAGE_PATH, "correspondence/", pos_cmps$id[i],
+                 "_chrom_plot_correspondence.png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_grouping(data_pos, rt = rtr, mz = mz_pks, param = pdp,
-                  col = paste0(col_source[data_pos$source], 80),
-                  simulate = FALSE)
+    plot(chrs, peakBg = paste0(pk_col, 20))
+    abline(v = rtr, col = "#00000080", lty = 3)
+    for (j in seq_len(nrow(fts)))
+        abline(v = c(fts$rtmin[j], fts$rtmax[j]), col = paste0(clrs[j], 80),
+               lty = 3)
     dev.off()
 }
 ```
@@ -1100,30 +1104,18 @@ feats_high <- sample(feats[rms > 20000], 10)
 ```{r pos-single-peak-features-plot, echo = FALSE, message = FALSE, warning = FALSE}
 #' Plot the data for a feature. This includes the identified chromatographic
 #' peaks per sample (only of that feature) and the correspondence results.
-plot_feature <- function(x, feature, mz, rt, param, col = "#00000080",
-                         peak_type = "point", lwd = 1, pch = 1, ...) {
-    if (length(col) != length(sampleNames(x)))
-        col <- rep(col[1], length(sampleNames(x)))
+plot_feature <- function(x, feature) {
     ft <- featureDefinitions(x)[feature, ]
-    pks <- chromPeaks(x)[unlist(ft$peakidx), ]
-    mzr <- range(pks[, c("mzmin", "mzmax")])
+    pks <- chromPeaks(x)[unlist(ft$peakidx), , drop = FALSE]
+    ## mzr <- range(pks[, c("mzmin", "mzmax")])
+    mzr <- c(ft$mzmin[1], ft$mzmax[1])
     rtr <- range(pks[, c("rtmin", "rtmax")])
-    chrs <- chromatogram(x, mz = mzr, rt = rtr)
-    par(mfrow = c(2, 1), mar = c(0, 4.3, 2, 0.1))
-    plot(chrs, col = col, xaxt = "n", lwd = lwd, xlim = rtr,
-         main = paste0(feature, ": ", paste(format(mzr, digits = 6),
-                                            collapse = " - ")))
-    ## Plot ONLY the peaks of the feature.
-    if (peak_type == "point") {
-        points(pks[, "rt"], pks[, "maxo"], pch = pch,
-               col = col[pks[, "sample"]])
-    } else {
-        rect(pks[, "rtmin"], rep(0, nrow(pks)), pks[, "rtmax"], pks[, "maxo"],
-             border = col[pks[, "sample"]])
-    }
-    par(mar = c(2, 4.3, 0.1, 0.1))
-    plotChromPeakDensity(x, mz = mzr, rt = rtr, col = col, param = param,
-                         type = "apex_within", xlim = rtr, pch = pch, ...)
+    chr <- chromatogram(x, mz = mzr, rt = rtr)
+    pk_col <- rep("#000000", nrow(chromPeaks(chr)))
+    names(pk_col) <- rownames(chromPeaks(chr))
+    pk_col[rownames(pks)] <- brewer.pal(3, "Set1")[2]
+    plotChromPeakDensity(chr, peakBg = paste0(pk_col, 10), peakPch = 16,
+                         peakCol = paste0(pk_col, 40), simulate = FALSE)
 }
 
 ##feats_sel <- unique(c(feats_sel, "FT01984"))
@@ -1133,116 +1125,25 @@ dir.create(dr, showWarnings = FALSE)
 for (feat in feats_low) {
     fn <- paste0(dr, "low-", feat, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, feat, col = paste0(col_source[data_pos$source], 40),
-                 peak_type = "rect", lwd = 2, simulate = FALSE)
+    plot_feature(data_pos, feat)
     dev.off()
 }
 for (feat in feats_int) {
     fn <- paste0(dr, "int-", feat, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, feat, col = paste0(col_source[data_pos$source], 40),
-                 peak_type = "rect", lwd = 2, simulate = FALSE)
+    plot_feature(data_pos, feat)
     dev.off()
 }
 for (feat in feats_high) {
     fn <- paste0(dr, "high-", feat, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, feat, col = paste0(col_source[data_pos$source], 40),
-                 peak_type = "rect", lwd = 2, simulate = FALSE)
+    plot_feature(data_pos, feat)
     dev.off()
 }
-
 ```
 
-The chromatograms for most of these peaks look OK, especially for the high
-intensity group. Potentially problematic could
-be the occasional very broad chromatographic peaks in some samples for low and
-intermediate abundance features. These happen specifically for peaks with a
-relatively low maximum intensity. An example is feature FT01973 shown below.
-
-![](images/vams_preprocessing/single_peak_fts/low-FT01973.png)
-
-The signal for the affected peak is rather low (max intensity is 800) and the
-signal is scattery with several missing data points.
-
-```{r FT01973, echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE}
-ftr <- "FT01973"
-ft <- featureDefinitions(data_pos)[ftr, ]
-pks <- chromPeaks(data_pos)[unlist(ft$peakidx), ]
-mzr <- range(pks[, c("mzmin", "mzmax")])
-rtr <- range(pks[, c("rtmin", "rtmax")])
-rtr <- c(rtr[1] - 10, rtr[2] + 10)
-## Identify first the very broad peaks
-rtw <- pks[, "rtmax"] - pks[, "rtmin"]
-pks_lrg <- pks[rtw > 10, , drop = FALSE]
-
-data_lrg <- filterFile(data_pos, pks_lrg[, "sample"])
-chr_lrg <- chromatogram(data_lrg, mz = mzr, rt = rtr)
-plot(chr_lrg, col = col_source[data_lrg$source])
-rect(pks_lrg[, "rtmin"], rep(0, nrow(pks_lrg)), pks_lrg[, "rtmax"],
-     pks_lrg[, "maxo"], border = "#00000080")
-
-cwp <- CentWaveParam(ppm = 50,
-                     peakwidth = c(2, 14),
-                     snthresh = 1,
-                     mzdiff = 0.001,
-                     prefilter = c(4, 300),
-                     noise = 20,
-                     fitgauss = FALSE,
-                     integrate = 1, verboseColumns = FALSE)
-pks_2 <- findChromPeaks(chr_lrg[1, 1], param = cwp)
-rect(pks_2[, "rtmin"], rep(0, nrow(pks_2)), pks_2[, "rtmax"],
-     pks_2[, "maxo"], border = "#cc000080")
-## Depending on the width of the initial rt range the peak is detected
-## correctly - or not. width expansion by 20 seconds on both sides we're
-## getting the same results, with 10 seconds on both sides we're getting a
-## better estimate.
-
-```
-
-The same can also happen for features with intermediate signal as shown for
-FT00909 below.
-
-![](images/vams_preprocessing/single_peak_fts/int-FT00909.png)
-
-```{r FT00909, echo = FALSE, message = FALSE, warning = FALSE, eval = FALSE}
-## Checking manually the data for FT01984.
-ftr <- "FT00909"
-ft <- featureDefinitions(data_pos)[ftr, ]
-pks <- chromPeaks(data_pos)[unlist(ft$peakidx), ]
-mzr <- range(pks[, c("mzmin", "mzmax")])
-rtr <- range(pks[, c("rtmin", "rtmax")])
-rtr <- c(rtr[1] - 10, rtr[2] + 10)
-## Identify first the very broad peaks
-rtw <- pks[, "rtmax"] - pks[, "rtmin"]
-pks_lrg <- pks[rtw > 10, , drop = FALSE]
-
-data_lrg <- filterFile(data_pos, pks_lrg[, "sample"])
-chr_lrg <- chromatogram(data_lrg, mz = mzr, rt = rtr)
-plot(chr_lrg, col = col_source[data_lrg$source])
-rect(pks_lrg[, "rtmin"], rep(0, nrow(pks_lrg)), pks_lrg[, "rtmax"],
-     pks_lrg[, "maxo"], border = "#00000080")
-
-cwp <- CentWaveParam(ppm = 50,
-                     peakwidth = c(2, 14),
-                     snthresh = 1,
-                     mzdiff = 0.001,
-                     prefilter = c(4, 300),
-                     noise = 20,
-                     fitgauss = FALSE,
-                     integrate = 1, verboseColumns = FALSE)
-pks_2 <- do.call(rbind, lapply(chr_lrg, findChromPeaks, param = cwp))
-rect(pks_2[, "rtmin"], rep(0, nrow(pks_2)), pks_2[, "rtmax"],
-     pks_2[, "maxo"], border = "#cc000080")
-## Depending on the width of the initial rt range the peak is detected
-## correctly - or not. width expansion by 20 seconds on both sides we're
-## getting the same results, with 10 seconds on both sides we're getting a
-## better estimate.
-
-```
-
-Also for this features, the broad peaks are found in samples with missing values
-next to the actual peak.
+The chromatograms for all these peaks look OK, especially for the high
+intensity group (data not shown).
 
 
 ### Features having occasionally additional peaks
@@ -1272,78 +1173,27 @@ dir.create(dr, showWarnings = FALSE)
 for (feat in feats_low) {
     fn <- paste0(dr, "low-", feat, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, feat, col = paste0(col_source[data_pos$source], 40),
-                 peak_type = "rect", lwd = 2, simulate = FALSE)
+    plot_feature(data_pos, feat)
     dev.off()
 }
 for (feat in feats_int) {
     fn <- paste0(dr, "int-", feat, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, feat, col = paste0(col_source[data_pos$source], 40),
-                 peak_type = "rect", lwd = 2, simulate = FALSE)
+    plot_feature(data_pos, feat)
     dev.off()
 }
 for (feat in feats_high) {
     fn <- paste0(dr, "high-", feat, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, feat, col = paste0(col_source[data_pos$source], 40),
-                 peak_type = "rect", lwd = 2, simulate = FALSE)
+    plot_feature(data_pos, feat)
     dev.off()
 }
 
 ```
 
-Some of the features represent signal from isomers with multiple peaks, with
-some of the peaks being assigned to one feature. Also, for some ions,
-overlapping features seem to be present (see below). These features are not
-*really* overlapping, but some peaks for the feature FT03031 has some peaks that
-are very broad in m/z dimension (larger 0.018), such that their boundaries are
-overlapping peak boundaries from another feature. The signal resulting in such
-broad peaks is actually very noisy with intensities mostly below 600 and a large
-m/z scattering. In this m/z - rt region are actually signal from two different
-ions, separated (but partially overlapping) in retention time dimension, and
-very close on m/z.
-
-![](images/vams_preprocessing/occasional_multi_peak_fts/int-FT03031.png)
-
-```{r, echo = FALSE, eval = FALSE, results = "hide", warning = FALSE, message = FALSE}
-ft <- featureDefinitions(data_pos)["FT06230", ]
-pks <- chromPeaks(data_pos)[unlist(ft$peakidx), ]
-mzr <- range(pks[, c("mzmin", "mzmax")])
-rtr <- range(pks[, c("rtmin", "rtmax")])
-rtr <- c(rtr[1] - 10, rtr[2] + 10)
-## In which samples do we have multipeaks?
-tbl <- table(chromPeaks(data_pos)[unlist(ft$peakidx), "sample"]
-smps <- as.numeric(names(tbl)[tbl > 1])
-
-par(mfrow = c(1, 2), mar = c(4, 4.5, 1.5, 0.5))
-plot(chromatogram(data_pos, mz = mzr, rt = rtr),
-     col = paste0(col_source[data_pos$source], 60))
-highlightChromPeaks(data_pos, rt = rtr, mz = mzr, whichPeaks = "apex_within",
-                    border = paste0(col_source[data_mlt$source], 20))
-data_mlt <- filterFile(data_pos, smps)
-chr_mlt <- chromatogram(data_mlt, mz = mzr, rt = rtr)
-plot(chr_mlt, col = col_source[data_mlt$source])
-highlightChromPeaks(data_mlt, rt = rtr, mz = mzr, whichPeaks = "apex_within",
-                    border = col_source[data_mlt$source])
-
-## Get the data...
-ft <- featureDefinitions(data_pos)["FT03031", ]
-pks <- chromPeaks(data_pos)[unlist(ft$peakidx), ]
-mzr <- range(pks[, c("mzmin", "mzmax")])
-rtr <- range(pks[, c("rtmin", "rtmax")])
-rtr <- c(rtr[1] - 2, rtr[2] + 2)
-
-## is there one specific peak that is so broad?
-pwid <- pks[, "mzmax"] - pks[, "mzmin"]
-## There are some quite thick peaks.
-smps <- pks[pwid > 0.018, "sample"]
-
-tmp <- filterMz(filterRt(filterFile(data_pos, smps), rt = rtr), mz = mzr)
-
-plot(tmp[1], type = "XIC")
-
-```
+Most of the features show peaks with irregular shape in some samples, resulting
+in detection of two peaks. Some of the features represent signal from potential isomers with multiple peaks, with
+some of the peaks being assigned to one feature.
 
 
 ### Features with many peaks per sample
@@ -1366,16 +1216,15 @@ dir.create(dr, showWarnings = FALSE)
 for (feat in feats) {
     fn <- paste0(dr, feat, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, feat, col = paste0(col_source[data_pos$source], 40),
-                 peak_type = "rect", lwd = 2, simulate = FALSE)
+    plot_feature(data_pos, feat)
     dev.off()
 }
 
 ```
 
 Some of these features combine peaks from isomers for which correspondence
-failed to separate them into different features while most combine signal from
-presumably background ions.
+failed to separate them into different features while most combine peaks
+identified in signal from (presumably) background ions.
 
 
 ### Features with different number of peaks depending on the source
@@ -1422,8 +1271,7 @@ dir.create(dr, showWarnings = FALSE)
 for (feat in rownames(tab)) {
     fn <- paste0(dr, feat, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, feat, col = paste0(col_source[data_pos$source], 60),
-                 peak_type = "point", simulate = FALSE, pch = 16)
+    plot_feature(data_pos, feat)
     dev.off()
 }
 
@@ -1440,9 +1288,9 @@ below. These could eventually represent different adducts of the same compound
 or isotopes. All of them have single peaks in plasma, capillary and RBC samples,
 but two peaks in most venous samples.
 
-![](images/vams_preprocessing/source-dependent-multi-peaks/FT00043.png)
+![](images/vams_preprocessing/source-dependent-multi-peaks/FT00042.png)
 
-![](images/vams_preprocessing/source-dependent-multi-peaks/FT00076.png)
+![](images/vams_preprocessing/source-dependent-multi-peaks/FT00264.png)
 
 
 ### Features close on m/z and with partially overlapping chromatographic peaks
@@ -1477,9 +1325,8 @@ pandoc.table(tab, style = "rmarkdown",
 ```
 
 While no features are directly overlapping, quite some are very close in
-retention time and/or m/z dimension. The largest part of the feature groups
-that are close on retention time consists of only two features. There are
-however some groups that consist of more than 5 features.
+retention time and/or m/z dimension. Most of these features represent signal
+from long signal
 
 ```{r feature-groups-close-rt, message = FALSE, echo = FALSE, warning = FALSE}
 ft_grps <- ovlap_fts_rt[lengths(ovlap_fts_rt) > 5]
@@ -1490,9 +1337,7 @@ dir.create(dr, showWarnings = FALSE)
 for (i in seq_along(ft_grps)) {
     fn <- paste0(dr, "feature-group-", i, ".png")
     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_pos, ft_grps[[i]],
-                 col = paste0(col_source[data_pos$source], 40),
-                 peak_type = "rect", lwd = 2, simulate = FALSE)
+    plot_feature(data_pos, ft_grps[[i]])
     dev.off()
 }
 
@@ -1507,14 +1352,15 @@ fts_grps <- ovlap_fts_mz[sample(seq_along(ovlap_fts_mz), 20)]
 
 dr <- paste0(IMAGE_PATH, "overlapping_close_mz/")
 dir.create(dr, showWarnings = FALSE)
+## Use the pool data...
+data_qc <- filterFile(dropChromPeaks(data_pos),
+                      file = which(data_pos$source == "all"))
 
 for (i in seq_along(fts_grps)) {
     fn <- paste0(dr, "feature-group-", i, ".png")
     png(fn, width = 20, height = 16, units = "cm", res = 200, pointsize = 6)
     fts_def <- featureDefinitions(data_pos)[fts_grps[[i]], ]
     pks <- chromPeaks(data_pos)[unlist(fts_def$peakidx), ]
-    ## Use the pool data...
-    data_qc <- filterFile(data_pos, file = which(data_pos$source == "all"))
     tmp <- filterMz(filterRt(data_qc, range(pks[, c("rtmin", "rtmax")])),
                     mz = range(pks[, c("mzmin", "mzmax")]))
     plot(tmp, type = "XIC", cex = 1)
