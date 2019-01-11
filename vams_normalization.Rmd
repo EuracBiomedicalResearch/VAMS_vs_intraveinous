@@ -39,7 +39,7 @@ dir.create(IMAGE_PATH, recursive = TRUE)
 RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
-use_cached <- TRUE
+use_cached <- TRUE                      # if we want to repeat peak filling in
 if (!file.exists(paste0(RDATA_PATH, "data_pos.RData")))
     use_cached <- FALSE
 
@@ -150,7 +150,6 @@ load("data/RData/vams_preprocessing/data_pos.RData")
 data_pos$batch <- factor(data_pos$batch)
 ```
 
-
 We restrict the analysis to features with multiple peaks per sample in less than
 10% of samples in which a peak was found (excluding QC samples). In addition we
 require a feature to be found in 30% of the samples of at least one group
@@ -161,19 +160,20 @@ in the table below.
 fsumm <- featureSummary(data_pos, data_pos$source)
 study_src <- names(col_source)[names(col_source) != "all"]
 
-##' Determine the proportion of samples with multi peaks in the study group.
-##' Have to relate that to the number of samples in which a peak was found,
-##' and not to the total number of samples!!!
+#' Determine the proportion of samples with multi peaks in the study group.
+#' Have to relate that to the number of samples in which a peak was found,
+#' and not to the total number of samples.
 tmp <- rowSums(fsumm[, paste0(study_src, "_multi_count")]) /
     rowSums(fsumm[, paste0(study_src, "_count")])
 
-##' Further require a feature to be found in more than 30% of samples in at
-##' least one group.
+#' Further require a feature to be found in more than 30% of samples in at
+#' least one group.
 tmp_perc <- apply(fsumm[, paste0(study_src, "_perc")], 1,
                   function (z) any(z > 30))
-fts_used <- rownames(featureDefinitions(data_pos))[which(tmp < 0.1 & tmp_perc)]
+fts_used <- rownames(
+    featureDefinitions(data_pos))[which(tmp < 0.1 & tmp_perc)]
 
-
+#' Generate summary table
 tab <- rbind(total_features = length(fts_used),
              `RBC > 50%` = sum(fsumm[fts_used, "RBC_perc"] > 50),
              `plasma > 50%` = sum(fsumm[fts_used, "plasma_perc"] > 50),
@@ -187,18 +187,21 @@ cptn <- paste("Summary of features used for the analysis. All features found",
 pandoc.table(tab, style = "rmarkdown", caption = cptn)
 ```
 
-Next we fill-in data for samples in which no peak was detected. The signal
-integration bases on the m/z and retention time range of the features, which in
-fact represents the extent in which the apexes of the individual peaks differ
-between samples. While we will eventually exclude filled-in signals in the
-estimation of the normalization factors for the within and between-batch
-normalization, we will normalize these intensities as they might be affected by
-the same effects than the *real* signal. Imputation of signals that are still
-missing after filling in will be performed **after** normalization.
+Next we fill-in data for samples in which no peak was detected. While we will
+eventually exclude filled-in signals in the estimation of the normalization
+factors for the within and between-batch normalization, we will normalize these
+intensities as they might be affected by the same effects than the *real*
+signal. Imputation of signals that are still missing after filling in will be
+performed **after** normalization.
 
-Below we fill-in missing peak data by expanding the retention time window of
-each feature by a constant value (median of the retention time widths) and the
-m/z by 20 ppm.
+Below we fill-in missing peak data from an m/z - retention time slice defined by
+the m/z range of the feature and the retention time window of the feature
+definition that is extended by a constant value, the median retention time width
+of all identified peaks. The retention time window from which the signal is
+integrated should be expanded, because the feature's retention time range
+represents the minimal and maximal apex position of the associated peaks in the
+time dimension, and is thus unrelated to the actual retention time width of the
+peaks. The m/z range is also extended by 20ppm.
 
 ```{r fill-in, message = FALSE, warning = FALSE, eval = !use_cached}
 fcp <- FillChromPeaksParam(
@@ -442,7 +445,7 @@ fts_int_std <- lapply(int_std$mz, function(mz) {
 
 ```{r internal-standards-plot, echo = FALSE, message = FALSE, warning = FALSE}
 #' Plot the features for the internal standards.
-col <- paste0(col_source[data_pos$source], 80)
+col <- col_source[data_pos$source]
 #' col <- c("#ce000080", "#0000ce80")[as.integer(data_pos$batch)]
 
 dr <- paste0(IMAGE_PATH, "internal-standards/")
@@ -453,17 +456,11 @@ for (i in 1:length(fts_int_std)) {
     fn <- gsub("%", "", paste0(dr, "int_std_", i, "_",
                                int_std[i, "name"], ".png"))
     fts <- fts_int_std[[i]]
-    pks <- chromPeaks(data_pos)[unlist(fts$peakidx), ]
-    mzr <- range(pks[, c("mzmin", "mzmax")])
-    rtr <- range(pks[, c("rtmin", "rtmax")])
-    rtr[1] <- rtr[1] - 5
-    rtr[2] <- rtr[2] + 5
-    chrs <- chromatogram(data_pos, mz = mzr, rt = rtr, aggregationFun = "max")
+    chrs <- featureChromatograms(data_pos, features = rownames(fts),
+                                 expandRt = 5)
+    cls <- col[chromPeaks(chrs)[, "sample"]]
     png(fn, width = 10, height = 5, units = "cm", res = 200, pointsize = 4)
-    plot(chrs, col = col)
-    highlightChromPeaks(data_pos, mz = mzr, rt = rtr,
-                        border = sub("80$", 20, col),
-                        whichPeaks = "apex_within")
+    plot(chrs, peakBg = paste0(cls, 20), peakCol = paste0(cls, 60))
     abline(v = fts$rtmed)
     dev.off()
 }
@@ -668,7 +665,7 @@ fv_nms <- fv_nms[rownames(fv_imp), ]
 
 Another approach that has been proposed for metabolomics data normalization
 is RUV (removal of unwanted variances) [@Livera:2015bo]. RUV aims to remove
-variance using the signal from /negative control features/, i.e. features that
+variance using the signal from *negative control features*, i.e. features that
 are known to not change between conditions. This approach hence requires prior
 knowledge of metabolites that are known to not change between samples, but does
 not require QC samples.
@@ -850,7 +847,7 @@ lm_raw <- lm_for_mat(fv_raw, fv_nofill, grp)
 lm_sm <- lm_for_mat(fv_sm, fv_nofill, grp)
 lm_mdn <- lm_for_mat(fv_mdn, fv_nofill, grp)
 lm_mrm <- lm_for_mat(fv_mrm, fv_nofill, grp)
-lm_tmm <- lm_for_mat(fv_tmm, fv_nofill, grp)
+## lm_tmm <- lm_for_mat(fv_tmm, fv_nofill, grp)
 lm_ruvr <- lm_for_mat(fv_ruvr, fv_nofill, grp)
 lm_ruv3 <- lm_for_mat(fv_ruv3, fv_nofill, grp)
 lm_nms <- lm_for_mat(fv_nms, fv_nofill, grp)
@@ -860,7 +857,7 @@ lm_slope_df <- data.frame(
     sum = vapply(lm_sm, function(z) z$coefficients[2], numeric(1)),
     median = vapply(lm_mdn, function(z) z$coefficients[2], numeric(1)),
     MRM = vapply(lm_mrm, function(z) z$coefficients[2], numeric(1)),
-    TMM = vapply(lm_tmm, function(z) z$coefficients[2], numeric(1)),
+    ## TMM = vapply(lm_tmm, function(z) z$coefficients[2], numeric(1)),
     `RUV rand` = vapply(lm_ruvr, function(z) z$coefficients[2], numeric(1)),
     RUVIII = vapply(lm_ruv3, function(z) z$coefficients[2], numeric(1)),
     NOMIS = vapply(lm_nms, function(z) z$coefficients[2], numeric(1))
@@ -875,7 +872,7 @@ lm_r2_df <- data.frame(
     sum = vapply(lm_sm, function(z) z$r.squared, numeric(1)),
     median = vapply(lm_mdn, function(z) z$r.squared, numeric(1)),
     MRM = vapply(lm_mrm, function(z) z$r.squared, numeric(1)),
-    TMM = vapply(lm_tmm, function(z) z$r.squared, numeric(1)),
+    ## TMM = vapply(lm_tmm, function(z) z$r.squared, numeric(1)),
     `RUV rand` = vapply(lm_ruvr, function(z) z$r.squared, numeric(1)),
     RUVIII = vapply(lm_ruv3, function(z) z$r.squared, numeric(1)),
     NOMIS = vapply(lm_nms, function(z) z$r.squared, numeric(1))
@@ -1349,13 +1346,13 @@ for (ft in fts) {
     dev.off()
     png(paste0(dr, ft, "_adj.png"), width = 10, height = 5, pointsize = 6,
         res = 200, units = "cm")
-    y_sub <- fv_adj[ft, ]
+    y_sub <- log2(fv_adj[ft, ])
     y_sub[!is.na(fv_onlyfill[ft, ])] <- NA
     lmoda <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[qcs_a, ],
                              method = "lmrob", y = y_sub[qcs_a])
     lmodb <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[qcs_b, ],
                              method = "lmrob", y = y_sub[qcs_b])
-    plot_feature_slopes_batch(y = fv_adj[ft, ],
+    plot_feature_slopes_batch(y = log2(fv_adj[ft, ]),
                               is_filled = is.na(fv_nofill[ft, ]),
                               data = pData(data_pos), lmoda = lmoda,
                               lmodb = lmodb, main = ft, legend = FALSE)
@@ -1478,7 +1475,7 @@ pandoc.table(T, style = "rmarkdown", caption = cpt)
 ```
 
 Within-batch adjustment did reduce the 75% MRAs slightly, especially its 75%
-quantile and the value ranges. Also the percentage features of replicated
+quantile and the value ranges. Also the percentage of features of replicated
 samples with more than 2-fold differences is reduced. The impact of within-batch
 normalization is more pronounced if we consider only features that were actually
 adjusted:
@@ -2025,7 +2022,7 @@ save(vams_pos, file = paste0(RDATA_PATH, "vams_pos.RData"))
 devtools::session_info()
 ```
 
-```{r}
+```{r, eval = FALSE, echo = FALSE}
 #' #' This code chunk generates the data for Chiara (after filling in peak values):
 #' fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
 
