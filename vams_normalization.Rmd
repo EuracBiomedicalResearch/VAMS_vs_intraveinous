@@ -136,6 +136,7 @@ library(DESeq2)
 library(edgeR)
 
 #' Load utility functions for this document
+source("util-functions.R")
 source("vams_normalization_functions.R")
 
 #' Define colors for the groups.
