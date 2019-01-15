@@ -66,3 +66,20 @@ rsd <- function(x, na.rm = TRUE) {
 }
 rowRsd <- function(x, na.rm = TRUE)
     apply(x, MARGIN = 1, rsd, na.rm = na.rm)
+
+#' @title Determine the proportion of missing values
+#'
+#' `naProp` and `rowNaProp` determine the proportion of missing values in a
+#' numeric vector or in rows of a numeric matrix
+#'
+#' @param x `numeric` or numeric `matrix`.
+#'
+#' @author Johannes Rainer
+#'
+#' @md
+naProp <- function(x) {
+    sum(is.na(x)) / length(x)
+}
+rowNaProp <- function(x) {
+    apply(x, MARGIN = 1, naProp)
+}

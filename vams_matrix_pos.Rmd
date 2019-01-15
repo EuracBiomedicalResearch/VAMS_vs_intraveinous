@@ -1,0 +1,212 @@
+---
+title: "Matrix comparison"
+author: "Johannes Rainer, Chiara Volani and Giuseppe Paglia"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r biocstyle, echo = FALSE, results = "asis"}
+library(BiocStyle)
+BiocStyle::markdown()
+```
+
+**Modified**: `r file.info("vams_matrix_pos.Rmd")$mtime`<br />
+**Compiled**: `r date()`
+
+```{r settings, echo = FALSE, results = "hide", message = FALSE}
+##' Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+##' Define paths:
+filename <- "vams_matrix_pos"
+##' Path to save the images; remove all old images.
+IMAGE_PATH <- paste0("images/", filename, "/")
+if (file.exists(IMAGE_PATH))
+    unlink(IMAGE_PATH, recursive = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE)
+##' Path to store RData files
+RDATA_PATH <- paste0("data/RData/", filename, "/")
+if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+
+##' Get the number of cpus allocated or fall back to 3
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+```
+
+# Introduction
+
+In this document we evaluate differences between the 4 matrices (sample sources)
+*venous*, *capillary*, *plasma* and *RBC*. We are specifically interested in
+identifying features which are specific to one matrix or common to all matrices
+(qualitative analysis) as well as features with different abundances between
+matrices (quantitative analyses). For the former analysis we use determine for
+each feature whether it is *present* in a sample or not based on whether a
+chromatographic peak was identified for it. The latter analysis is based on the
+feature abundances.
+
+The analysis uses the normalized feature abundances generated in
+[vams_normalization.Rmd](vams_normalization.Rmd). The normalized data contains
+abundance estimates for all features that are present in at least 30% of samples
+of a matrix (QC samples excluded). The abundances from the two technical
+replicates of each sample were combined into a single feature abundance. Also,
+weights have been defined that provide information about the *quality* of a
+normalized feature concentration. It is based on whether a chromatographic peak
+was identified in a sample and how similar the reported abundances for the
+feature in the two (technical) replicates for each sample are. Based on their
+weight, features can be classified into 6 different types:
+
+- `1`: signal from 2 detected peaks present and the RSD of their abundances is <
+  30%. The `mean` of the two is reported.
+- `0.9`: 1 detected and one filled-in signal present and their RSD is < 30%. The
+  `mean` of the two is reported.
+- `0.8`: only filled-in signal, but their RSD is < 30%. The `mean` of the two is
+  reported.
+- `0.7`: signal for two detected peaks but their RSD is >= 30%. The `mean` of
+  the two is reported.
+- `0.5`: signal from 1 detected peak present (independently of whether a
+  filled-in signal is present for the other replicate). Report only
+  the value for the detected peak.
+- `0.25`: only filled-in signal is present. Either mean or single value
+  reported.
+
+Below we load all required libraries, define a color for each matrix and load
+the normalized data.
+
+```{r load-data}
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+registerDoParallel(ncores)
+register(DoparParam(), default = TRUE)
+library(SummarizedExperiment)
+
+#' Load utility functions for the analysis
+source("util-functions.R")
+
+#' Define colors for the groups.
+col_source <- brewer.pal(5, name = "Set1")
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "all",           #' green
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+load("data/RData/vams_normalization/vams_pos.RData")
+
+#' Remove rows/features that have only missing values
+vams_pos <- vams_pos[rowNaProp(assay(vams_pos, "abundances")) < 1, ]
+```
+
+
+## Grouping samples based on metabolite abundances
+
+We perform a principal component analysis to evaluate the grouping of the
+samples/matrices in our experiment.
+
+```{r pca-rsd, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA grouping samples based on (centered) feature abundances. Only features with an RSD < 30% in QC samples were used. Missing values were replaced with half of the feature's minimal abundance adding also a small random variance."}
+#' RSD < 30% in QC samples
+tmp <- log2(assay(vams_pos, "abundances")[which(rowData(vams_pos)$QC_rsd < 0.3), ])
+na_prop <- rowNaProp(tmp)
+tmp <- imputeRowMinRand(tmp, min_fraction = 1/2)
+pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
+         bg = paste0(col_source[vams_pos$source], 60), pch = 21, cex = 1.5)
+legend("bottomright", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
+         bg = paste0(col_source[vams_pos$source], 40), pch = 21, cex = 1.5)
+
+```
+
+The PCA above was performed on all features that have an RSD < 30% in QC samples
+(about 4000). Missing values were replaced with half of the feature's smallest
+abundance adding also a small random value based on the features' standard
+deviations. Note that excluding features with `NA` values (~ 1000) or performing
+the PCA on all over 10,000 features yielded the same result (data not shown).
+
+As expected, a clear separation of plasma samples from all other samples
+(containing also blood cells) can be observed on PC1. Capillary and red blood
+cell samples cluster close together, with some RBC samples being closest to the
+cluster consisting of venous samples. Both show however a stronger variation
+(especially in PC2) than plasma or venous samples. On PC3 we can see again a
+separation by matrix, with plasma and venous samples being closest.
+
+## Identifying detected/present features for each matrix
+
+We next aim to identify *present* (detected) features for each matrix which
+allows to perform qualitative comparisons between the matrices. In contrast to
+features with differences in abundances (identified in the next section) we do
+not consider absolute intensities in this analysis but rather evaluate whether a
+feature is detected in most samples of a matrix or not, i.e. whether a
+chromatographic peak was identified or not. This information is encoded into the
+*weight* of a measurement (see Introduction for the definition of the weights):
+a chromatographic peak was detected for a feature in at least one of the two
+replicates if the weight is either 1, 0.9, 0.7 or 0.5. Below we use these
+weights to determine the proportion of samples for each matrix in which a
+chromatographic peak was identified.
+
+```{r present-call, message = FALSE, warning = FALSE}
+wght_detected <- c(1, 0.9, 0.7, 0.5)
+
+#' Determine for each feature the proportion of samples (per matrix) in
+#' which a peak was detected/
+prop_detected <- apply(assay(vams_pos, "weights"), 1, function(x, grps) {
+    vapply(split(x, grps), function(z) sum(z %in% wght_detected) / length(z),
+           numeric(1))
+}, grps = vams_pos$source)
+prop_detected <- t(prop_detected)
+```
+
+Defining absent/present calls is not trivial. We first define features to be
+*present* in a matrix if a chromatographic peak was detected in more than 25% of
+samples. Subsequently we LLLL
+
+- difference in proportion being larger than 50%?
+
+For e feature to be called *present* we require it to have a detected peak in at
+least 25% of samples.
+
+- Present percentage: determine for each feature the percentage of samples of
+  each matrix in which the feature has at least one detected chromatographic
+  peak.
+  
+
+## Identifying features with differential abundance between the matrices
+
+- Quantitative analysis.
+- Use paired statistics.
+- Use plasma as baseline.
+
+## Matrix-specific features and features present in all matrices
+
+- Define a way to tell if a features is *detected* - this should/could be
+  independent of the abundance of the feature.
+- Identify features that are present in a single.
+
+## Matrix with the largest number of detected features
+
+- Simply comparing the number of detected features.
+
+## Comparison between venous and capillary blood
+
+- 
+
+# Session information
+
+```{r sessionInfo}
+devtools::session_info()
+```
+
+# References
