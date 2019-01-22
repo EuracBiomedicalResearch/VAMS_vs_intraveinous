@@ -24,22 +24,22 @@ BiocStyle::markdown()
 **Compiled**: `r date()`
 
 ```{r settings, echo = FALSE, results = "hide", message = FALSE}
-##' Set general options
+#' Set general options
 options(useFancyQuotes = FALSE)
 set.seed(18011977)
 
-##' Define paths:
+#' Define paths:
 filename <- "vams_matrix_pos"
-##' Path to save the images; remove all old images.
+#' Path to save the images; remove all old images.
 IMAGE_PATH <- paste0("images/", filename, "/")
 if (file.exists(IMAGE_PATH))
     unlink(IMAGE_PATH, recursive = TRUE)
 dir.create(IMAGE_PATH, recursive = TRUE)
-##' Path to store RData files
+#' Path to store RData files
 RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
-##' Get the number of cpus allocated or fall back to 3
+#' Get the number of cpus allocated or fall back to 3
 ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 ```
 
@@ -109,46 +109,6 @@ vams_pos <- vams_pos[rowNaProp(assay(vams_pos, "abundances")) < 1, ]
 ```
 
 
-## Grouping samples based on metabolite abundances
-
-We perform a principal component analysis to evaluate the grouping of the
-samples/matrices in our experiment.
-
-```{r pca-rsd, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA grouping samples based on (centered) feature abundances. Only features with an RSD < 30% in QC samples were used. Missing values were replaced with half of the feature's minimal abundance adding also a small random variance."}
-#' RSD < 30% in QC samples
-tmp <- log2(assay(vams_pos, "abundances")[which(rowData(vams_pos)$QC_rsd < 0.3), ])
-na_prop <- rowNaProp(tmp)
-tmp <- imputeRowMinRand(tmp, min_fraction = 1/2)
-pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
-
-par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
-plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
-         bg = paste0(col_source[vams_pos$source], 60), pch = 21, cex = 1.5)
-legend("bottomright", col = col_source, legend = names(col_source), pch = 16)
-plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
-         bg = paste0(col_source[vams_pos$source], 40), pch = 21, cex = 1.5)
-
-## plot_pca(pc, pc_x = 2, pc_y = 3, col = paste0(col_source[vams_pos$source], 80),
-##          bg = paste0(col_source[vams_pos$source], 40), pch = 21, cex = 1.5)
-
-```
-
-The PCA above was performed on all features that have an RSD < 30% in QC samples
-(about 4000). Missing values were replaced with half of the feature's smallest
-abundance adding also a small random value based on the features' standard
-deviations. Note that excluding features with `NA` values (~ 1000) or performing
-the PCA on all over 10,000 features yielded the same result (data not shown).
-
-As expected, a clear separation of plasma samples from all other samples
-(containing also blood cells) can be observed on PC1. Capillary and red blood
-cell samples cluster close together, with some RBC samples being closest to the
-cluster consisting of venous samples. Both show however a stronger variation
-(especially in PC2) than plasma or venous samples. On PC3 we can see again a
-separation by matrix, with plasma and venous samples being closest. The
-separation on PC3 could reflect the different sampling source, i.e. sampling
-from the finger tip with the Mitra device (capillary) *vs* sampling from
-intravenous blood (venous, plasma and RBC).
-
 ## Identifying detected/present features for each matrix
 
 We next aim to identify *present* (detected) features for each matrix which
@@ -210,7 +170,7 @@ present_call <- prop_ratio > 1/3
 ```
 
 
-## Matrix with the largest number of detected features
+## Comparison of numbers of features detected in each matrix
 
 With the present/absent calls available we can next evaluate the number of
 features being detected in each matrix. The results are represented with the
@@ -248,7 +208,212 @@ About one third of the ~ 10,000 features is detectable in all 4 matrices. The
 next largest overlap with ~ 2,000 features is between venous, capillary and RBC
 samples followed by about 1,200 features that are specific to plasma and venous
 samples. Over and above the results are as expected, with the largest overlap of
-matrices being between samples containing also blood cells.
+matrices being between samples containing also blood cells. The numbers of
+matrix-specific features is with ~ 200 - 600 relatively small, with plasma
+samples having the largest number of unique features.
+
+```{r plot-common-features, echo = FALSE, warning = FALSE}
+load("data/RData/vams_normalization/data_pos.RData")
+col_sample <- col_source[data_pos$source]
+
+plot_feats <- function(x, col) {
+    col_bg <- paste0(col[chromPeaks(x)[, "sample"]], 20)
+    col_fg <- paste0(col[chromPeaks(x)[, "sample"]], 60)
+    col_bg[grep("^NA", col_bg)] <- NA
+    col_fg[is.na(col_bg)] <- NA
+    col_smpl <- paste0(col, 30)
+    col_smpl[grep("^NA", col_smpl)] <- NA
+    plot(x, col = col_smpl, peakBg = col_bg, peakCol = col_fg)
+}
+
+#' Present in all
+feats_common <- rownames(present_call)[rowSums(present_call) == 4]
+dr <- paste0(IMAGE_PATH, "common_features/")
+dir.create(dr, showWarnings = FALSE)
+feats <- sample(feats_common, 20)
+feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
+for (i in seq_along(feats)) {
+    fn <- paste0(dr, feats[i], ".png")
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    plot_feats(feats_chrs[i, ], col = col_sample)
+    dev.off()
+}
+
+#' Plasma
+feats_plasma <- rownames(present_call)[rowSums(present_call) == 1 &
+                                       present_call[, "plasma"]]
+dr <- paste0(IMAGE_PATH, "plasma_features/")
+dir.create(dr, showWarnings = FALSE)
+## feats <- sample(feats_plasma, 20)
+## feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
+## for (i in seq_along(feats)) {
+##     fn <- paste0(dr, feats[i], ".png")
+##     png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+##     plot_feats(feats_chrs[i, ], col = col_sample)
+##     dev.off()
+## }
+#' most specific:
+feats <- feats_plasma[order(rowMeans(prop_ratio[feats_plasma, ]))][1:20]
+feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
+for (i in seq_along(feats)) {
+    fn <- paste0(dr, feats[i], ".png")
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    plot_feats(feats_chrs[i, ], col = col_sample)
+    dev.off()
+}
+
+#' Venous
+feats_venous <- rownames(present_call)[rowSums(present_call) == 1 &
+                                       present_call[, "venous"]]
+dr <- paste0(IMAGE_PATH, "venous_features/")
+dir.create(dr, showWarnings = FALSE)
+feats <- feats_venous[order(rowMeans(prop_ratio[feats_venous, ]))][1:20]
+feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
+for (i in seq_along(feats)) {
+    fn <- paste0(dr, feats[i], ".png")
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    plot_feats(feats_chrs[i, ], col = col_sample)
+    dev.off()
+}
+
+#' RBC
+feats_RBC <- rownames(present_call)[rowSums(present_call) == 1 &
+                                    present_call[, "RBC"]]
+dr <- paste0(IMAGE_PATH, "RBC_features/")
+dir.create(dr, showWarnings = FALSE)
+feats <- feats_RBC[order(rowMeans(prop_ratio[feats_RBC, ]))][1:20]
+feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
+for (i in seq_along(feats)) {
+    fn <- paste0(dr, feats[i], ".png")
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    plot_feats(feats_chrs[i, ], col = col_sample)
+    dev.off()
+}
+
+#' Capillary
+feats_capillary <- rownames(present_call)[rowSums(present_call) == 1 &
+                                          present_call[, "capillary"]]
+dr <- paste0(IMAGE_PATH, "capillary_features/")
+dir.create(dr, showWarnings = FALSE)
+feats <- feats_capillary[order(rowMeans(prop_ratio[feats_capillary, ]))][1:20]
+feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
+for (i in seq_along(feats)) {
+    fn <- paste0(dr, feats[i], ".png")
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    plot_feats(feats_chrs[i, ], col = col_sample)
+    dev.off()
+}
+
+
+```
+
+Some example data for features are shown below. The first shows an example for a
+*common* feature, i.e. a feature that is present (although at difference
+abundance) in all 4 matrices.
+
+```{r out.width = "750px", echo = FALSE, fig.cap = "Feature present in all 4 matrices."}
+knitr::include_graphics(paste0(IMAGE_PATH, "common_features/FT02184.png"))
+```
+
+Below an example for a plasma-only feature is shown. There seems to be some
+signal also for some samples from other matrices, but that is mostly below
+detection limit.
+
+```{r out.width = "750px", echo = FALSE, fig.cap = "Plasma-specific feature."}
+knitr::include_graphics(paste0(IMAGE_PATH, "plasma_features/FT00481.png"))
+```
+
+An example for a venous-specific feature is shown below.
+
+```{r out.width = "750px", echo = FALSE, fig.cap = "Venous-specific feature."}
+knitr::include_graphics(paste0(IMAGE_PATH, "venous_features/FT07248.png"))
+```
+
+An example for a RBC-only feature is shown below.
+
+```{r out.width = "750px", echo = FALSE, fig.cap = "RBC-specific feature."}
+knitr::include_graphics(paste0(IMAGE_PATH, "RBC_features/FT02578.png"))
+```
+
+An example for a capillary-specific feature is shown below.
+
+```{r out.width = "750px", echo = FALSE, fig.cap = "Capillary-specific feature."}
+knitr::include_graphics(paste0(IMAGE_PATH, "capillary_features/FT01583.png"))
+```
+
+What seems to be common to all matrix-specific features is that their abundance
+is moderate. Below we thus evaluate whether the average abundance level of
+matrix-specific features is different to those from common features.
+
+```{r matrix-specific-abundance, message = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of average (across samples) abundances of common and matrix-specific features.", fig.width = 6, fig.height = 8}
+ints <- list(
+    common = apply(assay(vams_pos, "abundances")[feats_common, ],
+                   MARGIN = 1, mean),
+    plasma = apply(assay(vams_pos, "abundances")[feats_plasma,
+                                                 vams_pos$source == "plasma"],
+                   MARGIN = 1, mean),
+    venous = apply(assay(vams_pos, "abundances")[feats_venous,
+                                                 vams_pos$source == "venous"],
+                   MARGIN = 1, mean),
+    RBC = apply(assay(vams_pos, "abundances")[feats_RBC,
+                                              vams_pos$source == "RBC"],
+                MARGIN = 1, mean),
+    capillary = apply(assay(vams_pos, "abundances")[feats_capillary,
+                                                    vams_pos$source == "capillary"],
+                      MARGIN = 1, mean)
+)
+par(mar = c(7, 4.5, 1, 1))
+boxplot(lapply(ints, log2), varwidth = TRUE, col = col_source[names(ints)],
+        ylab = expression(log[2]~abundance), las = 2, main = "average abundance")
+grid(nx = NA, ny = NULL)
+```
+
+Indeed, the average abundance of matrix-specific features seems to be about
+two-fold lower than the abundance of *common* features. Thus many features might
+appear to be matrix specific because their abundance is below the detection
+limit in other matrices.
+
+
+## Grouping samples based on metabolite abundances
+
+We perform a principal component analysis to evaluate the grouping of the
+samples/matrices in our experiment.
+
+```{r pca-rsd, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA grouping samples based on (centered) feature abundances. Only features with an RSD < 30% in QC samples were used. Circles represent samples from female, rectangles from male participants. Missing values were replaced with half of the feature's minimal abundance adding also a small random variance."}
+#' RSD < 30% in QC samples
+tmp <- log2(assay(vams_pos, "abundances")[which(rowData(vams_pos)$QC_rsd < 0.3), ])
+na_prop <- rowNaProp(tmp)
+tmp <- imputeRowMinRand(tmp, min_fraction = 1/2)
+pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_pos$sex == "F", 21, 22)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
+         bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
+legend("bottomright", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
+         bg = paste0(col_source[vams_pos$source], 40), pch = pchs, cex = 1.5)
+
+#' plot_pca(pc, pc_x = 2, pc_y = 3, col = paste0(col_source[vams_pos$source], 80),
+#'          bg = paste0(col_source[vams_pos$source], 40), pch = 21, cex = 1.5)
+
+```
+
+The PCA above was performed on all features that have an RSD < 30% in QC samples
+(about 4000). Missing values were replaced with half of the feature's smallest
+abundance adding also a small random value based on the features' standard
+deviations. Note that excluding features with `NA` values (~ 1000) or performing
+the PCA on all over 10,000 features yielded the same result (data not shown).
+
+As expected, a clear separation of plasma samples from all other samples
+(containing also blood cells) can be observed on PC1. Capillary and red blood
+cell samples cluster close together, with some RBC samples being closest to the
+cluster consisting of venous samples. Both show however a stronger variation
+(especially in PC2) than plasma or venous samples. On PC3 we can see again a
+separation by matrix, with plasma and venous samples being closest. The
+separation on PC3 could reflect the different sampling source, i.e. sampling
+from the finger tip with the Mitra device (capillary) *vs* sampling from
+intravenous blood (venous, plasma and RBC).
 
 
 ## Identifying features with differential abundance between the matrices
