@@ -83,3 +83,29 @@ naProp <- function(x) {
 rowNaProp <- function(x) {
     apply(x, MARGIN = 1, naProp)
 }
+
+#'@title Extract run start time stamp
+#'
+#' @description
+#'
+#' Extract the start time stamps from all mzML files of an `MSnExp` object.
+#'
+#' @param x `MSnExp` object
+#'
+#' @param format `character(1)` defining the date/time format of the time
+#'     stamp. If `NULL` the time stamp will be returned as a `character`.
+#' 
+#' @return `character` with the start time stamps.
+extractTimeStamps <- function(x, format = "%Y-%m-%dT%H:%M:%S") {
+    stopifnot(inherits(x, "MSnExp"))
+    ts <- sapply(fileNames(x), function(z) {
+        fl <- mzR::openMSfile(z)
+        run_info <- mzR::runInfo(fl)
+        mzR::close(fl)
+        run_info$startTimeStamp
+    })
+    if (length(format))
+        strptime(ts, format = format)
+    else ts
+}
+

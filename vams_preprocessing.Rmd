@@ -24,39 +24,39 @@ BiocStyle::markdown()
 **Compiled**: `r date()`
 
 ```{r settings, echo = FALSE, results = "hide", message = FALSE}
-## Set general options
+#' Set general options
 options(useFancyQuotes = FALSE)
 set.seed(18011977)
 
-## Define paths:
+#' Define paths:
 filename <- "vams_preprocessing"
-## Path to save the images; remove all old images.
+#' Path to save the images; remove all old images.
 IMAGE_PATH <- paste0("images/", filename, "/")
 if (file.exists(IMAGE_PATH))
     unlink(IMAGE_PATH, recursive = TRUE)
 dir.create(IMAGE_PATH, recursive = TRUE)
-## Path to store RData files
+#' Path to store RData files
 RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
-## Define the path where we can find the mzML files:
+#' Define the path where we can find the mzML files:
 MZML_PATH <- "~/data/2018/"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
-## Whether peak detection should be performed or loaded form a previous run.
+#' Whether peak detection should be performed or loaded form a previous run.
 cached_peak_detection = FALSE
 
-## Where to cut the chromatogram (i.e. subset to spectra within rt 0-rt_cut)
+#' Where to cut the chromatogram (i.e. subset to spectra within rt 0-rt_cut)
 rt_cut <- 250
 
-## Get the number of cpus allocated or fall back to 3 
+#' Get the number of cpus allocated or fall back to 3 
 ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 ```
 
 
 # Introduction
-
+ 
 In this section we perform the pre-processing of the untargeted metabolomics
 data of the *MitYOU* project which comprises an initial quality assessment,
 chromatographic peak detection, alignment (retention time correction) and
@@ -91,22 +91,29 @@ library(magrittr)
 library(pheatmap)
 registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
+source("util-functions.R")
 
 pd <- read.table("data/phenodata.txt", sep = "\t", as.is = TRUE, header = TRUE)
 pd_pos <- pd[pd$polarity == "POS", ]
 
-## Define colors for the groups.
+#' Define colors for the groups.
 col_source <- brewer.pal(5, name = "Set1")
 names(col_source) <- c("RBC",           # red
                        "plasma",        # blue
                        "all",           # green
                        "capillary",     # purple
                        "venous")        # orange
-## Read the data
+#' Read the data
 data_pos <- readMSData(paste0(MZML_PATH, pd_pos$mzML_file),
                        pdata = as(AnnotatedDataFrame(pd_pos),
                                   "NAnnotatedDataFrame"), mode = "onDisk")
 data_pos <- filterRt(data_pos, rt = c(0, rt_cut))
+
+#' Add the time stamp from the individual files and check if they
+#' match the injection index
+time_stamp <- extractTimeStamps(data_pos)
+data_pos$time_stamp <- time_stamp
+stopifnot(all(data_pos$inj_idx, order(data_pos$time_stamp)))
 ```
 
 All samples of the experiment are listed below.
@@ -133,7 +140,7 @@ validatePdata <- function(x) {
         }
     }
 }
-## validatePdata(pData(data_pos))
+#' validatePdata(pData(data_pos))
 
 tab <- pData(data_pos)[, -4]
 pandoc.table(tab, style = "rmarkdown",
@@ -192,11 +199,11 @@ We next cluster samples based on pair-wise correlations of their (log2) base
 peak intensities.
 
 ```{r pos-bin-chr, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 12, fig.height = 12, fig.cap = "Samples clustered by base peak chromatogram. Clustering bases on complete linkage hierarchical clustering of pairwise correlations of log2 base peak signals."}
-## First we have to bin the chromatograms to force them having the same
-## retention times.
+#' First we have to bin the chromatograms to force them having the same
+#' retention times.
 chrs_bin <- bin(chrs_bpc)
 
-## Calculating the correlation on the log2 transformed bp signals
+#' Calculating the correlation on the log2 transformed bp signals
 cormat <- cor(log2(do.call(cbind, lapply(chrs_bin, intensity))))
 colnames(cormat) <- rownames(cormat) <- sampleNames(data_pos)
 ann <- pData(data_pos)[, c("batch", "source")]
@@ -239,34 +246,34 @@ highlighted.
 col_clust <- c("#00000020", "#ff000080")
 plot(chrs_bpc, col = col_clust[clust_one])
 
-## cols <- rep("#00000020", length(chrs_bpc$source))
-## cols[chrs_bpc$sample %in% c("16", "19")] <- "#ff000080"
-## ##cols[c(74, 178)] <- "#ff000080"
-## plot(chrs_bpc, col = cols)
+#' cols <- rep("#00000020", length(chrs_bpc$source))
+#' cols[chrs_bpc$sample %in% c("16", "19")] <- "#ff000080"
+#' #'cols[c(74, 178)] <- "#ff000080"
+#' plot(chrs_bpc, col = cols)
 
 ```
 
 ```{r, echo = FALSE, eval = FALSE}
-## Perform the PCA
+#' Perform the PCA
 pc <- prcomp(t(log2(do.call(cbind, lapply(chrs_bin, intensity)))),
              scale = FALSE, center = TRUE)
-par(mfrow = c(1, 2))
-BioCHRIStes::plot_pca(pc, col = col_clust[clust_one], pc_x = 1, pc_y = 2)
-BioCHRIStes::plot_pca(pc, col = col_clust[clust_one], pc_x = 3, pc_y = 4)
-BioCHRIStes::plot_pca(pc, col = col_clust[clust_one], pc_x = 2, pc_y = 3)
+par(mfrow = c(1, 3))
+plot_pca(pc, col = col_clust[clust_one], pc_x = 1, pc_y = 2)
+plot_pca(pc, col = col_clust[clust_one], pc_x = 3, pc_y = 4)
+plot_pca(pc, col = col_clust[clust_one], pc_x = 2, pc_y = 3)
 text(pc$x[, 2], pc$x[, 3], label = sampleNames(chrs_bin),
      col = col_clust[clust_one])
 
 
-## cols <- rep("#00000040", length(chrs_bin$source))
-## keep_idx <- c(166, 169, 133, 192, 111, 125, 113, 157)
-## rem_idx <- c(74, 158, 172, 174, 194, 177, 149, 186, 188, 167, 178)
-## cols[keep_idx] <- "#0000ff80"
-## cols[rem_idx] <- "#ff000080"
+#' cols <- rep("#00000040", length(chrs_bin$source))
+#' keep_idx <- c(166, 169, 133, 192, 111, 125, 113, 157)
+#' rem_idx <- c(74, 158, 172, 174, 194, 177, 149, 186, 188, 167, 178)
+#' cols[keep_idx] <- "#0000ff80"
+#' cols[rem_idx] <- "#ff000080"
 
-## BioCHRIStes::plot_pca(pc, col = cols, pc_x = 2, pc_y = 3)
+#' BioCHRIStes::plot_pca(pc, col = cols, pc_x = 2, pc_y = 3)
 
-## plot(chrs_bpc, col = cols)
+#' plot(chrs_bpc, col = cols)
 
 ```
 
@@ -368,8 +375,8 @@ This list of compounds is further reduced by visually inspecting the MS data and
 by re-defining the retention time window in the present data.
 
 ```{r known-cmps-pos, echo = FALSE, message = FALSE, eval = FALSE}
-## This code needs to be run only once. We have to go through the images anyway
-## to manually select/refine regions.
+#' This code needs to be run only once. We have to go through the images anyway
+#' to manually select/refine regions.
 qc_pos <- filterFile(data_pos, file = which(data_pos$sample == "POOL"))
 
 dir.create(paste0(IMAGE_PATH, "/tmp"), showWarnings = FALSE)
@@ -387,9 +394,14 @@ for (i in 1:nrow(pos_cmps)) {
     abline(v = pos_cmps$rt_expected[i], lty = 3)
     dev.off()
 }
-## Now happily jump into the folder to look at the data and:
-## a) select known compounds to keep
-## b) define their rt width
+
+#' mzML backend: took 505 sec
+#' hdf5 backend: took 348 sec
+#' hdf5 backens, serial processing:
+
+#' Now happily jump into the folder to look at the data and:
+#' a) select known compounds to keep
+#' b) define their rt width
 
 ```
 
@@ -401,7 +413,7 @@ across files is shown below in the table listing the compounds used in this
 analysis.
 
 ```{r known-cmps-pos-define, echo = FALSE, message = FALSE, warning = FALSE, results = "asis"}
-## In this code block we manually select known compounds and define their rt
+#' In this code block we manually select known compounds and define their rt
 kcs <- rbind(
     kc_1 = c(167, 173),            # 4000
     kc_3 = c(161, 167),            # 7000
@@ -453,10 +465,10 @@ colnames(kcs) <- c("rt_min", "rt_max")
 
 pos_cmps <- cbind(pos_cmps[rownames(kcs), ], kcs)
 
-## Filter the object based on these...
+#' Filter the object based on these...
 data_pos_cmps <- vector("list", nrow(pos_cmps))
 ppm_pos_cmps <- vector("list", nrow(pos_cmps))
-## Determine for each kompound the maximal difference between consecutive m/z
+#' Determine for each kompound the maximal difference between consecutive m/z
 for (i in 1:nrow(pos_cmps)) {
     data_pos_cmps[[i]] <- data_pos %>%
         filterFile(which(data_pos$sample == "POOL")) %>%
@@ -539,10 +551,10 @@ slice_peak_summary <- function(rtr, mzr, mz = NULL, x, group) {
         if (length(mz))
             mz_ppm <- mean(abs(pks[, "mz"] - mz) * 1e6 / mz)
         else mz_ppm <- NA_real_
-        ## Number of samples in which multiple peaks were identified.
+        #' Number of samples in which multiple peaks were identified.
         pk_cnt_smpl <- table(factor(pks[, "sample"],
                                     levels = 1:length(fileNames(x))))
-        ## Percentage per source in which a peak was identified.
+        #' Percentage per source in which a peak was identified.
         pk_perc <- split(as.numeric(pk_cnt_smpl), group)
         percs <- unlist(lapply(pk_perc, function(z) 100 * sum(z > 0) / length(z)))
         c(rt_width = mean(pks[, "rt_width"]),
@@ -559,7 +571,7 @@ slice_peak_summary <- function(rtr, mzr, mz = NULL, x, group) {
     }
 }
 
-## Iterate through rows to determine statistics for samples:
+#' Iterate through rows to determine statistics for samples:
 pos_cmps_pks <- vector("list", nrow(pos_cmps))
 dir.create(paste0(IMAGE_PATH, "peak_detection/"))
 for (i in 1:nrow(pos_cmps)) {
@@ -567,7 +579,7 @@ for (i in 1:nrow(pos_cmps)) {
     mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
     pos_cmps_pks[[i]] <- slice_peak_summary(rtr, mzr, mz = pos_cmps$mz[i],
                                             data_pos, data_pos$source)
-    ## A plot.
+    #' A plot.
     pks <- chromPeaks(data_pos, rt = rtr, mz = mzr, type = "apex_within")
     rt_pks <- range(pks[, c("rtmin", "rtmax")])
     mz_pks <- range(pks[, c("mzmin", "mzmax")])
@@ -580,7 +592,7 @@ for (i in 1:nrow(pos_cmps)) {
          peakBg = paste0(col_pks, 20))
     abline(v = rtr, col = "lightgrey", lty = 3)
     dev.off()
-    ## Identify samples in which we have multiple peaks.
+    #' Identify samples in which we have multiple peaks.
     tbl <- table(pks[, "sample"])
     multi_idx <- as.numeric(names(tbl)[tbl > 1])
     if (length(multi_idx)) {
@@ -620,10 +632,10 @@ Next we evaluate the numbers of detected peaks, m/z and retention time widths of
 the peaks and the distribution of integrated peak signals in all samples.
 
 ```{r pos-peaks-summary-plot, warning = FALSE, message = FALSE, fig.cap = "Summaries of identified chromatographic peaks. Shown are the number of detected peaks, their m/z widths and their integrated signal in each measured sample.", fig.width = 12, fig.height = 10}
-## Split the peaks per sample.
+#' Split the peaks per sample.
 pk_list <- split.data.frame(chromPeaks(data_pos),
                             chromPeaks(data_pos)[, "sample"])
-## Calculate mz and rt widths
+#' Calculate mz and rt widths
 pk_list <- lapply(pk_list, function(z) {
     cbind(z, mz_width = z[, "mzmax"] - z[, "mzmin"],
           mz_width_ppm = (z[, "mzmax"] - z[, "mzmin"]) * 1e6 / z[, "mz"],
@@ -642,9 +654,9 @@ par(mar = c(0, 4.3, 0, 0.1))
 boxplot(lapply(pk_list, function(z) z[, "mz_width_ppm"]), outline = FALSE,
         ylab = "m/z width [ppm]", varwidth = TRUE, xaxt = "n",
         col = paste0(col_source[data_pos$source], 80))
-## boxplot(lapply(pk_list, function(z) z[, "rt_width"]), outline = FALSE,
-##         ylab = "rt width", varwidth = TRUE, xaxt = "n",
-##         col = paste0(col_source[data_pos$source], 80))
+#' boxplot(lapply(pk_list, function(z) z[, "rt_width"]), outline = FALSE,
+#'         ylab = "rt width", varwidth = TRUE, xaxt = "n",
+#'         col = paste0(col_source[data_pos$source], 80))
 boxplot(lapply(pk_list, function(z) log2(z[, "into"])), outline = FALSE,
         ylab = expression(log[2]~intensity), varwidth = TRUE, xaxt = "n",
         col = paste0(col_source[data_pos$source], 80))
@@ -669,11 +681,11 @@ The table below shows the per-sample median values
 summarized per source type.
 
 ```{r pos-peaks-summary-table, echo = FALSE, message = FALSE, results = "asis"}
-## Calculate per sample mean of
-## - peak count
-## - m/z width
-## - rt width
-## Aggregate these per sample group.
+#' Calculate per sample mean of
+#' - peak count
+#' - m/z width
+#' - rt width
+#' Aggregate these per sample group.
 smpl_summary <- cbind(peak_count = vapply(pk_list, nrow, numeric(1)),
                       do.call(rbind, lapply(pk_list, function(z) {
                           c(median_mz_width = median(z[, "mz_width_ppm"]),
@@ -771,12 +783,12 @@ rtr[2] <- rtr[2] + 2
 plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
               col = col_source[data_pos$source])
 
-## mzr <- pos_cmps["kc_81", "mz"] + c(0.01, -0.01)
-## rtr <- as.numeric(pos_cmps["kc_81", c("rt_min", "rt_max")])
-## rtr[1] <- rtr[1] - 2
-## rtr[2] <- rtr[2] + 2
-## plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
-##               col = paste0(col_source[data_pos$source], 80))
+#' mzr <- pos_cmps["kc_81", "mz"] + c(0.01, -0.01)
+#' rtr <- as.numeric(pos_cmps["kc_81", c("rt_min", "rt_max")])
+#' rtr[1] <- rtr[1] - 2
+#' rtr[2] <- rtr[2] + 2
+#' plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
+#'               col = paste0(col_source[data_pos$source], 80))
 
 ```
 
@@ -793,16 +805,16 @@ sample to the same feature. Setting this parameter to a large value resulted in
 *hook* peaks that span almost the full retention time range.
 
 ```{r pos-alignment-group, message = FALSE, warning = FALSE}
-## Remove potentially problematic samples. These were manually defined.
+#' Remove potentially problematic samples. These were manually defined.
 bad_idx <- c(74, 178, 166, 167)
 
-## ## Use the definition from the cluster analysis
-## bad_idx <- clust_one_idx
+#' #' Use the definition from the cluster analysis
+#' bad_idx <- clust_one_idx
 
 data_pos <- filterFile(data_pos, file = seq_along(data_pos$sample)[-bad_idx])
 
-## Define the peak grouping parameters to define the hook peaks
-## These should be peaks present in most samples
+#' Define the peak grouping parameters to define the hook peaks
+#' These should be peaks present in most samples
 pdp <- PeakDensityParam(sampleGroups = data_pos$source,
                         minFraction = 0.8,
                         minSamples = 5,
@@ -810,7 +822,7 @@ pdp <- PeakDensityParam(sampleGroups = data_pos$source,
                         bw = 1.3)
 data_pos <- groupChromPeaks(data_pos, param = pdp)
 
-## Next we perform the alignemnt.
+#' Next we perform the alignemnt.
 pgp <- PeakGroupsParam(minFraction = 0.9, extraPeaks = 50, span = 0.3)
 data_pos <- adjustRtime(data_pos, param = pgp)
 
@@ -843,11 +855,11 @@ shown below.
 
 data_raw <- dropAdjustedRtime(data_pos)
 dir.create(paste0(IMAGE_PATH, "alignment/"))
-## Visualizing alignment results for known compounds.
+#' Visualizing alignment results for known compounds.
 for (i in 1:nrow(pos_cmps)) {
     rtr <- as.numeric(pos_cmps[i, c("rt_min", "rt_max")])
     mzr <- c(pos_cmps$mz[i] - 0.01, pos_cmps$mz[i] + 0.01)
-    ## A plot.
+    #' A plot.
     pks <- chromPeaks(data_pos, rt = rtr, mz = mzr, type = "apex_within")
     if (nrow(pks)) {
         rtr <- range(pks[, c("rtmin", "rtmax")], rtr)
@@ -905,7 +917,7 @@ features that are present in fewer individuals.
 
 ```{r pos-correspondence}
 
-## Define settings for the correspondence and perform the analysis
+#' Define settings for the correspondence and perform the analysis
 pdp <- PeakDensityParam(sampleGroups = data_pos$source,
                         minFraction = 1/3,
                         minSamples = 3,
@@ -966,7 +978,7 @@ feat_summ <- featureSummary(data_pos, group = data_pos$source)
 #'
 #' @author Johannes Rainer
 featureSummaryTable <- function(x, percentages = c(10, 25, 50, 90)) {
-    ## Check input table.
+    #' Check input table.
     if (!is.matrix(x) ||
         !all(c("count", "multi_count", "multi_perc", "perc") %in% colnames(x)))
         stop("'x' is supposed to be a matrix as returned by the ",
@@ -1017,11 +1029,11 @@ the identified chromatographic peak boundaries. We thus extract below feature
 intensities and subset these to QC samples.
 
 ```{r feature-vals-QC, message = FALSE}
-## We extract the integrated original signal and use the signal from the peak
-## with the larger signal for multi-peak features.
+#' We extract the integrated original signal and use the signal from the peak
+#' with the larger signal for multi-peak features.
 fmat <- featureValues(data_pos, value = "into", method = "maxint")
 
-## Subset to QC samples and remove features not present in 90% of the samples
+#' Subset to QC samples and remove features not present in 90% of the samples
 fmat_qc <- fmat[, data_pos$source == "all"]
 nsamp <- ncol(fmat_qc)
 fmat_qc <- fmat_qc[apply(fmat_qc, MARGIN = 1,
@@ -1036,7 +1048,7 @@ differences between abundances after removing the lower and upper 1% of signals
 abundances.
 
 ```{r feature-vals-diff, message = FALSE}
-## Calculat maximal differences...
+#' Calculat maximal differences...
 diff_fun <- function(z) {
     c(M_range = diff(range(z, na.rm = TRUE)),
       M_98 = unname(diff(quantile(z, probs = c(0.01, 0.99), na.rm = TRUE))),
@@ -1090,8 +1102,8 @@ high signal intensities (above 2000). For the selection we focus in addition on
 features that are present in at least one third of samples.
 
 ```{r pos-single-peak-features, message = FALSE}
-## Selecting features with a single peak being present
-## in more than 33% of samples.
+#' Selecting features with a single peak being present
+#' in more than 33% of samples.
 feats <- rownames(feat_summ)[feat_summ[, "multi_count"] == 0 &
                              feat_summ[, "perc"] > 100/3]
 rms <- rowMeans(fmat[feats, ], na.rm = TRUE)
@@ -1107,7 +1119,7 @@ feats_high <- sample(feats[rms > 20000], 10)
 plot_feature <- function(x, feature) {
     ft <- featureDefinitions(x)[feature, ]
     pks <- chromPeaks(x)[unlist(ft$peakidx), , drop = FALSE]
-    ## mzr <- range(pks[, c("mzmin", "mzmax")])
+    #' mzr <- range(pks[, c("mzmin", "mzmax")])
     mzr <- c(ft$mzmin[1], ft$mzmax[1])
     rtr <- range(pks[, c("rtmin", "rtmax")])
     chr <- chromatogram(x, mz = mzr, rt = rtr)
@@ -1118,7 +1130,7 @@ plot_feature <- function(x, feature) {
                          peakCol = paste0(pk_col, 40), simulate = FALSE)
 }
 
-##feats_sel <- unique(c(feats_sel, "FT01984"))
+#'feats_sel <- unique(c(feats_sel, "FT01984"))
 dr <- paste0(IMAGE_PATH, "single_peak_fts/")
 dir.create(dr, showWarnings = FALSE)
 
@@ -1154,8 +1166,8 @@ samples and select 10 random features for low, intermediate and high
 intensities.
 
 ```{r pos-occasional-multi-features, message = FALSE}
-## Selecting features with occacional multiple peaks
-## being present. A peak has to be present also in more than 33% of samples.
+#' Selecting features with occacional multiple peaks
+#' being present. A peak has to be present also in more than 33% of samples.
 feats <- rownames(feat_summ)[feat_summ[, "multi_count"] > 0 &
                              feat_summ[, "multi_perc"] < 10 &
                              feat_summ[, "perc"] > 100/3]
@@ -1202,8 +1214,8 @@ Here we want to characterize features that have more than one chromatographic
 peak assigned in more than 50% of samples.
 
 ```{r pos-multi50-features, message = FALSE}
-## Selecting features with multiple peaks
-## being present. A peak has to be present also in more than 33% of samples.
+#' Selecting features with multiple peaks
+#' being present. A peak has to be present also in more than 33% of samples.
 feats <- rownames(feat_summ)[feat_summ[, "multi_perc"] > 50 &
                              feat_summ[, "perc"] > 100/3]
 
@@ -1275,10 +1287,10 @@ for (feat in rownames(tab)) {
     dev.off()
 }
 
-## - kc_32 would be one possible example.
-## - kc_61 too.
-## - kc_71
-## - kc_103
+#' - kc_32 would be one possible example.
+#' - kc_61 too.
+#' - kc_71
+#' - kc_103
 
 ```
 
@@ -1345,14 +1357,14 @@ for (i in seq_along(ft_grps)) {
 
 
 ```{r feature-groups-close-ppm, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
-## Randomly choosing among features that are less than 50 ppm apart.
+#' Randomly choosing among features that are less than 50 ppm apart.
 set.seed(123)
 
 fts_grps <- ovlap_fts_mz[sample(seq_along(ovlap_fts_mz), 20)]
 
 dr <- paste0(IMAGE_PATH, "overlapping_close_mz/")
 dir.create(dr, showWarnings = FALSE)
-## Use the pool data...
+#' Use the pool data...
 data_qc <- filterFile(dropChromPeaks(data_pos),
                       file = which(data_pos$source == "all"))
 
