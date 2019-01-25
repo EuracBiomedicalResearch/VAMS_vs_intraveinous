@@ -81,6 +81,7 @@ library(magrittr)
 library(pheatmap)
 registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
+source("util-functions.R")
 
 pd <- read.table("data/phenodata.txt", sep = "\t", as.is = TRUE, header = TRUE)
 pd_neg <- pd[pd$polarity == "NEG", ]
@@ -97,6 +98,12 @@ data_neg <- readMSData(paste0(MZML_PATH, pd_neg$mzML_file),
                        pdata = as(AnnotatedDataFrame(pd_neg),
                                   "NAnnotatedDataFrame"), mode = "onDisk")
 data_neg <- filterRt(data_neg, rt = c(0, rt_cut))
+
+#' Add the time stamp from the individual files and check if they
+#' match the injection index
+time_stamp <- extractTimeStamps(data_neg)
+data_neg$time_stamp <- time_stamp
+stopifnot(all(data_neg$inj_idx, order(data_neg$time_stamp)))
 ```
 
 All samples of the experiment are listed below.
@@ -207,9 +214,9 @@ be identified.
 pc <- prcomp(t(log2(do.call(cbind, lapply(chrs_bin, intensity)))),
              scale = FALSE, center = TRUE)
 par(mfrow = c(1, 2))
-BioCHRIStes::plot_pca(pc, col = col_clust[clust_one], pc_x = 1, pc_y = 2)
-BioCHRIStes::plot_pca(pc, col = col_clust[clust_one], pc_x = 3, pc_y = 4)
-BioCHRIStes::plot_pca(pc, col = col_clust[clust_one], pc_x = 2, pc_y = 3)
+plot_pca(pc, col = col_clust[clust_one], pc_x = 1, pc_y = 2)
+plot_pca(pc, col = col_clust[clust_one], pc_x = 3, pc_y = 4)
+plot_pca(pc, col = col_clust[clust_one], pc_x = 2, pc_y = 3)
 text(pc$x[, 2], pc$x[, 3], label = sampleNames(chrs_bin),
      col = col_clust[clust_one])
 
