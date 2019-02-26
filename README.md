@@ -32,3 +32,31 @@ will not work.
   of the feature abundances.
 
 
+## Required packages and setup
+
+The analysis requires a recent version of R (>= 3.5.2) and the following R
+packages. All required R packages can be installed with the code below.
+
+```r
+install.packages("BiocManager")
+BiocManager(c("BiocStyle",
+              "xcms",
+              "RColorBrewer",
+              "pander",
+              "doParallel",
+              "magrittr",
+              "pheatmap",
+              "DESeq2",
+              "edgeR",
+              "NormalizeMets",
+              "MetNorm",
+              "ruv",
+              "SummarizedEperiment",
+              "UpSetR"))
+```
+
+## Raw mzML data location
+
+mzML files with the raw spectrum data are available from the calculation
+clusters in */data/massspec/mzML/*.
+
