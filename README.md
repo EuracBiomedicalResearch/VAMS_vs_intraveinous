@@ -34,25 +34,31 @@ will not work.
 
 ## Required packages and setup
 
-The analysis requires a recent version of R (>= 3.5.2) and the following R
+The analysis requires a recent version of R (>= 3.6.0) and the following R
 packages. All required R packages can be installed with the code below.
 
 ```r
 install.packages("BiocManager")
-BiocManager(c("BiocStyle",
-              "xcms",
-              "RColorBrewer",
-              "pander",
-              "doParallel",
-              "magrittr",
-              "pheatmap",
-              "DESeq2",
-              "edgeR",
-              "NormalizeMets",
-              "MetNorm",
-              "ruv",
-              "SummarizedEperiment",
-              "UpSetR"))
+BiocManager::install(c("BiocStyle",
+                       "xcms",
+                       "RColorBrewer",
+                       "pander",
+                       "doParallel",
+                       "magrittr",
+                       "pheatmap",
+                       "DESeq2",
+                       "edgeR",
+                       "NormalizeMets",
+                       "MetNorm",
+                       "ruv",
+                       "SummarizedExperiment",
+                       "UpSetR",
+                       "devtools"))
+#' Install from github if versions are "too old"
+if (packageVersion("MSnbase") < "2.9.3")
+    devtools::install_github("lgatto/MSnbase")
+if (packageVersion("xcms") < "3.5.2")
+    devtools::install_github("sneumann/xcms")
 ```
 
 ## Raw mzML data location
