@@ -550,12 +550,11 @@ plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
 OutlierFilter <- (pc$x[, 1]<(-1e+5) & pc$x[, 2]<(0))
 sortedLoading <- sort(pc$rotation[,1])
 
+#' The two outlier features are defined
 feats <- c("FT08876","FT08384")
-OutlierSamples <- assay(vams_pos, "abundances")[feats, OutlierFilter]
-OutlierValues <- assay(vams_pos, "abundances")[feats,]
 
 #' PCA without the outliers are made
-intsCommonNoOutliers <- ints$common[,!OutlierFilter]
+intsCommonNoOutliers <- ints$common[!(rownames(ints$common) %in% feats),] 
 
 pc <- prcomp(t(intsCommonNoOutliers), scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
@@ -570,11 +569,13 @@ plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
 
 
 ```
-Feature FT8876 and feature FT08384 were found to be responsible for the 7 outlier samples and were filtered away.
+Feature FT8876 and feature FT08384 were found to be responsible for the 7 outlier
+samples and were filtered away.
 Removing the outliers resulted in a plot without any real discernable differences
 between the groups. 
 
-It was then decided to look at the chromatograms of the two features to determine whether it could be found why they are so different.
+It was then decided to look at the chromatograms of the two features to determine
+whether it could be found why they are so different.
 
 ```{r Chromatogram, eval=FALSE}
 dr <- paste0(IMAGE_PATH, "Outlier_features/")
@@ -592,7 +593,8 @@ for (i in seq_along(feats)) {
 ```
 
 Chromatograms were made of the features responsible for the outliers.
-Here it is evident that for the outlier samples these features have values much higher than the rest of the samples.
+Here it is evident that for the outlier samples these features have values much
+higher than the rest of the samples.
 It is unclear if the smaller peaks at the lower retention times should be included here as well.
 
 
@@ -600,10 +602,13 @@ It is unclear if the smaller peaks at the lower retention times should be includ
 
 
 
-Multiple linear regression of the features common for all samples are made. A volcano plot for each of the combination, of plasma compared to all the other sources were made.
+Multiple linear regression of the features common for all samples are made.
+A volcano plot for each of the combination, of plasma compared to all the other sources were made.
 ```{r multipleRegression}
 
-
+#' The function for the multiple linear regression is made. This takes a numeric
+#' input along with a matrix containing the confounding factors, it returns the
+#' means and the p value
 fitlmFunction <- function(x,dataMat){
   dataMat <- cbind(conc=x,as.data.frame(dataMat))
   dataMat$source <- factor(x = vams_pos$source,levels = c("plasma","capillary", "RBC", "venous"))
@@ -612,143 +617,169 @@ fitlmFunction <- function(x,dataMat){
   smry <- data.frame(summary(mdl)$coefficients)
   
   Output <- c(coef = smry[c("sourcecapillary","sourceRBC","sourcevenous"), 1], pvalue =  smry[c("sourcecapillary","sourceRBC","sourcevenous"), 4])
+  names(Output) <- c(paste0("coef.",c("capillary","sourceRBC","venous")), paste0("pvalue.", c("capillary","sourceRBC","venous")))
+  Output
 }
-  
+
+#' The data is log2 transformed to make it mostly gaussian in distribution  
 Data <- log2(ints$common[,,drop=FALSE])
-fitMatrix <- t(apply(Data[,],1,fitlmFunction,dataMat=colData(vams_pos)))
+fitMatrix <- t(apply(Data[,,drop=FALSE],1,fitlmFunction,dataMat=colData(vams_pos)))
 #' names(Output) <- c(paste0("coef.",c("capillary","sourceRBC","venous")), paste0("pvalue.", c("capillary","sourceRBC","venous")))
 
-#' VolcanoPlot
+#' The sources are converted to a list to allow its use in the aggregate function (Find out why Coeff doesn't work)
 sourceList=list(vams_pos$source)
+#' A new color set is defined to better conform to what is need by the volcano plot
 col_source <- brewer.pal(4, name = "Set1")
-col_source[1] <- "#DDDDDD" 
+col_source[1] <- "#DDDDDD" #' Grey
 
-
+#' The means for each feature for each source is found, likewise the limits for 
+#' fold increase and pLimit is defined. The pvalue limit is bonferroni adjusted.
+#' Note that this is only done for the common feautures
 aggregatedMeans <- aggregate(t(ints$common[,,drop=FALSE]),by=sourceList,FUN=mean)
 par(mar = rep(2, 4))
+pLimit <- -log10(0.01/length(fitMatrix[,"pvalue1"]))
+foldLimit <- 1
+
 
 divideFunction <- function(Matrix,Vector){
   Matrix/Vector
 }
 
-pLimit <- -log10(0.01/length(fitMatrix[,"pvalue1"]))
-foldLimit <- 1
-
+#' The filters for pvalue and fold increase is defined
 colorFilterLowP <- -log10(fitMatrix[,4:6,drop=FALSE])>pLimit
 
 #' higfold is NOT a matrix, find way to reshape
 colorFilterHighFold <- abs(log2( unlist(apply(aggregatedMeans[2:4,-1],1,divideFunction,Vector=aggregatedMeans[1,-1])))) > foldLimit
 
-
+#The filter for coloring the points is made
 colorFilter <- 1*colorFilterLowP
 colorFilter[colorFilterHighFold] <- 2
 colorFilter[colorFilterHighFold*colorFilterLowP==1] <- 3
 colorFilter <- colorFilter+1
 
+#' The sums and proportion of points conforming to low p, and low p and high fold are found
 (LowPSum <- apply(colorFilterLowP*1,2,sum))
 (LowPProp <- LowPSum/length(colorFilterLowP))
 #'apply(colorFilterHighFold*1,2,sum)
 (LowPHighFoldSum <- apply(colorFilterHighFold*colorFilterLowP==1,2,sum))
 (LowPHighFoldprop <- LowPHighFoldSum/length(colorFilterLowP))
 
+#' The volcano plots are made.
 plot(log2(unlist(aggregatedMeans[2,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue1"]),main="Plasma VS. Capillary", col=col_source[colorFilter[,1]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
+
 plot(log2(unlist(aggregatedMeans[3,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue2"]),main="Plasma VS. RBC", col=col_source[colorFilter[,2]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
+
 plot(log2(unlist(aggregatedMeans[4,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue3"]),main="Plasma VS. Venous", col=col_source[colorFilter[,3]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
 
-Rownames <- (row.names(vams_pos))
-HighFoldlowPFilter <- colorFilterHighFold*colorFilterLowP==1
-#' 
-
-
-
 
 ```
-A linear model comparing each of the samples to Plasma was made. Accounting for age,sex,batch, and donor.
+A linear model comparing each of the samples to Plasma was made. Accounting for 
+age,sex,batch, and donor.
 
-A volcano plot for each comparison were made, (555,1017,417) (5.4, 9.8, 4.0 %) features for Capillary, RBC and venous respectively were found to have bonferroni adjusted p values above 0.01. With (296,287,27) (2.9, 2.8,0.26 %) in addition having a difference above 1.
-This shows thatof the three sources venous is the most alike to the plasma samples, with a small proportional of feautures being different.
+A volcano plot for each comparison were made, (555,1017,417) (5.4, 9.8, 4.0 %) 
+features for Capillary, RBC and venous respectively were found to have bonferroni
+adjusted p values above 0.01. With (296,287,27) (2.9, 2.8,0.26 %) in addition 
+having a difference above 1.
+This shows thatof the three sources venous is the most alike to the plasma
+samples, with a small proportional of feautures being different.
 
 
 
-Likewise it was decided to perform a PLS analysis of the data. This was done with the entire dataset, and as such imputation was needed due to the many missing values.
-80% of the samples are used for training, with the remaining 20%  used for indedpendent validation. The assignment is random.
-The training of the PLS is performed with and n=N-1 components and 10 segments these are likewise chosen randomly.
-A confusion matrix of the prediction using the model on the test set is produced, together with a graph detailing the PRESS as a function of components used. 2 Fewer than the component in which the minima is reached is used *(This is done manually, but find way to do so automatically)* This is currently 6 components. A new model using  6 components are made. The new model is tested, producing a plot showing the probability scores of the samples *(Find a way to ensure they are normalized to [0,1])* and a new confusion matrix.
-This confusion matrix shows that a identification of 100% is possible using PLS, even without adjusting for confounding factors.
+Likewise it was decided to perform a PLS analysis of the data. 
+Imputation was needed due to the many missing values.
+
 
 ```{r PLS}
+
+#' Colorsource is redefined to ensure correct color
+
 col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
 names(col_source) <- c("RBC",           #' red
                        "plasma",        #' blue
                        "capillary",     #' purple
                        "venous")        #' orange
 
+#' The ratio of the training set is calculated, and the training and test set is made
 sampleSize <- floor(0.8 * length(vams_pos$sample_name))
-Data <- assay(vams_pos, "abundances")[,]
-Data <- imputeRowMinRand(Data)
-tData <- t(Data)
-
 inTrain <- sample(seq(along = vams_pos$source), sampleSize)
 inTest <- seq(along = vams_pos$source)[-inTrain]
 
 
+#' The data is defined and imputed to remove missing values (Otherwise it would drop rows causing errors)
+Data <- ints$common[,,drop=FALSE]
+#' Data <- (assay(vams_pos, "abundances"))
+Data <- imputeRowMinRand(Data)
+tData <- t(Data)
+
+
+#' The Data and responses for the training and test sets are defined
 training <- tData[inTrain,]
 test <- tData[-inTrain,]
 trainSource <- factor(vams_pos$source,levels=c("RBC","plasma","capillary","venous"))[inTrain]
 testSource <- factor(vams_pos$source,levels=c("RBC","plasma","capillary","venous"))[-inTrain]
 
+
+#' The data is preprocessed, and the Model is made using the training data.
+#' The model is made with the max number of components and 10-fold random 
+#' segmented cross validation to find the correct number of components.
 preProcValues <- preProcess(training)
 trainDescr <- predict(preProcValues, training)
 testDescr <- predict(preProcValues, test)
 useSoftmax <- plsda(trainDescr, trainSource, ncomp = sampleSize-1,validation = "CV")
 
+#' A confusion matrix with the model is made.
 confusionMatrix(predict(useSoftmax, testDescr),
                 testSource)
+
 #' Consider using the sum of the PRESS values to determine the minima instead
 #' PRESSValues <- apply(useSoftmax$validation$PRESS,2,sum) 
 
+#' The PRESS VS number of components is plotted. this shows a minimum at 5-6 Components
 plot(useSoftmax$validation$PRESS[1,],col=col_source[1],ylab="PRESS", xlab = "PLS - Components", main = "PRESS VS PLS Components",ylim = c(0,ceiling(max(useSoftmax$validation$PRESS))))
 legend("topright",legend=levels(trainSource),col = col_source[c(1,2,3,4)],pch = 16)
 for (i in 2:4 ) {
    points(useSoftmax$validation$PRESS[trainSource[i],],col=col_source[i]) 
 }
 
+BstNComp <- 10
 
+#' A list of the means of the predictions (in practice the "probability") for 
+#' each source is made.along with 2 times the standard deviation.
 
 Mean <- list(
-  capillary = apply(useSoftmax$fitted.values[trainSource=="capillary",,6],2,mean),
+  capillary = apply(useSoftmax$fitted.values[trainSource=="capillary",,BstNComp],2,mean),
   
-  plasma = apply(useSoftmax$fitted.values[trainSource=="plasma",,6],2,mean),
+  plasma = apply(useSoftmax$fitted.values[trainSource=="plasma",,BstNComp],2,mean),
   
-  RBC = apply(useSoftmax$fitted.values[trainSource=="RBC",,6],2,mean),
+  RBC = apply(useSoftmax$fitted.values[trainSource=="RBC",,BstNComp],2,mean),
   
-  venous  = apply(useSoftmax$fitted.values[trainSource=="venous",,6],2,mean)
+  venous  = apply(useSoftmax$fitted.values[trainSource=="venous",,BstNComp],2,mean)
 )
 
 StdDev <- list(
-  capillary = 2*apply(useSoftmax$fitted.values[trainSource=="capillary",,6],2,sd),
+  capillary = 2*apply(useSoftmax$fitted.values[trainSource=="capillary",,BstNComp],2,sd),
   
-  plasma = 2*apply(useSoftmax$fitted.values[trainSource=="plasma",,6],2,sd),
+  plasma = 2*apply(useSoftmax$fitted.values[trainSource=="plasma",,BstNComp],2,sd),
   
-  RBC = 2*apply(useSoftmax$fitted.values[trainSource=="RBC",,6],2,sd),
+  RBC = 2*apply(useSoftmax$fitted.values[trainSource=="RBC",,BstNComp],2,sd),
   
-  venous  = 2*apply(useSoftmax$fitted.values[trainSource=="venous",,6],2,sd)
+  venous  = 2*apply(useSoftmax$fitted.values[trainSource=="venous",,BstNComp],2,sd)
 )
   
 
 
-
+#' The mean of the scores is plotted along with shading corresponding to 2 times the standard deviation.
 plot(1:4,Mean$capillary,xlim=c(1,4),ylim=c(-0.2,1.2),type="n",main="Mean of scores"
-     ,axes = FALSE,ylab = "Probability Score")
+     ,axes = FALSE,ylab = "Probability Score", xlab="")
 legend("top",legend=names(col_source),col = col_source,pch = 16)
 axis(side = 1 ,labels=names(col_source),at=c(1:4))
 axis(side = 2 ,at=c(0:0.2:1))
@@ -779,21 +810,36 @@ polygon(x,y,border = NA,col=col_source_alpha["venous"])
 
 
 
-
+#' The final model is made using the limited number of components.
+#' A confusion matrix is included
 
 for (i in 1:length(trainSource)) {
-points(1:4,t(useSoftmax$fitted.values[i,,6]),col=col_source[trainSource[i]])
+points(1:4,t(useSoftmax$fitted.values[i,,BstNComp]),col=col_source[trainSource[i]])
 }
 
-useSoftmax <- plsda(trainDescr, trainSource, ncomp = 6,validation = "CV")
+useSoftmax <- plsda(trainDescr, trainSource, ncomp = BstNComp,validation = "CV")
 
 confusionMatrix(predict(useSoftmax, testDescr),
                 testSource)
-#' useSoftmax$scores
+
 
 
 
 ```
+80% of the samples are used for training, with the remaining 20%  used for
+indedpendent validation. The assignment is random.
+The training of the PLS is performed with and n=N-1 components and 10 segments 
+these are likewise chosen randomly.
+A confusion matrix of the prediction using the model on the test set is produced,
+together with a graph detailing the PRESS as a function of components used. 
+2 Fewer than the component in which the minima is reached is used *(This is done*
+*manually, but find way to do so automatically)* This is currently 6 components. 
+A new model using  6/10 components are made. The new model is tested, producing a 
+plot showing the probability scores of the samples *(Find a way to ensure they*
+*are normalized to [0,1])* and a new confusion matrix.
+The probability scores were colored according to source and shading corresponding
+to two standard deviations were includedThis confusion matrix shows that a
+identification of 100% is possible using PLS, even without adjusting for confounding factors.
 
 
 
@@ -802,19 +848,19 @@ It was decided to see to what degree the *missing* values could determine the di
 
 ```{r Missing_value_type}
 
+#' The new data set is defined. Any missing value is given the value 1, in contrast
+#' a *nonmissing* value is given the value 0.
 MissingValues <- 1*is.na(assay(vams_pos, "abundances"))
 
-#' MissingValues <- MissingValues[rowSums(MissingValues==0),]
 
+#' A PCA plot with this new dataset is performed
 pc <- prcomp(t(MissingValues), scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
 col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
 names(col_source) <- c("plasma",           #' red
                        "capillary",        #' blue
-                       "RBC",     #' purple
+                       "RBC",       #' purple
                        "venous")        #' orange
-                       
-
 par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
 plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
          bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
@@ -825,6 +871,7 @@ legend("topright", col = col_source, legend = names(col_source), pch = 16)
 
 
 
+#' The linear model fit function is restated here. remove in the future
 fitlmFunction <- function(x,dataMat){
   dataMat <- cbind(conc=x,as.data.frame(dataMat))
   dataMat$source <- factor(x = vams_pos$source)
@@ -835,13 +882,10 @@ fitlmFunction <- function(x,dataMat){
   c(coef = smry[c("sourceCapillary","sourceRBC","sourcevenous"), 1], pvalue =  smry[c("sourceplasma","sourceRBC","sourcevenous"), 4])
   
 }
-  
 
+#' The linear model is applied is before.  
 fitMatrix <- t(apply(MissingValues,1,fitlmFunction,dataMat=colData(vams_pos)))
-
 aggregatedMeans <- aggregate(t(MissingValues),by=sourceList,FUN=mean)
-par(mar = rep(2, 4))
-
 col_source <- brewer.pal(4, name = "Set1")
 col_source[1] <- "#DDDDDD" 
 
@@ -851,18 +895,19 @@ divideFunction <- function(Matrix,Vector){
   
 }
 
+#' Likewise with the limits and filters
 pLimit <- -log10(0.01/length(fitMatrix[,"pvalue1"]))
 foldLimit <- 1
 
 colorFilterLowP <- -log10(fitMatrix[,4:6,drop=FALSE])>pLimit
 colorFilterHighFold <- abs(log2( unlist(apply(aggregatedMeans[2:4,-1],1,divideFunction,Vector=aggregatedMeans[1,-1])))) > foldLimit
 
-
 colorFilter <- 1*colorFilterLowP
 colorFilter[colorFilterHighFold] <- 2
 colorFilter[colorFilterHighFold*colorFilterLowP==1] <- 3
 colorFilter <- colorFilter+1
 
+#'The volcano plots are made
 
 plot(log2(unlist(aggregatedMeans[2,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue1"]),main="Plasma VS. Capillary", col=col_source[colorFilter[,1]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
@@ -878,8 +923,8 @@ abline(v=foldLimit)
 abline(v=-foldLimit)
 
 
-MissingValues <- na.omit(MissingValues)
-colorFilter <- na.omit(colorFilter)
+#'MissingValues <- na.omit(MissingValues)
+#' colorFilter <- na.omit(colorFilter)
 
 
 col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
@@ -889,7 +934,8 @@ names(col_source) <- c("RBC",           #' red
                        "venous")        #' orange
 
 
-
+#' The density of the aggregated means are plotted. This is effectively a measure
+#' of how abundant the missing values are.
 par(mfrow= c(1,2))
 plot(density(t(aggregatedMeans[1,-1])),col=col_source[2],ylab="Density", xlab = expression(log[2]~abundance), main = "Density function of abunbance")
 lines(density(t(aggregatedMeans[2,-1])),col=col_source[1])
@@ -897,15 +943,13 @@ lines(density(t(aggregatedMeans[3,-1])),col=col_source[3])
 lines(density(t(aggregatedMeans[4,-1])),col=col_source[4])
 
 
-
+#' Since most values are not missing a zoomed in plot exluding the vast majority in x=0 is made.
 plot(density(t(aggregatedMeans[1,-1])),col=col_source[2],xlim=c(0,0.2),ylim=(c(0,5)),ylab="Density", xlab = expression(log[2]~abundance), main = "Density function of abunbance - Zoomed")
 lines(density(t(aggregatedMeans[2,-1])),col=col_source[1])
 lines(density(t(aggregatedMeans[3,-1])),col=col_source[3])
 lines(density(t(aggregatedMeans[4,-1])),col=col_source[4])
 legend("topright", col = col_source[c(1,2,3,4)], legend = names(col_source), pch = 16)
 
-
-upset(aggregatedMeans,      sets.bar.color = col_source[c("venous", "capillary", "RBC", "plasma")])
 
 #' seeing this succes it was decided to set all missing values to 0 to see the impact
 
@@ -914,16 +958,7 @@ dataMissingValues[is.na(assay(vams_pos, "abundances"))] <- 0
 pc <- prcomp(t(dataMissingValues), scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
 
-
-
-par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
-plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
-         bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
-legend("topright", col = col_source, legend = names(col_source), pch = 16)
-plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
-         bg = paste0(col_source[vams_pos$source], 40), pch = pchs, cex = 1.5)
-legend("topright", col = col_source, legend = names(col_source), pch = 16)
-
+#' CHANGE
 
 
 ```
@@ -932,7 +967,7 @@ in the PCA plot It is found that the missing values to a large degree can determ
 the differences between the different sources, with Plasma and especially Venous
 clustering tightly. The first component is mainly determined by the plasma sample.
 The second dimension is not strongly discriminative with the exception of the venous
-blood. the first dimension can discriminate between RBC plasma and capillary with
+blood. The third dimension can discriminate between RBC plasma and capillary with
 some help from the second dimension.
 
 Thus it was decided to make a linear model to determine what features were
@@ -944,53 +979,6 @@ in the earlier plots the feautures unique to the different sample sources are
 generally low concentration, and it is likely that the "unique" missing features
 are simply lower concentration in the other sample sources.
 
-Most samples are as expected found in all sources, and 
-
-
-
-The prediction is not stable which together with the fact that more components than 
-
-
-```{r PLSTest}
-data(mdrr)
-set.seed(1)
-inTrain <- sample(seq(along = mdrrClass), 450)
-
-nzv <- nearZeroVar(mdrrDescr)
-filteredDescr <- mdrrDescr[, -nzv]
-
-training <- filteredDescr[inTrain,]
-test <- filteredDescr[-inTrain,]
-trainMDRR <- mdrrClass[inTrain]
-testMDRR <- mdrrClass[-inTrain]
-
-preProcValues <- preProcess(training)
-
-trainDescr <- predict(preProcValues, training)
-testDescr <- predict(preProcValues, test)
-
-useSoftmax <- plsda(trainDescr, trainMDRR, ncomp = 1)
-
-
-confusionMatrix(predict(useSoftmax, testDescr),
-                testMDRR)
-
-
-histogram(~predict(useSoftmax, testDescr, type = "prob")[,"Active",]
-          | testMDRR, xlab = "Active Prob", xlim = c(-.1,1.1))
-```
-
-```{r NamesTesting}
-
-(TestMatrix <- matrix(,nrow=10,ncol=20))
-
-TestDataFrame <- data.frame(TestMatrix)
-
-colnames(TestDataFrame) <- letters[1:20]
-
-TestDataFrame
-
-```
 
 
 ## Comparison between venous and capillary blood
