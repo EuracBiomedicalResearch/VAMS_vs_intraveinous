@@ -1,6 +1,6 @@
 ---
 title: "Matrix comparison"
-author: "Johannes Rainer, Chiara Volani and Giuseppe Paglia"
+author: "Johannes Rainer, Søren Fjelstr, Chiara Volani and Giuseppe Paglia"
 graphics: yes
 output:
   BiocStyle::html_document:
@@ -15,7 +15,7 @@ references:
     given: noname
 ---
 
-```{r biocstyle, echo = FALSE, results = "asis"}
+```{r biocstyle, echo = FALSE, results = "hide"}
 library(BiocStyle)
 BiocStyle::markdown()
 ```
@@ -32,7 +32,7 @@ set.seed(18011977)
 filename <- "vams_matrix_pos"
 #' Path to save the images; remove all old images.
 IMAGE_PATH <- paste0("images/", filename, "/")
-if (file.exists(IMAGE_PATH))
+if (file.exists(IMAGE_PATH)) 
     unlink(IMAGE_PATH, recursive = TRUE)
 dir.create(IMAGE_PATH, recursive = TRUE)
 #' Path to store RData files
@@ -82,15 +82,18 @@ weight, features can be classified into 6 different types:
 Below we load all required libraries, define a color for each matrix and load
 the normalized data.
 
-```{r load-data}
+```{r load-data , results='hide'}
 library(xcms)
 library(RColorBrewer)
 library(pander)
 library(doParallel)
 registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
+#' register(SerialParam())
 library(SummarizedExperiment)
 library(UpSetR)
+library(pls)
+library(caret)
 
 #' Load utility functions for the analysis
 source("util-functions.R")
@@ -105,7 +108,9 @@ names(col_source) <- c("RBC",           #' red
 load("data/RData/vams_normalization/vams_pos.RData")
 
 #' Remove rows/features that have only missing values
-vams_pos <- vams_pos[rowNaProp(assay(vams_pos, "abundances")) < 1, ]
+#' vams_pos <- vams_pos[rowNaProp(assay(vams_pos, "abundances")) < 1, ]
+#' vams_pos <- vams_pos[1:400, ]
+
 ```
 
 
@@ -116,7 +121,7 @@ allows to perform qualitative comparisons between the matrices. In contrast to
 features with differences in abundances (identified in the next section) we do
 not consider absolute intensities in this analysis but rather evaluate whether a
 feature is detected in most samples of a matrix or not, i.e. whether a
-chromatographic peak was identified or not. This information is encoded into the
+chromatographic peak was identified or not. This information is encoded into th
 *weight* of a measurement (see Introduction for the definition of the weights):
 a chromatographic peak was detected for a feature in at least one of the two
 replicates if the weight is either 1, 0.9, 0.7 or 0.5. Below we use these
@@ -212,7 +217,7 @@ matrices being between samples containing also blood cells. The numbers of
 matrix-specific features is with ~ 200 - 600 relatively small, with plasma
 samples having the largest number of unique features.
 
-```{r plot-common-features, echo = FALSE, warning = FALSE}
+```{r plot-common-features, echo = FALSE, warning = FALSE,eval = FALSE}
 load("data/RData/vams_normalization/data_pos.RData")
 col_sample <- col_source[data_pos$source]
 
@@ -346,6 +351,16 @@ is moderate. Below we thus evaluate whether the average abundance level of
 matrix-specific features is different to those from common features.
 
 ```{r matrix-specific-abundance, message = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of average (across samples) abundances of common and matrix-specific features.", fig.width = 6, fig.height = 8}
+feats_common <- rownames(present_call)[rowSums(present_call) == 4]
+feats_plasma <- rownames(present_call)[rowSums(present_call) == 1 &
+                                       present_call[, "plasma"]]
+feats_venous <- rownames(present_call)[rowSums(present_call) == 1 &
+                                       present_call[, "venous"]]
+feats_RBC <- rownames(present_call)[rowSums(present_call) == 1 &
+                                    present_call[, "RBC"]]
+feats_capillary <- rownames(present_call)[rowSums(present_call) == 1 &
+                                          present_call[, "capillary"]]
+
 ints <- list(
     common = apply(assay(vams_pos, "abundances")[feats_common, ],
                    MARGIN = 1, mean),
@@ -417,16 +432,585 @@ intravenous blood (venous, plasma and RBC).
 
 
 ## Identifying features with differential abundance between the matrices
+ToDO
 
 - Quantitative analysis.
 - Use paired statistics.
 - Use plasma as baseline.
 
 
+
+```{r Initial_Quantitative_Analysis}
+
+#' All feautures present in the respective sample types are found. Note this is different to when only the unique were found.
+feats_plasma <- rownames(present_call)[present_call[, "plasma"]]
+feats_venous <- rownames(present_call)[present_call[, "venous"]]
+feats_RBC <- rownames(present_call)[present_call[, "RBC"]]
+feats_capillary <- rownames(present_call)[present_call[, "capillary"]]
+
+#' A list containing the abundances of the respective features were made. Note that they are imputed as it otherwise have too many missing values
+ints <- list(
+    common = imputeRowMinRand( assay(vams_pos, "abundances")[feats_common, ], min_fraction = 1/2, sd_fraction = 1, abs = TRUE),
+    
+    plasma = imputeRowMinRand( assay(vams_pos, "abundances")[feats_plasma,
+    vams_pos$source == "plasma"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE),
+    
+    venous = imputeRowMinRand( assay(vams_pos, "abundances")[feats_venous,
+    vams_pos$source == "venous"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE),
+    
+    RBC = imputeRowMinRand( assay(vams_pos, "abundances")[feats_RBC,
+    vams_pos$source == "RBC"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE),
+
+    capillary= imputeRowMinRand( assay(vams_pos, "abundances")[feats_capillary,
+vams_pos$source == "capillary"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE)
+)
+  
+#' Boxplot showing the distributions of the different groups
+par(mar = c(7, 4.5, 1, 1))
+boxplot(lapply(ints, log2), varwidth = TRUE, col = col_source[names(ints)],
+        ylab = expression(log[2]~abundance), las = 2, main = "average abundance")
+
+(Medianslog2 <- list(
+  common=median(unlist(lapply(ints$common,log2))),
+  
+  plasma=median(unlist(lapply(ints$plasma,log2))),
+  
+  venous=median(unlist(lapply(ints$venous,log2))),
+  
+  RBC=median(unlist(lapply(ints$RBC,log2))),
+  
+  capillary=median(unlist(lapply(ints$capillary,log2)))
+))
+
+#' Cumulative distribution functions are made for the different groups, log2 is necessary due to the large differences in abundances
+plasma_ecdf <- ecdf(unlist(lapply(ints$plasma,log2)))
+venous_ecdf <- ecdf(unlist(lapply(ints$venous,log2))) 
+RBC_ecdf <- ecdf(unlist(lapply(ints$RBC,log2)))
+capillary_ecdf <- ecdf(unlist(lapply(ints$capillary,log2)))
+
+plot(plasma_ecdf, col = col_source[names(ints[2])],main = "cdf of abundance")
+plot(venous_ecdf, col = col_source[names(ints[3])],add=TRUE)
+plot(RBC_ecdf, col = col_source[names(ints[4])],add=TRUE)
+plot(capillary_ecdf, col = col_source[names(ints[5])],add=TRUE)
+
+legend('right', names(ints[2:5]), fill=col_source, border=NA)
+
+
+#' The cdf's are zoomed at the low abundances as it is here a differences can be seen.
+plot(plasma_ecdf, col = col_source[names(ints[2])],xlim=c(5,11),ylim=(c(0,0.6)),main = "cdf of abundance - Zoomed")
+plot(venous_ecdf, col = col_source[names(ints[3])],add=TRUE)
+plot(RBC_ecdf, col = col_source[names(ints[4])],add=TRUE)
+plot(capillary_ecdf, col = col_source[names(ints[5])],add=TRUE)
+
+legend('left', names(ints[2:5]), fill=col_source, border=NA)
+
+
+
+
+#' A PCA is performed of the samples.
+pc <- prcomp(t(ints$common), scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_pos$sex == "F", 21, 22)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
+         bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
+legend("topleft", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
+         bg = paste0(col_source[vams_pos$source], 40), pch = pchs, cex = 1.5)
+
+
+```
+The common features have a slightly higher median than any of the other groups
+A difference of about 20.6% when compared to the second highest group, the plasma.
+This is to be expected as the lower values will be more likely to be missing
+across many samples.
+The distribution functions generally looks the same, with the most major
+differences seen with x equal betwwen 5 and 10. A zoom in were performed at this 
+range. (Make integration at this range). The venous have fewer low abundancy 
+features, plasma the most. RBC and capillary are comparable.
+PCA were performed on the log-transformed features.
+Here 6 outlier feautures were identified 
+(venous-7","capillary-17","capillary-19","capillary-16","venous-18","capillary-18")
+
+
+```{r OutlierFilteredPCA}
+
+#' PCA is performed again for easier comparison, remove in future version
+pc <- prcomp(t(ints$common), scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_pos$sex == "F", 21, 22)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
+         bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
+legend("topleft", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
+         bg = paste0(col_source[vams_pos$source], 40), pch = pchs, cex = 1.5)
+
+#' The Outliers are found and the loadings in PC1 is sorted to find the features responsible.
+OutlierFilter <- (pc$x[, 1]<(-1e+5) & pc$x[, 2]<(0))
+sortedLoading <- sort(pc$rotation[,1])
+
+feats <- c("FT08876","FT08384")
+OutlierSamples <- assay(vams_pos, "abundances")[feats, OutlierFilter]
+OutlierValues <- assay(vams_pos, "abundances")[feats,]
+
+#' PCA without the outliers are made
+intsCommonNoOutliers <- ints$common[,!OutlierFilter]
+
+pc <- prcomp(t(intsCommonNoOutliers), scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_pos$sex == "F", 21, 22)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
+         bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
+legend("topright", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
+         bg = paste0(col_source[vams_pos$source], 40), pch = pchs, cex = 1.5)
+
+
+
+```
+Feature FT8876 and feature FT08384 were found to be responsible for the 7 outlier samples and were filtered away.
+Removing the outliers resulted in a plot without any real discernable differences
+between the groups. 
+
+It was then decided to look at the chromatograms of the two features to determine whether it could be found why they are so different.
+
+```{r Chromatogram, eval=FALSE}
+dr <- paste0(IMAGE_PATH, "Outlier_features/")
+dir.create(dr, showWarnings = FALSE)
+
+
+feats <- c("FT08876","FT08384")
+feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
+for (i in seq_along(feats)) {
+    fn <- paste0(dr, feats[i], ".png")
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    plot_feats(feats_chrs[i, ], col = col_sample)
+    dev.off()
+}
+```
+
+Chromatograms were made of the features responsible for the outliers.
+Here it is evident that for the outlier samples these features have values much higher than the rest of the samples.
+It is unclear if the smaller peaks at the lower retention times should be included here as well.
+
+
+
+
+
+
+Multiple linear regression of the features common for all samples are made. A volcano plot for each of the combination, of plasma compared to all the other sources were made.
+```{r multipleRegression}
+
+
+fitlmFunction <- function(x,dataMat){
+  dataMat <- cbind(conc=x,as.data.frame(dataMat))
+  dataMat$source <- factor(x = vams_pos$source,levels = c("plasma","capillary", "RBC", "venous"))
+  
+  mdl <- lm(conc ~ source + age + factor(sex) + batch + factor(sample),data = dataMat)
+  smry <- data.frame(summary(mdl)$coefficients)
+  
+  Output <- c(coef = smry[c("sourcecapillary","sourceRBC","sourcevenous"), 1], pvalue =  smry[c("sourcecapillary","sourceRBC","sourcevenous"), 4])
+}
+  
+Data <- log2(ints$common[,,drop=FALSE])
+fitMatrix <- t(apply(Data[,],1,fitlmFunction,dataMat=colData(vams_pos)))
+#' names(Output) <- c(paste0("coef.",c("capillary","sourceRBC","venous")), paste0("pvalue.", c("capillary","sourceRBC","venous")))
+
+#' VolcanoPlot
+sourceList=list(vams_pos$source)
+col_source <- brewer.pal(4, name = "Set1")
+col_source[1] <- "#DDDDDD" 
+
+
+aggregatedMeans <- aggregate(t(ints$common[,,drop=FALSE]),by=sourceList,FUN=mean)
+par(mar = rep(2, 4))
+
+divideFunction <- function(Matrix,Vector){
+  Matrix/Vector
+}
+
+pLimit <- -log10(0.01/length(fitMatrix[,"pvalue1"]))
+foldLimit <- 1
+
+colorFilterLowP <- -log10(fitMatrix[,4:6,drop=FALSE])>pLimit
+
+#' higfold is NOT a matrix, find way to reshape
+colorFilterHighFold <- abs(log2( unlist(apply(aggregatedMeans[2:4,-1],1,divideFunction,Vector=aggregatedMeans[1,-1])))) > foldLimit
+
+
+colorFilter <- 1*colorFilterLowP
+colorFilter[colorFilterHighFold] <- 2
+colorFilter[colorFilterHighFold*colorFilterLowP==1] <- 3
+colorFilter <- colorFilter+1
+
+(LowPSum <- apply(colorFilterLowP*1,2,sum))
+(LowPProp <- LowPSum/length(colorFilterLowP))
+#'apply(colorFilterHighFold*1,2,sum)
+(LowPHighFoldSum <- apply(colorFilterHighFold*colorFilterLowP==1,2,sum))
+(LowPHighFoldprop <- LowPHighFoldSum/length(colorFilterLowP))
+
+plot(log2(unlist(aggregatedMeans[2,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue1"]),main="Plasma VS. Capillary", col=col_source[colorFilter[,1]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+abline(h=pLimit)
+abline(v=foldLimit)
+abline(v=-foldLimit)
+plot(log2(unlist(aggregatedMeans[3,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue2"]),main="Plasma VS. RBC", col=col_source[colorFilter[,2]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+abline(h=pLimit)
+abline(v=foldLimit)
+abline(v=-foldLimit)
+plot(log2(unlist(aggregatedMeans[4,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue3"]),main="Plasma VS. Venous", col=col_source[colorFilter[,3]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+abline(h=pLimit)
+abline(v=foldLimit)
+abline(v=-foldLimit)
+
+Rownames <- (row.names(vams_pos))
+HighFoldlowPFilter <- colorFilterHighFold*colorFilterLowP==1
+#' 
+
+
+
+
+```
+A linear model comparing each of the samples to Plasma was made. Accounting for age,sex,batch, and donor.
+
+A volcano plot for each comparison were made, (555,1017,417) (5.4, 9.8, 4.0 %) features for Capillary, RBC and venous respectively were found to have bonferroni adjusted p values above 0.01. With (296,287,27) (2.9, 2.8,0.26 %) in addition having a difference above 1.
+This shows thatof the three sources venous is the most alike to the plasma samples, with a small proportional of feautures being different.
+
+
+
+Likewise it was decided to perform a PLS analysis of the data. This was done with the entire dataset, and as such imputation was needed due to the many missing values.
+80% of the samples are used for training, with the remaining 20%  used for indedpendent validation. The assignment is random.
+The training of the PLS is performed with and n=N-1 components and 10 segments these are likewise chosen randomly.
+A confusion matrix of the prediction using the model on the test set is produced, together with a graph detailing the PRESS as a function of components used. 2 Fewer than the component in which the minima is reached is used *(This is done manually, but find way to do so automatically)* This is currently 6 components. A new model using  6 components are made. The new model is tested, producing a plot showing the probability scores of the samples *(Find a way to ensure they are normalized to [0,1])* and a new confusion matrix.
+This confusion matrix shows that a identification of 100% is possible using PLS, even without adjusting for confounding factors.
+
+```{r PLS}
+col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+sampleSize <- floor(0.8 * length(vams_pos$sample_name))
+Data <- assay(vams_pos, "abundances")[,]
+Data <- imputeRowMinRand(Data)
+tData <- t(Data)
+
+inTrain <- sample(seq(along = vams_pos$source), sampleSize)
+inTest <- seq(along = vams_pos$source)[-inTrain]
+
+
+training <- tData[inTrain,]
+test <- tData[-inTrain,]
+trainSource <- factor(vams_pos$source,levels=c("RBC","plasma","capillary","venous"))[inTrain]
+testSource <- factor(vams_pos$source,levels=c("RBC","plasma","capillary","venous"))[-inTrain]
+
+preProcValues <- preProcess(training)
+trainDescr <- predict(preProcValues, training)
+testDescr <- predict(preProcValues, test)
+useSoftmax <- plsda(trainDescr, trainSource, ncomp = sampleSize-1,validation = "CV")
+
+confusionMatrix(predict(useSoftmax, testDescr),
+                testSource)
+#' Consider using the sum of the PRESS values to determine the minima instead
+#' PRESSValues <- apply(useSoftmax$validation$PRESS,2,sum) 
+
+plot(useSoftmax$validation$PRESS[1,],col=col_source[1],ylab="PRESS", xlab = "PLS - Components", main = "PRESS VS PLS Components",ylim = c(0,ceiling(max(useSoftmax$validation$PRESS))))
+legend("topright",legend=levels(trainSource),col = col_source[c(1,2,3,4)],pch = 16)
+for (i in 2:4 ) {
+   points(useSoftmax$validation$PRESS[trainSource[i],],col=col_source[i]) 
+}
+
+
+
+Mean <- list(
+  capillary = apply(useSoftmax$fitted.values[trainSource=="capillary",,6],2,mean),
+  
+  plasma = apply(useSoftmax$fitted.values[trainSource=="plasma",,6],2,mean),
+  
+  RBC = apply(useSoftmax$fitted.values[trainSource=="RBC",,6],2,mean),
+  
+  venous  = apply(useSoftmax$fitted.values[trainSource=="venous",,6],2,mean)
+)
+
+StdDev <- list(
+  capillary = 2*apply(useSoftmax$fitted.values[trainSource=="capillary",,6],2,sd),
+  
+  plasma = 2*apply(useSoftmax$fitted.values[trainSource=="plasma",,6],2,sd),
+  
+  RBC = 2*apply(useSoftmax$fitted.values[trainSource=="RBC",,6],2,sd),
+  
+  venous  = 2*apply(useSoftmax$fitted.values[trainSource=="venous",,6],2,sd)
+)
+  
+
+
+
+plot(1:4,Mean$capillary,xlim=c(1,4),ylim=c(-0.2,1.2),type="n",main="Mean of scores"
+     ,axes = FALSE,ylab = "Probability Score")
+legend("top",legend=names(col_source),col = col_source,pch = 16)
+axis(side = 1 ,labels=names(col_source),at=c(1:4))
+axis(side = 2 ,at=c(0:0.2:1))
+lines(1:4,Mean$capillary,col=col_source["capillary"])
+lines(1:4,Mean$plasma,col=col_source["plasma"])
+lines(1:4,Mean$RBC,col=col_source["RBC"])
+lines(1:4,Mean$venous,col=col_source["venous"])
+
+x <- c(1:4,4:1)
+
+y <- c(Mean$capillary-StdDev$capillary,Mean$capillary[4:1]+StdDev$capillary[4:1])
+col_source_alpha <- adjustcolor(col_source, alpha.f = 0.2)
+names(col_source_alpha) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+polygon(x,y,border = NA,col=col_source_alpha["capillary"])
+
+y <- c(Mean$plasma-StdDev$plasma,Mean$plasma[4:1]+StdDev$plasma[4:1])
+polygon(x,y,border = NA,col=col_source_alpha["plasma"])
+
+y <- c(Mean$RBC-StdDev$RBC,Mean$RBC[4:1]+StdDev$RBC[4:1])
+polygon(x,y,border= NA,col=col_source_alpha["RBC"])
+
+y <- c(Mean$venous-StdDev$venous,Mean$venous[4:1]+StdDev$venous[4:1])
+polygon(x,y,border = NA,col=col_source_alpha["venous"])
+
+
+
+
+
+for (i in 1:length(trainSource)) {
+points(1:4,t(useSoftmax$fitted.values[i,,6]),col=col_source[trainSource[i]])
+}
+
+useSoftmax <- plsda(trainDescr, trainSource, ncomp = 6,validation = "CV")
+
+confusionMatrix(predict(useSoftmax, testDescr),
+                testSource)
+#' useSoftmax$scores
+
+
+
+```
+
+
+
+It was decided to see to what degree the *missing* values could determine the differences between samples as this is ultimatively what could be the issue in using alternative sources of blood.
+
+
+```{r Missing_value_type}
+
+MissingValues <- 1*is.na(assay(vams_pos, "abundances"))
+
+#' MissingValues <- MissingValues[rowSums(MissingValues==0),]
+
+pc <- prcomp(t(MissingValues), scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_pos$sex == "F", 21, 22)
+col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
+names(col_source) <- c("plasma",           #' red
+                       "capillary",        #' blue
+                       "RBC",     #' purple
+                       "venous")        #' orange
+                       
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
+         bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
+legend("topright", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 2, pc_y = 3, col = paste0(col_source[vams_pos$source], 80),
+         bg = paste0(col_source[vams_pos$source], 40), pch = pchs, cex = 1.5)
+legend("topright", col = col_source, legend = names(col_source), pch = 16)
+
+
+
+fitlmFunction <- function(x,dataMat){
+  dataMat <- cbind(conc=x,as.data.frame(dataMat))
+  dataMat$source <- factor(x = vams_pos$source)
+  
+  mdl <- lm(conc ~ source + age + factor(sex) + batch + factor(sample),data = dataMat)
+  smry <- data.frame(summary(mdl)$coefficients)
+  
+  c(coef = smry[c("sourceCapillary","sourceRBC","sourcevenous"), 1], pvalue =  smry[c("sourceplasma","sourceRBC","sourcevenous"), 4])
+  
+}
+  
+
+fitMatrix <- t(apply(MissingValues,1,fitlmFunction,dataMat=colData(vams_pos)))
+
+aggregatedMeans <- aggregate(t(MissingValues),by=sourceList,FUN=mean)
+par(mar = rep(2, 4))
+
+col_source <- brewer.pal(4, name = "Set1")
+col_source[1] <- "#DDDDDD" 
+
+
+divideFunction <- function(Matrix,Vector){
+  Matrix/Vector
+  
+}
+
+pLimit <- -log10(0.01/length(fitMatrix[,"pvalue1"]))
+foldLimit <- 1
+
+colorFilterLowP <- -log10(fitMatrix[,4:6,drop=FALSE])>pLimit
+colorFilterHighFold <- abs(log2( unlist(apply(aggregatedMeans[2:4,-1],1,divideFunction,Vector=aggregatedMeans[1,-1])))) > foldLimit
+
+
+colorFilter <- 1*colorFilterLowP
+colorFilter[colorFilterHighFold] <- 2
+colorFilter[colorFilterHighFold*colorFilterLowP==1] <- 3
+colorFilter <- colorFilter+1
+
+
+plot(log2(unlist(aggregatedMeans[2,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue1"]),main="Plasma VS. Capillary", col=col_source[colorFilter[,1]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+abline(h=pLimit)
+abline(v=foldLimit)
+abline(v=-foldLimit)
+plot(log2(unlist(aggregatedMeans[3,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue2"]),main="Plasma VS. RBC", col=col_source[colorFilter[,2]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+abline(h=pLimit)
+abline(v=foldLimit)
+abline(v=-foldLimit)
+plot(log2(unlist(aggregatedMeans[4,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue3"]),main="Plasma VS. Venous", col=col_source[colorFilter[,3]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+abline(h=pLimit)
+abline(v=foldLimit)
+abline(v=-foldLimit)
+
+
+MissingValues <- na.omit(MissingValues)
+colorFilter <- na.omit(colorFilter)
+
+
+col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+
+
+par(mfrow= c(1,2))
+plot(density(t(aggregatedMeans[1,-1])),col=col_source[2],ylab="Density", xlab = expression(log[2]~abundance), main = "Density function of abunbance")
+lines(density(t(aggregatedMeans[2,-1])),col=col_source[1])
+lines(density(t(aggregatedMeans[3,-1])),col=col_source[3])
+lines(density(t(aggregatedMeans[4,-1])),col=col_source[4])
+
+
+
+plot(density(t(aggregatedMeans[1,-1])),col=col_source[2],xlim=c(0,0.2),ylim=(c(0,5)),ylab="Density", xlab = expression(log[2]~abundance), main = "Density function of abunbance - Zoomed")
+lines(density(t(aggregatedMeans[2,-1])),col=col_source[1])
+lines(density(t(aggregatedMeans[3,-1])),col=col_source[3])
+lines(density(t(aggregatedMeans[4,-1])),col=col_source[4])
+legend("topright", col = col_source[c(1,2,3,4)], legend = names(col_source), pch = 16)
+
+
+upset(aggregatedMeans,      sets.bar.color = col_source[c("venous", "capillary", "RBC", "plasma")])
+
+#' seeing this succes it was decided to set all missing values to 0 to see the impact
+
+dataMissingValues <- (assay(vams_pos, "abundances"))
+dataMissingValues[is.na(assay(vams_pos, "abundances"))] <- 0
+pc <- prcomp(t(dataMissingValues), scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_pos$sex == "F", 21, 22)
+
+
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
+         bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
+legend("topright", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
+         bg = paste0(col_source[vams_pos$source], 40), pch = pchs, cex = 1.5)
+legend("topright", col = col_source, legend = names(col_source), pch = 16)
+
+
+
+```
+
+in the PCA plot It is found that the missing values to a large degree can determine
+the differences between the different sources, with Plasma and especially Venous
+clustering tightly. The first component is mainly determined by the plasma sample.
+The second dimension is not strongly discriminative with the exception of the venous
+blood. the first dimension can discriminate between RBC plasma and capillary with
+some help from the second dimension.
+
+Thus it was decided to make a linear model to determine what features were
+responsible for the discriminatory power.
+When comparing the Plasma to the other samples it is found, in the volcano plots,
+that although many samples have a relative high fold difference, but the statistical
+significance of many of the features are limited. This is no surprising, as seen
+in the earlier plots the feautures unique to the different sample sources are
+generally low concentration, and it is likely that the "unique" missing features
+are simply lower concentration in the other sample sources.
+
+Most samples are as expected found in all sources, and 
+
+
+
+The prediction is not stable which together with the fact that more components than 
+
+
+```{r PLSTest}
+data(mdrr)
+set.seed(1)
+inTrain <- sample(seq(along = mdrrClass), 450)
+
+nzv <- nearZeroVar(mdrrDescr)
+filteredDescr <- mdrrDescr[, -nzv]
+
+training <- filteredDescr[inTrain,]
+test <- filteredDescr[-inTrain,]
+trainMDRR <- mdrrClass[inTrain]
+testMDRR <- mdrrClass[-inTrain]
+
+preProcValues <- preProcess(training)
+
+trainDescr <- predict(preProcValues, training)
+testDescr <- predict(preProcValues, test)
+
+useSoftmax <- plsda(trainDescr, trainMDRR, ncomp = 1)
+
+
+confusionMatrix(predict(useSoftmax, testDescr),
+                testMDRR)
+
+
+histogram(~predict(useSoftmax, testDescr, type = "prob")[,"Active",]
+          | testMDRR, xlab = "Active Prob", xlim = c(-.1,1.1))
+```
+
+```{r NamesTesting}
+
+(TestMatrix <- matrix(,nrow=10,ncol=20))
+
+TestDataFrame <- data.frame(TestMatrix)
+
+colnames(TestDataFrame) <- letters[1:20]
+
+TestDataFrame
+
+```
+
+
 ## Comparison between venous and capillary blood
 
 - 
 
+## Code saved for future use
+
+```{r Histogram tests}
+
+plot(density(unlist(lapply(ints$plasma,log2))),col = col_source[names(ints[2])],ylab="Density", xlab = expression(log[2]~abundance), las = 2, main = "Density function of abunbance")
+lines(density(unlist(lapply(ints$venous,log2))),col = col_source[names(ints[3])])
+lines(density(unlist(lapply(ints$RBC,log2))),col = col_source[names(ints[4])])
+lines(density(unlist(lapply(ints$capillary,log2))),col = col_source[names(ints[5])])
+
+
+legend("topright", col = col_source, legend = names(col_source), pch = 16)
+
+
+```
 # Session information
 
 ```{r sessionInfo}
