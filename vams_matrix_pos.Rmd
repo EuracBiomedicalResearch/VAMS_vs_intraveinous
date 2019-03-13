@@ -617,39 +617,30 @@ fitlmFunction <- function(x,dataMat){
   smry <- data.frame(summary(mdl)$coefficients)
   
   Output <- c(coef = smry[c("sourcecapillary","sourceRBC","sourcevenous"), 1], pvalue =  smry[c("sourcecapillary","sourceRBC","sourcevenous"), 4])
-  names(Output) <- c(paste0("coef.",c("capillary","sourceRBC","venous")), paste0("pvalue.", c("capillary","sourceRBC","venous")))
+  names(Output) <- c(paste0("coef.",c("capillary","RBC","venous")), paste0("pvalue.", c("capillary","RBC","venous")))
   Output
 }
 
 #' The data is log2 transformed to make it mostly gaussian in distribution  
-Data <- log2(ints$common[,,drop=FALSE])
+Data <- log2(assay(vams_pos,"abundances"))
 fitMatrix <- t(apply(Data[,,drop=FALSE],1,fitlmFunction,dataMat=colData(vams_pos)))
-#' names(Output) <- c(paste0("coef.",c("capillary","sourceRBC","venous")), paste0("pvalue.", c("capillary","sourceRBC","venous")))
 
-#' The sources are converted to a list to allow its use in the aggregate function (Find out why Coeff doesn't work)
-sourceList=list(vams_pos$source)
 #' A new color set is defined to better conform to what is need by the volcano plot
-col_source <- brewer.pal(4, name = "Set1")
-col_source[1] <- "#DDDDDD" #' Grey
+col_volcano <- brewer.pal(4, name = "Set1")
+col_volcano[1] <- "#DDDDDD" #' Grey
 
 #' The means for each feature for each source is found, likewise the limits for 
 #' fold increase and pLimit is defined. The pvalue limit is bonferroni adjusted.
 #' Note that this is only done for the common feautures
-aggregatedMeans <- aggregate(t(ints$common[,,drop=FALSE]),by=sourceList,FUN=mean)
 par(mar = rep(2, 4))
-pLimit <- -log10(0.01/length(fitMatrix[,"pvalue1"]))
+pLimit <- -log10(0.01/length(fitMatrix[,"coef.capillary"]))
 foldLimit <- 1
-
-
-divideFunction <- function(Matrix,Vector){
-  Matrix/Vector
-}
 
 #' The filters for pvalue and fold increase is defined
 colorFilterLowP <- -log10(fitMatrix[,4:6,drop=FALSE])>pLimit
 
 #' higfold is NOT a matrix, find way to reshape
-colorFilterHighFold <- abs(log2( unlist(apply(aggregatedMeans[2:4,-1],1,divideFunction,Vector=aggregatedMeans[1,-1])))) > foldLimit
+colorFilterHighFold <- abs(fitMatrix[,1:3,drop=FALSE]) > foldLimit
 
 #The filter for coloring the points is made
 colorFilter <- 1*colorFilterLowP
@@ -657,42 +648,59 @@ colorFilter[colorFilterHighFold] <- 2
 colorFilter[colorFilterHighFold*colorFilterLowP==1] <- 3
 colorFilter <- colorFilter+1
 
-#' The sums and proportion of points conforming to low p, and low p and high fold are found
-(LowPSum <- apply(colorFilterLowP*1,2,sum))
-(LowPProp <- LowPSum/length(colorFilterLowP))
-#'apply(colorFilterHighFold*1,2,sum)
-(LowPHighFoldSum <- apply(colorFilterHighFold*colorFilterLowP==1,2,sum))
-(LowPHighFoldprop <- LowPHighFoldSum/length(colorFilterLowP))
+#' The sums and proportion of points conforming to low p, and low p and high fold are found Missing values!
 
+par(mar = rep(2, 4))
 #' The volcano plots are made.
-plot(log2(unlist(aggregatedMeans[2,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue1"]),main="Plasma VS. Capillary", col=col_source[colorFilter[,1]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+plot(fitMatrix[,"coef.capillary"], -log10(fitMatrix[,"pvalue.capillary"]),main="Plasma VS. Capillary", col=col_volcano[colorFilter[,1]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
 
-plot(log2(unlist(aggregatedMeans[3,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue2"]),main="Plasma VS. RBC", col=col_source[colorFilter[,2]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+plot(fitMatrix[,"coef.RBC"], -log10(fitMatrix[,"pvalue.RBC"]),main="Plasma VS. RBC", col=col_volcano[colorFilter[,2]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
 
-plot(log2(unlist(aggregatedMeans[4,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue3"]),main="Plasma VS. Venous", col=col_source[colorFilter[,3]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+plot(fitMatrix[,"coef.venous"], -log10(fitMatrix[,"pvalue.venous"]),main="Plasma VS. Venous", col=col_volcano[colorFilter[,3]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
 
 
 ```
-A linear model comparing each of the samples to Plasma was made. Accounting for 
+```{r Chromatogram_Missing_values, eval=FALSE}
+load("data/RData/vams_normalization/data_pos.RData")
+
+dr <- paste0(IMAGE_PATH, "Missing values plots/")
+dir.create(dr, showWarnings = FALSE)
+col_sample <- col_source[data_pos$source]
+plot_feats <- function(x, col) {
+    col_bg <- paste0(col[chromPeaks(x)[, "sample"]], 20)
+    col_fg <- paste0(col[chromPeaks(x)[, "sample"]], 60)
+    col_bg[grep("^NA", col_bg)] <- NA
+    col_fg[is.na(col_bg)] <- NA
+    col_smpl <- paste0(col, 30)
+    col_smpl[grep("^NA", col_smpl)] <- NA
+    plot(x, col = col_smpl, peakBg = col_bg, peakCol = col_fg)
+}
+idx <- which(is.na(rowSums(fitMatrix)))
+feats <- names(idx)
+feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
+for (i in seq_along(feats)) {
+    fn <- paste0(dr, feats[i], ".png")
+    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
+    plot_feats(feats_chrs[i, ], col = col_sample)
+    dev.off()
+}
+```
+
+A linear model comparing each of the samples to plasma was made. Accounting for 
 age,sex,batch, and donor.
 
-A volcano plot for each comparison were made, (555,1017,417) (5.4, 9.8, 4.0 %) 
-features for Capillary, RBC and venous respectively were found to have bonferroni
-adjusted p values above 0.01. With (296,287,27) (2.9, 2.8,0.26 %) in addition 
-having a difference above 1.
+A volcano plot for each comparison were made.
 This shows thatof the three sources venous is the most alike to the plasma
-samples, with a small proportional of feautures being different.
-
-
+samples, with a smaller proportional of feautures being different.
 
 Likewise it was decided to perform a PLS analysis of the data. 
 Imputation was needed due to the many missing values.
@@ -702,11 +710,7 @@ Imputation was needed due to the many missing values.
 
 #' Colorsource is redefined to ensure correct color
 
-col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
-names(col_source) <- c("RBC",           #' red
-                       "plasma",        #' blue
-                       "capillary",     #' purple
-                       "venous")        #' orange
+
 
 #' The ratio of the training set is calculated, and the training and test set is made
 sampleSize <- floor(0.8 * length(vams_pos$sample_name))
@@ -715,8 +719,8 @@ inTest <- seq(along = vams_pos$source)[-inTrain]
 
 
 #' The data is defined and imputed to remove missing values (Otherwise it would drop rows causing errors)
-Data <- ints$common[,,drop=FALSE]
-#' Data <- (assay(vams_pos, "abundances"))
+#' Data <- ints$common[,,drop=FALSE]
+Data <- (assay(vams_pos, "abundances"))
 Data <- imputeRowMinRand(Data)
 tData <- t(Data)
 
@@ -750,7 +754,7 @@ for (i in 2:4 ) {
    points(useSoftmax$validation$PRESS[trainSource[i],],col=col_source[i]) 
 }
 
-BstNComp <- 10
+BstNComp <- 5
 
 #' A list of the means of the predictions (in practice the "probability") for 
 #' each source is made.along with 2 times the standard deviation.
@@ -856,11 +860,7 @@ MissingValues <- 1*is.na(assay(vams_pos, "abundances"))
 #' A PCA plot with this new dataset is performed
 pc <- prcomp(t(MissingValues), scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
-col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
-names(col_source) <- c("plasma",           #' red
-                       "capillary",        #' blue
-                       "RBC",       #' purple
-                       "venous")        #' orange
+
 par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
 plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_pos$source], "ce"),
          bg = paste0(col_source[vams_pos$source], 60), pch = pchs, cex = 1.5)
@@ -874,50 +874,57 @@ legend("topright", col = col_source, legend = names(col_source), pch = 16)
 #' The linear model fit function is restated here. remove in the future
 fitlmFunction <- function(x,dataMat){
   dataMat <- cbind(conc=x,as.data.frame(dataMat))
-  dataMat$source <- factor(x = vams_pos$source)
+  dataMat$source <- factor(x = vams_pos$source,levels = c("plasma","capillary", "RBC", "venous"))
   
   mdl <- lm(conc ~ source + age + factor(sex) + batch + factor(sample),data = dataMat)
   smry <- data.frame(summary(mdl)$coefficients)
   
-  c(coef = smry[c("sourceCapillary","sourceRBC","sourcevenous"), 1], pvalue =  smry[c("sourceplasma","sourceRBC","sourcevenous"), 4])
-  
+  Output <- c(coef = smry[c("sourcecapillary","sourceRBC","sourcevenous"), 1], pvalue =  smry[c("sourcecapillary","sourceRBC","sourcevenous"), 4])
+  names(Output) <- c(paste0("coef.",c("capillary","RBC","venous")), paste0("pvalue.", c("capillary","RBC","venous")))
+  Output
 }
 
-#' The linear model is applied is before.  
-fitMatrix <- t(apply(MissingValues,1,fitlmFunction,dataMat=colData(vams_pos)))
-aggregatedMeans <- aggregate(t(MissingValues),by=sourceList,FUN=mean)
-col_source <- brewer.pal(4, name = "Set1")
-col_source[1] <- "#DDDDDD" 
+#' The data is log2 transformed to make it mostly gaussian in distribution  
+Data <- MissingValues
+fitMatrix <- t(apply(Data[,,drop=FALSE],1,fitlmFunction,dataMat=colData(vams_pos)))
 
 
-divideFunction <- function(Matrix,Vector){
-  Matrix/Vector
-  
-}
 
-#' Likewise with the limits and filters
-pLimit <- -log10(0.01/length(fitMatrix[,"pvalue1"]))
+#' The means for each feature for each source is found, likewise the limits for 
+#' fold increase and pLimit is defined. The pvalue limit is bonferroni adjusted.
+#' Note that this is only done for the common feautures
+par(mar = rep(2, 4))
+pLimit <- -log10(0.01/length(fitMatrix[,"coef.capillary"]))
 foldLimit <- 1
 
-colorFilterLowP <- -log10(fitMatrix[,4:6,drop=FALSE])>pLimit
-colorFilterHighFold <- abs(log2( unlist(apply(aggregatedMeans[2:4,-1],1,divideFunction,Vector=aggregatedMeans[1,-1])))) > foldLimit
 
+#' The filters for pvalue and fold increase is defined
+colorFilterLowP <- -log10(fitMatrix[,4:6,drop=FALSE])>pLimit
+
+#' higfold is NOT a matrix, find way to reshape
+colorFilterHighFold <- abs(fitMatrix[,1:3,drop=FALSE]) > foldLimit
+
+#The filter for coloring the points is made
 colorFilter <- 1*colorFilterLowP
 colorFilter[colorFilterHighFold] <- 2
 colorFilter[colorFilterHighFold*colorFilterLowP==1] <- 3
 colorFilter <- colorFilter+1
 
-#'The volcano plots are made
+#' The sums and proportion of points conforming to low p, and low p and high fold are found Missing values!
 
-plot(log2(unlist(aggregatedMeans[2,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue1"]),main="Plasma VS. Capillary", col=col_source[colorFilter[,1]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+
+#' The volcano plots are made.
+plot(fitMatrix[,"coef.capillary"], -log10(fitMatrix[,"pvalue.capillary"]),main="Plasma VS. Capillary", col=col_volcano[colorFilter[,1]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
-plot(log2(unlist(aggregatedMeans[3,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue2"]),main="Plasma VS. RBC", col=col_source[colorFilter[,2]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+
+plot(fitMatrix[,"coef.RBC"], -log10(fitMatrix[,"pvalue.RBC"]),main="Plasma VS. RBC", col=col_volcano[colorFilter[,2]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
-plot(log2(unlist(aggregatedMeans[4,-1])/unlist(aggregatedMeans[1,-1])), -log10(fitMatrix[,"pvalue3"]),main="Plasma VS. Venous", col=col_source[colorFilter[,3]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
+
+plot(fitMatrix[,"coef.venous"], -log10(fitMatrix[,"pvalue.venous"]),main="Plasma VS. Venous", col=col_volcano[colorFilter[,3]],ylab = "-log10 , Bonferroni  adjusted p-value",xlab = "log2 fold change")
 abline(h=pLimit)
 abline(v=foldLimit)
 abline(v=-foldLimit)
@@ -927,27 +934,22 @@ abline(v=-foldLimit)
 #' colorFilter <- na.omit(colorFilter)
 
 
-col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
-names(col_source) <- c("RBC",           #' red
-                       "plasma",        #' blue
-                       "capillary",     #' purple
-                       "venous")        #' orange
 
 
 #' The density of the aggregated means are plotted. This is effectively a measure
 #' of how abundant the missing values are.
 par(mfrow= c(1,2))
-plot(density(t(aggregatedMeans[1,-1])),col=col_source[2],ylab="Density", xlab = expression(log[2]~abundance), main = "Density function of abunbance")
-lines(density(t(aggregatedMeans[2,-1])),col=col_source[1])
-lines(density(t(aggregatedMeans[3,-1])),col=col_source[3])
-lines(density(t(aggregatedMeans[4,-1])),col=col_source[4])
+plot(density(t(MissingValues[1,])),col=col_source[2],ylab="Density", xlab = expression(log[2]~abundance), main = "Density function of abunbance")
+lines(density(t(MissingValues[2,])),col=col_source[1])
+lines(density(t(MissingValues[3,])),col=col_source[3])
+lines(density(t(MissingValues[4,])),col=col_source[4])
 
 
 #' Since most values are not missing a zoomed in plot exluding the vast majority in x=0 is made.
-plot(density(t(aggregatedMeans[1,-1])),col=col_source[2],xlim=c(0,0.2),ylim=(c(0,5)),ylab="Density", xlab = expression(log[2]~abundance), main = "Density function of abunbance - Zoomed")
-lines(density(t(aggregatedMeans[2,-1])),col=col_source[1])
-lines(density(t(aggregatedMeans[3,-1])),col=col_source[3])
-lines(density(t(aggregatedMeans[4,-1])),col=col_source[4])
+plot(density(t(MissingValues[1,-1])),col=col_source[2],xlim=c(0,0.2),ylim=(c(0,5)),ylab="Density", xlab = expression(log[2]~abundance), main = "Density function of abunbance - Zoomed")
+lines(density(t(MissingValues[2,])),col=col_source[1])
+lines(density(t(MissingValues[3,])),col=col_source[3])
+lines(density(t(MissingValues[4,])),col=col_source[4])
 legend("topright", col = col_source[c(1,2,3,4)], legend = names(col_source), pch = 16)
 
 
@@ -957,8 +959,6 @@ dataMissingValues <- (assay(vams_pos, "abundances"))
 dataMissingValues[is.na(assay(vams_pos, "abundances"))] <- 0
 pc <- prcomp(t(dataMissingValues), scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
-
-#' CHANGE
 
 
 ```
