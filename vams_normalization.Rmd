@@ -1996,7 +1996,8 @@ injs <- vapply(split(pd$inj_idx, grp_fct), paste,
                character(1), collapse = ", ")
 pd <- pd[pd$sample_name != "all-POOL", ]
 pd <- unique(pd[, c("sample", "sample_name", "batch",
-                    "polarity", "source", "age", "sex")])
+                    "polarity", "source", "age", "sex",
+                    "sampling_date")])
 rownames(pd) <- pd$sample_name
 pd$mzML_files <- fls[rownames(pd)]
 pd$inj_idx <- fls[rownames(pd)]
