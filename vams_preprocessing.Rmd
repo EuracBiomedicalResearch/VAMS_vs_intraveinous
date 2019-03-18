@@ -186,7 +186,6 @@ The base peak chromatogram for the full experiment is shown below.
 ```{r pos-bpc-plot, message = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 5, fig.cap = "Base peak chromatograms for all samples of the experiment (positive polarity)."}
 plot(chrs_bpc, col = paste0(col_source[chrs_bpc$source], "60"))
 legend("topright", col = col_source, legend = names(col_source), lwd = 2)
-
 ```
 
 The base peak chromatograms are quite different between the different sample
@@ -433,33 +432,37 @@ kcs <- rbind(
     kc_32 = c(142, 153),           # 8000, double peak with kc_31
     kc_34 = c(181, 186),           # 8000
     kc_35 = c(194, 202),           # 15000, mis-aligned
-    kc_36 = c(184, 192),           # 4000, broad peak.
+    kc_36 = c(184, 192),           # 8000, two peaks, picked second.
     kc_43 = c(176, 182),           # 70000
     kc_44 = c(191, 198),           # 20000, mis-aligned
     kc_46 = c(170, 176),           # 40000
+    kc_48 = c(155, 160),           # 3000, two peaks, picked second.
     kc_52 = c(191, 198),           # 30000, slightly mis-aligned
     kc_54 = c(26, 29),             # 1000
     kc_56 = c(165, 169),           # 2000
-    kc_61 = c(153, 157),           # 12000, slightly mis-aligned
+    kc_61 = c(153, 157),           # 12000, slightly mis-aligned. Could also be one of several peaks
     kc_67 = c(185, 197),           # 15000, mis-aligned, two peaks (kc_68)
     kc_68 = c(185, 197),           # 15000, mis-aligned, two peaks (kc_67)
     kc_71 = c(148, 154),           # 2500, mis-aligned
     kc_72 = c(189, 197),           # 20000, mis-aligned
     kc_75 = c(180, 185),           # 10000, slightly mis-aligned
     kc_79 = c(163, 170),           # 400
-    kc_81 = c(158, 168),           # 6000, mis-aligned, two peaks (kc_82)
-    kc_82 = c(158, 168),           # 6000, mis-aligned, two peaks (kc_81)
+    kc_81 = c(155, 170),           # 6000, mis-aligned, 3 peaks (kc_81-83)
+    kc_82 = c(155, 170),           # 6000, mis-aligned, 3 peaks (kc_81-83)
+    kc_83 = c(155, 170),           # 6000, mis-aligned, 3 peaks (kc_81-83)
     kc_85 = c(159, 166),           # 8000, mis-aligned
     kc_86 = c(145, 149),           # 2500, mis-aligned (between batch?)
-    kc_88 = c(159, 165),           # 800, heavily mis-aligned
-    kc_90 = c(190, 200),           # 2000, mis-aligned
+    kc_88 = c(159, 165),           # 800, mis-aligned, = kc_89
+##    kc_90 = c(190, 200),           # 2000, mis-aligned
     kc_95 = c(30, 34),             # 25000
     kc_100 = c(178, 186),          # 6000, slightly mis-aligned, kc_101
     kc_103 = c(145, 154),          # 2500, mis-aligned (between batch?) double peak
     kc_106 = c(183, 189),          # 1500
-    kc_122 = c(28, 31),            # 80000
-    kc_123 = c(165, 170),          # 1500, slightly mis-aligned
-    kc_125 = c(183, 193)           # 800, double peak, kc_126.
+    kc_115 = c(30, 36),            # 4000 batch specific?
+    kc_116 = c(184, 192),          # 50000
+    kc_122 = c(28, 31),            # 120000 batch specific?
+    kc_123 = c(165, 170)          # 1500
+##    kc_125 = c(183, 193)          # 800, double peak, kc_126.
 )
 colnames(kcs) <- c("rt_min", "rt_max")
 
@@ -496,11 +499,11 @@ pandoc.table(pos_cmps[, c("name", "mz", "rt_min", "rt_max", "mean_ppm",
 ```
 
 The average difference of m/z values between consecutive scans within
-chromatographic peaks of the known compounds is surprisingly large. We use thus
-a `ppm = 50` to ensure that the *regions of interest* (ROIs) in which centWave
-performs the peak detection include the full, or the largest part, of the
-chromatographic peak of the ions. The average width of chromatographic peaks is
-about 7 seconds, thus we use a `peakwidth = c(2, 14)`.
+chromatographic peaks of the known compounds is for some compounds surprisingly
+large. We use thus a`ppm = 50` to ensure that the *regions of interest* (ROIs) 
+in which centWave performs the peak detection include the full, or the largest 
+part, of the chromatographic peak of the ions. The average width of 
+chromatographic peaks is about 7 seconds, thus we use a `peakwidth = c(2, 14)`.
 
 ```{r pos-centWave, message = FALSE, warning = FALSE, eval = !cached_peak_detection}
 cwp <- CentWaveParam(ppm = 50,

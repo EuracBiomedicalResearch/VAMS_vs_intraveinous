@@ -337,9 +337,6 @@ for (i in 1:nrow(neg_cmps)) {
                                 paste(format(mzr, digits = 6), collapse = "-")))
     abline(v = neg_cmps$rt_expected[i], lty = 3)
     dev.off()
-    ## png(fn, width = 20, height = 20, units = "cm", res = 200, pointsize = 6)
-    ## plot(filterMz(filterRt(qc_neg, rtr), mzr), type = "XIC")
-    ## dev.off()
 }
 ## Now happily jump into the folder to look at the data and:
 ## a) select known compounds to keep
@@ -416,7 +413,7 @@ kcs <- rbind(
     kc_62 = c(NA, NA, 0),             # SKIP fused broad peak with kc_63, kc_64
     kc_63 = c(NA, NA, 0),             # SKIP fused broad peak with kc_62, kc_64
     kc_64 = c(NA, NA, 0),             # SKIP fused broad peak with kc_62, kc_63
-    kc_65 = c(218, 230, 1),           # 3000 OK, but peak more than 10 seconds away
+    kc_65 = c(218, 230, 0),           # SKIP peak more than 10 seconds away
     kc_66 = c(163, 170, 1),           # 120000 OK
     kc_67 = c(188, 193, 1),           # 2000 OK, but not clear if its kc_68
     kc_68 = c(188, 193, 1),           # 2000 OK, but not clear if its kc_67
@@ -425,14 +422,14 @@ kcs <- rbind(
     kc_71 = c(149, 155, 1),           # 300 OK, but there are 3 peaks (?)
     kc_72 = c(188, 194, 1),           # 4000 OK
     kc_73 = c(NA, NA, 0),             # SKIP noisy broad (hilic) signal
-    kc_74 = c(30, 35, 1),             # 150 OK, but low signal
+    kc_74 = c(30, 35, 0),             # SKIP, too low signal
     kc_75 = c(178, 185, 1),           # 2000 OK
     kc_76 = c(NA, NA, 0),             # SKIP broad noisy peak ~ 15 seconds left
     kc_78 = c(31, 37, 1),             # 400 OK, but low signal
     kc_79 = c(NA, NA, 0),             # SKIP peaks about 15 seconds left/right (?)
     kc_80 = c(31, 37, 1),             # 500 OK
-    kc_81 = c(160, 165, 1),           # 60000 OK, double peak with kc_82 (?)
-    kc_82 = c(165, 170, 1),           # 50000 OK, double peak with kc_81 (?)
+    kc_81 = c(157, 161, 1),           # 60000 OK, 3 peaks (kc_81-83) (?)
+    kc_82 = c(160, 166, 1),           # 50000 OK, 3 peaks (kc_81-83) (?)
     kc_83 = c(163, 171, 1),           # 150000 OK
     kc_84 = c(187, 192, 1),           # 2000 OK
     kc_85 = c(159, 165, 1),           # 2500 OK
@@ -513,7 +510,7 @@ pandoc.table(neg_cmps[, c("name", "mz", "rt_min", "rt_max", "mean_ppm",
 ```
 
 The average difference of m/z values between consecutive scans within
-chromatographic peaks of the known compounds is surprisingly large. We use thus
+chromatographic peaks for some known compounds is surprisingly large. We use thus
 a `ppm = 50` to ensure that the *regions of interest* (ROIs) in which centWave
 performs the peak detection include the full, or the largest part, of the
 chromatographic peak of the ions. The average width of chromatographic peaks is
