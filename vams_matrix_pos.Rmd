@@ -107,9 +107,6 @@ names(col_source) <- c("RBC",           #' red
 
 load("data/RData/vams_normalization/vams_pos.RData")
 
-#' Remove rows/features that have only missing values
-#' vams_pos <- vams_pos[rowNaProp(assay(vams_pos, "abundances")) < 1, ]
-#' vams_pos <- vams_pos[1:400, ]
 
 ```
 
@@ -217,6 +214,27 @@ matrices being between samples containing also blood cells. The numbers of
 matrix-specific features is with ~ 200 - 600 relatively small, with plasma
 samples having the largest number of unique features.
 
+
+The features present in either all matrices, or all of a specific matrix is defined.
+```{r matrix-specific-features}
+feats_common <- rownames(present_call)[rowSums(present_call) == 4]
+feats_plasma <- rownames(present_call)[rowSums(present_call) == 1 &
+                                       present_call[, "plasma"]]
+feats_venous <- rownames(present_call)[rowSums(present_call) == 1 &
+                                       present_call[, "venous"]]
+feats_RBC <- rownames(present_call)[rowSums(present_call) == 1 &
+                                    present_call[, "RBC"]]
+feats_capillary <- rownames(present_call)[rowSums(present_call) == 1 &
+                                          present_call[, "capillary"]]
+```
+
+```{r Imputation-of-Values}
+assays(vams_pos)$Imputed <- (imputeRowMinRand( assay(vams_pos), min_fraction = 1/2, sd_fraction = 1, abs = TRUE))
+
+```
+
+The chromatograms of these common features are then made.
+
 ```{r plot-common-features, echo = FALSE, warning = FALSE,eval = FALSE}
 load("data/RData/vams_normalization/data_pos.RData")
 col_sample <- col_source[data_pos$source]
@@ -232,7 +250,6 @@ plot_feats <- function(x, col) {
 }
 
 #' Present in all
-feats_common <- rownames(present_call)[rowSums(present_call) == 4]
 dr <- paste0(IMAGE_PATH, "common_features/")
 dir.create(dr, showWarnings = FALSE)
 feats <- sample(feats_common, 20)
@@ -245,8 +262,6 @@ for (i in seq_along(feats)) {
 }
 
 #' Plasma
-feats_plasma <- rownames(present_call)[rowSums(present_call) == 1 &
-                                       present_call[, "plasma"]]
 dr <- paste0(IMAGE_PATH, "plasma_features/")
 dir.create(dr, showWarnings = FALSE)
 ## feats <- sample(feats_plasma, 20)
@@ -267,9 +282,7 @@ for (i in seq_along(feats)) {
     dev.off()
 }
 
-#' Venous
-feats_venous <- rownames(present_call)[rowSums(present_call) == 1 &
-                                       present_call[, "venous"]]
+
 dr <- paste0(IMAGE_PATH, "venous_features/")
 dir.create(dr, showWarnings = FALSE)
 feats <- feats_venous[order(rowMeans(prop_ratio[feats_venous, ]))][1:20]
@@ -282,8 +295,6 @@ for (i in seq_along(feats)) {
 }
 
 #' RBC
-feats_RBC <- rownames(present_call)[rowSums(present_call) == 1 &
-                                    present_call[, "RBC"]]
 dr <- paste0(IMAGE_PATH, "RBC_features/")
 dir.create(dr, showWarnings = FALSE)
 feats <- feats_RBC[order(rowMeans(prop_ratio[feats_RBC, ]))][1:20]
@@ -296,8 +307,6 @@ for (i in seq_along(feats)) {
 }
 
 #' Capillary
-feats_capillary <- rownames(present_call)[rowSums(present_call) == 1 &
-                                          present_call[, "capillary"]]
 dr <- paste0(IMAGE_PATH, "capillary_features/")
 dir.create(dr, showWarnings = FALSE)
 feats <- feats_capillary[order(rowMeans(prop_ratio[feats_capillary, ]))][1:20]
@@ -351,16 +360,6 @@ is moderate. Below we thus evaluate whether the average abundance level of
 matrix-specific features is different to those from common features.
 
 ```{r matrix-specific-abundance, message = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of average (across samples) abundances of common and matrix-specific features.", fig.width = 6, fig.height = 8}
-feats_common <- rownames(present_call)[rowSums(present_call) == 4]
-feats_plasma <- rownames(present_call)[rowSums(present_call) == 1 &
-                                       present_call[, "plasma"]]
-feats_venous <- rownames(present_call)[rowSums(present_call) == 1 &
-                                       present_call[, "venous"]]
-feats_RBC <- rownames(present_call)[rowSums(present_call) == 1 &
-                                    present_call[, "RBC"]]
-feats_capillary <- rownames(present_call)[rowSums(present_call) == 1 &
-                                          present_call[, "capillary"]]
-
 ints <- list(
     common = apply(assay(vams_pos, "abundances")[feats_common, ],
                    MARGIN = 1, mean),
@@ -436,35 +435,37 @@ It is possible that the differences seen in the previous PCA plots are due to
 overall concentration differences. Thus each of the sample types were plotted to 
 see if significant differences in overall concentration is found.
 
-```{r BoxplotOfAbundances, fig.cap = "The average abundances of each of the features within a matrix. The boxplots show that although plasma is generally a but higher the medians, and quatiles for all matrices are comparable"}
+```{r BoxplotOfAbundances, fig.cap = "The average abundances of each of the features within a matrix. The boxplots show that although plasma is generally a bit higher the medians, and quatiles for all matrices are comparable"}
 
-#' All feautures present in the respective sample types are found. Note this is different to when only the unique were found.
+#' All feautures present in the respective sample types are found. Note this is
+#' different to when only the unique were found.
 feats_plasma <- rownames(present_call)[present_call[, "plasma"]]
 feats_venous <- rownames(present_call)[present_call[, "venous"]]
 feats_RBC <- rownames(present_call)[present_call[, "RBC"]]
 feats_capillary <- rownames(present_call)[present_call[, "capillary"]]
 
-#' A list containing the abundances of the respective features were made. Note that they are imputed as it otherwise have too many missing values
-ints <- list(
-  common =  imputeRowMinRand( assay(vams_pos, "abundances")[feats_common,]
-                               , min_fraction = 1/2, sd_fraction = 1, abs = TRUE), 
+#' A list containing the abundances of the respective features were made. 
+#' Note that they are imputed as it otherwise have too many missing values
+intsPresent <- list(
+  common =  rowMeans(imputeRowMinRand( assays(vams_pos)$Imputed[feats_common,]
+                               , min_fraction = 1/2, sd_fraction = 1, abs = TRUE)), 
   
-  plasma = imputeRowMinRand( assay(vams_pos, "abundances")[feats_plasma,
-    vams_pos$source == "plasma"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE),
+  plasma = rowMeans(imputeRowMinRand( assays(vams_pos)$Imputed[feats_plasma,
+    vams_pos$source == "plasma"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE)),
     
-    venous = imputeRowMinRand( assay(vams_pos, "abundances")[feats_venous,
-    vams_pos$source == "venous"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE),
+    venous = rowMeans(imputeRowMinRand( assays(vams_pos)$Imputed[feats_venous,
+    vams_pos$source == "venous"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE)),
     
-    RBC = imputeRowMinRand( assay(vams_pos, "abundances")[feats_RBC,
-    vams_pos$source == "RBC"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE),
+    RBC = rowMeans(imputeRowMinRand( assays(vams_pos)$Imputed[feats_RBC,
+    vams_pos$source == "RBC"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE)),
 
-    capillary = imputeRowMinRand( assay(vams_pos, "abundances")[feats_capillary,
-vams_pos$source == "capillary"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE)
+    capillary = rowMeans(imputeRowMinRand( assays(vams_pos)$Imputed[feats_capillary,
+vams_pos$source == "capillary"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE))
 )
   
 #' Boxplot showing the distributions of the different groups
 par(mar = c(7, 4.5, 1, 1))
-boxplot(lapply(ints, log2), varwidth = TRUE, col = col_source[names(ints)],
+boxplot(lapply(intsPresent, log2), varwidth = TRUE, col = col_source[names(intsPresent)],
         ylab = expression(log[2]~abundance), las = 2, main = "average abundance")
 ```
 
@@ -476,11 +477,12 @@ distribution function was made in addition for each of the matrices.
 Showing whether the distributions are somewhat identical.
 
 ```{r CumulativeDistributionFunctionsOfAbundances, fig.cap = "Cumulative density function of each matrix. The distributions of the matrices are mostly identical, with the plasma having a sligthly higher overall abundance and the RBC a slightly higher proportion of low abundance features"}
-#' Cumulative distribution functions are made for the different groups, log2 is necessary due to the large differences in abundances
-plasma_ecdf <- ecdf(unlist(lapply(ints$plasma, log2)))
-venous_ecdf <- ecdf(unlist(lapply(ints$venous, log2))) 
-RBC_ecdf <- ecdf(unlist(lapply(ints$RBC, log2)))
-capillary_ecdf <- ecdf(unlist(lapply(ints$capillary, log2)))
+#' Cumulative distribution functions are made for the different groups, 
+#' log2 is necessary due to the large differences in abundances
+plasma_ecdf <- ecdf(as.numeric(log2(intsPresent$plasma)))
+venous_ecdf <- ecdf(as.numeric(log2(intsPresent$venous))) 
+RBC_ecdf <- ecdf(as.numeric(log2(intsPresent$RBC)))
+capillary_ecdf <- ecdf(as.numeric(log2(intsPresent$capillary)))
 
 plot(plasma_ecdf, col = col_source["plasma"], main = "cdf of abundance",
      xlab = "log2 abundance", ylab = "Density" , xlim = c(0,20), ylim = (c(0,1)))
@@ -502,12 +504,13 @@ A PCA of the samples, based on the features which for all the sources are found
 in at least 30% of the samples within that source. This means that all features 
 specific for a matrix is excluded. Thus it is expected that the seperation will 
 be much smaller than the earlier PCA plot, where matrix specifc features would 
-natrurally be a large part of the variation seen.
+naturally be a large part of the variation seen.
 
-```{r PCAOfAbundances, fig.cap = "PCA of all common features by abundance. In plot showing the 1st and 2nd dimension, 6 outliers are found. Some difference by martrix is seen as well, with the capillary being seperated, this is also seen in the 3rd dimension."}
+```{r PCAOfAbundances, fig.cap = "PCA of all common features by abundance. In plot showing the 1st and 2nd dimension, 6 outliers are found. Some difference by martrix is seen as well, with the capillary being separated, this is also seen in the 3rd dimension."}
 
+#' Note that this is done using data for which log10 has not been taken, if this is done the outliers are not found
 #' A PCA is performed of the samples.
-pc <- prcomp(t(ints$common), scale = FALSE, center = TRUE)
+pc <- prcomp(t(assays(vams_pos)$Imputed[feats_common,]), scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
 
 par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
@@ -526,21 +529,22 @@ To identify these, the samples were filtered for low values in the 1st and 2nd d
 Then the features were ranked according to loading in the first dimension. 
 
 ```{r Outlier, fig.cap = "The 10  features with the most negative values in the 1st dimension of the PCA. These were chosen based on their loadings in the first dimension. Two features FT08876 and FT08384 have a much higher weigth than the rest of the features"}
-#' The Outliers are found and the loadings in PC1 is sorted to find the features responsible.
+#' The Outliers are found and the loadings in PC1 is sorted to find 
+#'  the features responsible.
 OutlierFilter <- (pc$x[, 1]<(-1e+5) & pc$x[, 2] < 0)
 (OutlierFilter[OutlierFilter])
 
 sortedLoading <- sort(pc$rotation[,1])
-plot(sortedLoading[1:10], xlab = "Rank in 1st dimension loading", ylab =  "1st dimension loading weight")
+plot(sortedLoading[1:10], xlab = "Rank in 1st dimension loading", 
+     ylab =  "1st dimension loading weight")
 (sortedLoading[1:2])
 #' The two outlier features are defined
 feats <- c(names(sortedLoading[1:2]))
 ```
 The samples were identified as:
-(venous-7","capillary-17","capillary-19","capillary-16","venous-18","capillary-18")
-these seem to be clear outlier samples, indeed if the loadings in the first and
-second dimension is found it is seen that that they have just 2 outlier features
-("FT08876","FT08384").
+ `r names(OutlierFilter)[OutlierFilter]` these seem to be clear outlier samples,
+ indeed if the loadings in the first and second dimension is found it is seen
+ that they have just 2 outlier features  `r feats`.
 
 
 It was then decided to look at the chromatograms of the two features to determine
@@ -568,11 +572,14 @@ included here as well.
 
 Knowing this, a new PCA is performed excluding these features.
 
-```{r OutlierFilteredPCA, fig.cap = "PCA of abundances of all common features, with FT08876 and FT08384 removed. Only the plasma samples seperate from the other samples, in the 2nd dimension"}
+```{r OutlierFilteredPCA, fig.cap = "PCA of abundances of all common features, with FT08876 and FT08384 removed. Only the plasma samples separate from the other samples, in the 2nd dimension"}
+
 
 
 #' PCA without the outliers are made
-intsCommonNoOutliers <- ints$common[!(rownames(ints$common) %in% feats), ] 
+commonImputedValues <- assays(vams_pos)$Imputed[feats_common,]
+intsCommonNoOutliers <- commonImputedValues[!(rownames(commonImputedValues)
+                                              %in% feats), ] 
 
 pc <- prcomp(t(intsCommonNoOutliers), scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
@@ -611,26 +618,29 @@ SourcesTypes <- c("sourceplasma","sourceRBC","sourcevenous")
 #' The function for the multiple linear regression is made. This takes a numeric
 #' input along with a matrix containing the confounding factors, it returns the
 #' means and the p value
-fitlmFunction <- function(x,dataMat){
-  dataMat <- cbind(conc = x,as.data.frame(dataMat))
-  dataMat$source <- factor(x = vams_pos$source, 
-                           levels = c("capillary", "plasma", "RBC", "venous"))
-  
-  mdl <- lm(conc ~ source,data = dataMat)
-  smry <- data.frame(summary(mdl)$coefficients)
-  
-  Output <- c(coef = smry[SourcesTypes, 1], pvalue =  smry[SourcesTypes, 4])
-  names(Output) <- c(paste0("coef.",SourcesTypes), paste0("pvalue.", SourcesTypes))
-  Output
+fitlmFunction <- function(x, dataMat, model = conc ~ source, weights = NULL){
+    dataMat <- cbind(conc = x,as.data.frame(dataMat))
+    dataMat$source <- factor(x = dataMat$source, 
+                             levels = c("capillary", "plasma", "RBC", "venous"))
+    mdl <- lm(model, data = dataMat)
+    smry <- data.frame(summary(mdl)$coefficients)
+    SourceTypes <- paste0("source", levels(dataMat$source)[-1])
+    Output <- c(coef = smry[SourceTypes, 1], pvalue =  smry[SourceTypes, 4])
+    names(Output) <- c(paste0("coef.", SourceTypes),
+                       paste0("pvalue.", SourceTypes))
+    Output
 }
 
 #' The data is log2 transformed to make it mostly gaussian in distribution  
 Data <- log2(assay(vams_pos, "abundances"))
-fitMatrix <- t(apply(Data[, , drop=FALSE],1,fitlmFunction,dataMat=colData(vams_pos)))
-p.adjusted <- apply(fitMatrix[,paste0("pvalue.", SourcesTypes)], 2, p.adjust,method="BH")
-#' The fitMatrix is appened to the rest of the data in vams_pos, making the new dataframe res_Matrix_pos
-res_Matrix_pos <- cbind(rowData(vams_pos),fitMatrix)
-res_Matrix_posAdjusted<- cbind(rowData(vams_pos), adj = p.adjusted)
+fitMatrix <- t(apply(Data[, , drop = FALSE], 1, fitlmFunction, 
+  dataMat = colData(vams_pos), model = conc ~ source + sex))
+
+p.adjusted <- apply(fitMatrix[,paste0("pvalue.", SourcesTypes)], 2, p.adjust, 
+                    method="BH")
+#' The fitMatrix is appened to the rest of the data in vams_pos, making the new
+#' dataframe res_Matrix_pos
+res_Matrix_pos<- cbind(rowData(vams_pos), fitMatrix, adj = p.adjusted)
 ```
 
 Histograms of each of the 3 matrixes against capillary is made.
@@ -639,7 +649,8 @@ Histograms of each of the 3 matrixes against capillary is made.
 TestedSourcenames <-  c("plasma", "RBC", "venous")
 par(mfrow=c(1, 3))
 for (i in 1:3) {
-hist(res_Matrix_posAdjusted[, paste0("adj.pvalue.", SourcesTypes[i])], main = paste0("Histogram of ", TestedSourcenames[i], " pvalues"), xlab = "pValue")
+hist(res_Matrix_pos[, paste0("pvalue.", SourcesTypes[i])], main = 
+       #' paste0("Histogram of ", TestedSourcenames[i], " pvalues"), xlab = "pValue")
 }
 
 
@@ -659,11 +670,11 @@ col_volcano[1] <- "#DDDDDD" #' Grey
 col_volcano_Trans <- paste0(col_volcano, 80)
 
 par(mar = rep(2, 4))
-pLimit <- -log10(0.00001)
-foldLimit <- 2
+pLimit <- -log10(0.01)
+foldLimit <- 1
 
 #' The filters for pvalue and fold increase is defined
-colorFilterLowP <- -apply(res_Matrix_posAdjusted[, paste0("adj.pvalue.", SourcesTypes)], 2, 
+colorFilterLowP <- -apply(res_Matrix_pos[, paste0("adj.pvalue.", SourcesTypes)], 2, 
                           log10) > pLimit
 #' higfold is NOT a matrix, find way to reshape
 colorFilterHighFold <- apply(res_Matrix_pos[,paste0("coef.", 
@@ -675,18 +686,25 @@ colorFilter[colorFilterHighFold] <- 2
 colorFilter[colorFilterHighFold * colorFilterLowP == 1] <- 3
 colorFilter <- colorFilter + 1
 
+#' The significant samples (both high fold difference and low p-value) are defined
+sign <- abs(fitMatrix[, grep("coef", colnames(fitMatrix))]) > foldLimit & p.adjusted < pLimit
+#' replace the "coef" in the column names with "significant"
+colnames(sign) <- sub("coef", "significant", colnames(sign))
+res_Matrix_pos <- cbind(res_Matrix_pos, sign)
 
  par(mfrow=c(1, 3))
   for (i in 1:3){
     plot(res_Matrix_pos[,paste0("coef.", SourcesTypes[i])],  cex = 0.6,
-         -log10(res_Matrix_posAdjusted[, paste0("adj.pvalue.", SourcesTypes[i])]),
+         -log10(res_Matrix_pos[, paste0("adj.pvalue.", SourcesTypes[i])]),
          pch = 16, main = paste0("Capillary VS. ", TestedSourcenames[i] ), 
          col = col_volcano_Trans[colorFilter[, i]], 
-         ylab = "-log10, Benjamini-Hochberg adjusted p-value", xlab = "log2 fold change")
+         ylab = "-log10, Benjamini-Hochberg adjusted p-value", 
+         xlab = "log2 fold change")
   abline(h=pLimit)
   abline(v=foldLimit)
   abline(v=-foldLimit)
-  legend("top", c("non-Significant", "Highfold", "lowP","Significant"), col = col_volcano, pch = 16)
+  legend("top", c("non-Significant", "Highfold", "lowP","Significant"),
+         col = col_volcano, pch = 16)
   }
 
 
@@ -708,17 +726,17 @@ it would be expected that the venous and capillary would be mostly the same with
 the plasma and RBC being different.
 
 Plots showing the distributions of the matrixes based on mz were made.
-```{r pValueDependencyOnmzNoconfounding, fig.cap = "Density distributions of matrices as a function of mz. Apart from the plasma, all the matrices share roughly the same distribution"}
+```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values for detected features in a matrix.". Apart from the plasma, all the matrices share roughly the same distribution"}
 col_source_trans <- paste0(col_source, 20)
 names(col_source_trans) <- names(col_source)
 
 #' Distributions of mz values for each matrix.
 par(mfrow=c(1, 1))
-plot(density(res_Matrix_posAdjusted$mzmed[present_call[, 1]], na.rm=TRUE),
+plot(density(res_Matrix_pos$mzmed[present_call[, 1]], na.rm=TRUE),
      col = col_source[colnames(present_call)[1]], main = "Distribution of mz-values",
      xlab="mz", ylim = c(0,0.002))
 for (i in 2:4) {
-lines(density(res_Matrix_posAdjusted$mzmed[present_call[, i]], na.rm=TRUE), 
+lines(density(res_Matrix_pos$mzmed[present_call[, i]], na.rm=TRUE), 
       col = col_source[colnames(present_call)[i]])
 }
 legend("topleft", legend = c(colnames(present_call)),
@@ -735,11 +753,11 @@ The mz roughly corresponds to what we would expect from diacyl-glycerols. (Fatty
 
 
 ```{r mzSignificant, fig.cap = "Distributions of mz values for each matrix, significantly different compared to capillary. The amount of significantly different features of each matrix mostly conforms to the overall abundance of features. With some differences, most notably in the 600-800 range."}
-plot(density(res_Matrix_posAdjusted$mzmed[], na.rm=TRUE), 
-     col = col_source["capillary"], main="Distribution of mz-values,
+plot(density(res_Matrix_pos$mzmed[], na.rm=TRUE), 
+     col = col_source["capillary"], main = "Distribution of mz-values,
      significantly different from capillary", xlab = "mz", ylim = c(0,0.002))
 for (i in 1:3) {
-lines(density(res_Matrix_posAdjusted$mzmed[colorFilterLowP[, paste0("adj.pvalue.",
+lines(density(res_Matrix_pos$mzmed[colorFilterLowP[, paste0("adj.pvalue.",
     SourcesTypes[i])]], na.rm=TRUE), col = col_source[TestedSourcenames[i]])
 }
 legend("topleft", legend=c("All features", TestedSourcenames), 
@@ -761,26 +779,28 @@ distributions split by whether they are up- and downrepresentated in the matrix
 compared to capillary.
 
 ```{r mzCountsSignificant, fig.cap = "Up- or downregulation of significant features. The up- or downregulation of significant features as a function of the retention time. Of note is how well the venous and plasma conform in upregulation in the 200-600 range and how significantly the plasma is downregulated compared to the capillary in the 600-800 range."}
-LowFilter <- as.matrix(res_Matrix_pos[, paste0("coef.", SourcesTypes)]) < -foldLimit
-HighFilter <- as.matrix(res_Matrix_pos[, paste0("coef.", SourcesTypes)]) > foldLimit
+
 par(mfrow=c(1, 1))
 plot(x = 1, y = 1, pch = NA, xlim = c(50,1100), ylim = c(-100, 100), main =
-  paste0("RT, up- or downregulation, significant pval - vs capillary "),xlab = "mz", ylab = "count")
-for (i in 1:3){ 
- yHigh <- hist(res_Matrix_pos[which(HighFilter[
-  , paste0("coef.", SourcesTypes[i])]),"mzmed"], breaks = seq(50, 1100, 5), plot = FALSE)
-yLow <- hist(res_Matrix_pos[which(LowFilter[
-  ,paste0("coef.", SourcesTypes[i])]),"mzmed"], breaks = seq(50, 1100, 5), plot = FALSE)
-yLow$counts <- -yLow$counts
-yLow$breaks <- yLow$breaks
-lines(yHigh$breaks[-1], yHigh$counts, col = col_source[TestedSourcenames[i]],
-      main = paste0("mz VS coeff, significant pval - ", TestedSourcenames[i]))
-lines(yLow$breaks[-1], yLow$counts, col = col_source[TestedSourcenames[i]], 
-      main = paste0("mz VS coeff, significant pval - ", TestedSourcenames[i]))
+    paste0("RT, up- or downregulation, significant pval - vs capillary "),
+    xlab = "mz", ylab = "count")
+
+for (src in TestedSourcenames) {
+yLow <- res_Matrix_pos[which(res_Matrix_pos[, paste0("significant.source", src)] & 
+  res_Matrix_pos[, paste0("coef.source", src)] < 0), "mzmed"]
+yLow <- hist(yLow, breaks = seq(50, 1100, 5), plot = FALSE)   
+
+yHigh <- res_Matrix_pos[which(res_Matrix_pos[, paste0("significant.source", src)] & 
+  res_Matrix_pos[, paste0("coef.source", src)] > 0), "mzmed"]
+yHigh <- hist(yHigh, breaks = seq(50, 1100, 5), plot = FALSE)
+    
+lines(yHigh$breaks[-1], yHigh$counts, col = col_source[src])
+lines(yLow$breaks[-1], -yLow$counts, col = col_source[src])
 }
 abline(h = 0)
 legend("topright", legend = c(TestedSourcenames),
        col = col_source[TestedSourcenames[1:3]], pch = 16,inset = c(0, 0))
+
 
 ```
 
@@ -848,23 +868,25 @@ downregulated in the matrix compared to capillary, is made.
 LowFilter <- as.matrix(res_Matrix_pos[, paste0("coef.", SourcesTypes)]) < -foldLimit
 HighFilter <- as.matrix(res_Matrix_pos[, paste0("coef.", SourcesTypes)]) > foldLimit
 par(mfrow=c(1,1))
-plot(x = 1,y = 1, pch = NA, xlim = c(15.7, 252), ylim = c(-350, 350),
-     main = paste0("Rt, significant pval - vs capillary "), xlab = "Retention time", ylab = "count")
-for (i in 1:3){ 
- yHigh <- hist(res_Matrix_pos[which(HighFilter[,
-  paste0("coef.", SourcesTypes[i])]), "rtmed"], breaks=seq(0,250, 2), plot = FALSE)
-yLow <- hist(res_Matrix_pos[which(LowFilter[ ,
-  paste0("coef.", SourcesTypes[i])]),"rtmed"], breaks = seq(0, 250, 2), plot = FALSE)
-yLow$counts <- -yLow$counts
-yLow$breaks <- yLow$breaks
 
-lines(yHigh$breaks[-1], yHigh$counts, col = col_source[TestedSourcenames[i]],
-      main = paste0("Rt VS coeff, significant pval - ", TestedSourcenames[i]))
-lines(yLow$breaks[-1], yLow$counts,col = col_source[TestedSourcenames[i]]
-      , main=paste0("Rt VS coeff, significant pval - ", TestedSourcenames[i]))
+plot(x = 1,y = 1, pch = NA, xlim = c(15.7, 252), ylim = c(-350, 350),
+     main = paste0("Rt, significant pval - vs capillary "), 
+      xlab = "Retention time", ylab = "count")
+for (src in TestedSourcenames) {
+yLow <- res_Matrix_pos[which(res_Matrix_pos[, paste0("significant.source", src)] & 
+  res_Matrix_pos[, paste0("coef.source", src)] < 0), "rtmed"]
+yLow <- hist(yLow, breaks = seq(0,250, 2), plot = FALSE)   
+
+yHigh <- res_Matrix_pos[which(res_Matrix_pos[, paste0("significant.source", src)] & 
+  res_Matrix_pos[, paste0("coef.source", src)] > 0), "rtmed"]
+yHigh <- hist(yHigh, breaks = seq(0,250, 2), plot = FALSE)
+    
+lines(yHigh$breaks[-1], yHigh$counts, col = col_source[src])
+lines(yLow$breaks[-1], -yLow$counts, col = col_source[src])
 }
+abline(h = 0)
 legend("topright", legend = c(TestedSourcenames),
-       col = col_source[TestedSourcenames[1:3]], pch = 16, inset = c(0, 0))
+       col = col_source[TestedSourcenames[1:3]], pch = 16,inset = c(0, 0))
 
 ```
 
