@@ -446,7 +446,7 @@ feats_capillary <- rownames(present_call)[present_call[, "capillary"]]
 
 #' A list containing the abundances of the respective features were made. 
 #' Note that they are imputed as it otherwise have too many missing values
-intsPresent <- list(
+intsMean <- list(
   common =  rowMeans(imputeRowMinRand( assays(vams_pos)$Imputed[feats_common,]
                                , min_fraction = 1/2, sd_fraction = 1, abs = TRUE)), 
   
@@ -465,7 +465,7 @@ vams_pos$source == "capillary"], min_fraction = 1/2, sd_fraction = 1, abs = TRUE
   
 #' Boxplot showing the distributions of the different groups
 par(mar = c(7, 4.5, 1, 1))
-boxplot(lapply(intsPresent, log2), varwidth = TRUE, col = col_source[names(intsPresent)],
+boxplot(lapply(intsMean, log2), varwidth = TRUE, col = col_source[names(intsMean)],
         ylab = expression(log[2]~abundance), las = 2, main = "average abundance")
 ```
 
@@ -479,10 +479,10 @@ Showing whether the distributions are somewhat identical.
 ```{r CumulativeDistributionFunctionsOfAbundances, fig.cap = "Cumulative density function of each matrix. The distributions of the matrices are mostly identical, with the plasma having a sligthly higher overall abundance and the RBC a slightly higher proportion of low abundance features"}
 #' Cumulative distribution functions are made for the different groups, 
 #' log2 is necessary due to the large differences in abundances
-plasma_ecdf <- ecdf(as.numeric(log2(intsPresent$plasma)))
-venous_ecdf <- ecdf(as.numeric(log2(intsPresent$venous))) 
-RBC_ecdf <- ecdf(as.numeric(log2(intsPresent$RBC)))
-capillary_ecdf <- ecdf(as.numeric(log2(intsPresent$capillary)))
+plasma_ecdf <- ecdf(as.numeric(log2(intsMean$plasma)))
+venous_ecdf <- ecdf(as.numeric(log2(intsMean$venous))) 
+RBC_ecdf <- ecdf(as.numeric(log2(intsMean$RBC)))
+capillary_ecdf <- ecdf(as.numeric(log2(intsMean$capillary)))
 
 plot(plasma_ecdf, col = col_source["plasma"], main = "cdf of abundance",
      xlab = "log2 abundance", ylab = "Density" , xlim = c(0,20), ylim = (c(0,1)))
@@ -650,7 +650,7 @@ TestedSourcenames <-  c("plasma", "RBC", "venous")
 par(mfrow=c(1, 3))
 for (i in 1:3) {
 hist(res_Matrix_pos[, paste0("pvalue.", SourcesTypes[i])], main = 
-       #' paste0("Histogram of ", TestedSourcenames[i], " pvalues"), xlab = "pValue")
+       paste0("Histogram of ", TestedSourcenames[i], " pvalues"), xlab = "pValue")
 }
 
 
