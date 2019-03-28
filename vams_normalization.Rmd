@@ -20,7 +20,7 @@ library(BiocStyle)
 BiocStyle::markdown()
 ```
 
-**Modified**: `r file.info("vams_preprocessing.Rmd")$mtime`<br />
+**Modified**: `r file.info("vams_normalization.Rmd")$mtime`<br />
 **Compiled**: `r date()`
 
 ```{r settings, echo = FALSE, results = "hide", message = FALSE}
