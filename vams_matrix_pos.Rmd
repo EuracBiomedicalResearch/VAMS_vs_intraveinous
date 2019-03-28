@@ -726,7 +726,7 @@ it would be expected that the venous and capillary would be mostly the same with
 the plasma and RBC being different.
 
 Plots showing the distributions of the matrixes based on mz were made.
-```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values for detected features in a matrix.". Apart from the plasma, all the matrices share roughly the same distribution"}
+```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values for detected features in a matrix. Apart from the plasma, all the matrices share roughly the same distribution"}
 col_source_trans <- paste0(col_source, 20)
 names(col_source_trans) <- names(col_source)
 
