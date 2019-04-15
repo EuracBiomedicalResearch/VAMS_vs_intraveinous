@@ -29,7 +29,7 @@ options(useFancyQuotes = FALSE)
 set.seed(18011977)
 
 #' Define paths:
-filename <- "vams_matrix_pos"
+filename <- "vams_sex_pos"
 #' Path to save the images; remove all old images.
 IMAGE_PATH <- paste0("images/", filename, "/")
 if (file.exists(IMAGE_PATH)) 
@@ -46,10 +46,10 @@ ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 # Introduction
 Having found the differences between each matrix in [vams_matrix_pos.Rmd](vams_matrix_pos.Rmd).
 We move to a different way of comparing the matrices. Here we focus on the 
-differences in the blood able to  distinguish between male and female. 
+differences in the blood able to distinguish between male and female. 
 We would expect that certain hormones (such as testosterone and estradiol) will 
 be clear differences between genders, as well as derived differences such as 
-creatine, as a consequences of higher average muscle mass in the males etc..
+creatine, as a consequences of higher average muscle mass in the males etc.
 
 
 Below we load all required libraries, define a color for each matrix and load
@@ -109,7 +109,6 @@ col_volcano_Trans <- paste0(col_volcano, 80)
 
 
 
-
 volcanoplotFunction <- function(pval,coef,pLimit,foldLimit,Title){
 
 #' The filters for pvalue and fold increase is defined
@@ -145,6 +144,7 @@ Using a multiple linear model. No confounding factors are included.
 
 ```{r sex-fit-function}
 
+#The new fit function is defined
 fitlmSexFunction <- function(x, dataMat, model = conc ~ source, weights = NULL){
     dataMat <- cbind(conc = x,as.data.frame(dataMat))
     mdl <- lm(model, data = dataMat)
@@ -154,19 +154,27 @@ fitlmSexFunction <- function(x, dataMat, model = conc ~ source, weights = NULL){
     Output
 }
 
+#The rowdata of vamspos is put into the result matrix. Likewise the imputed data
+#is redefined into the container Data
 res_matrix_pos<- rowData(vams_pos)
-
-for (src in TestedSourcenames) {
 Data <- log2(assays(vams_pos)$Imputed)[,]
+
+#A for loop in which each of the matrices are are passed to the above function
+for (src in TestedSourcenames) {
+
 fitMatrix <- t(apply(Data[, which(vams_pos$source==src)], 1, fitlmSexFunction, 
   dataMat = colData(vams_pos)[which(vams_pos$source==src),], model = conc ~ sex))
 
-
+#The p-value is adjusted
 adj.pvalue.sexM <- p.adjust(fitMatrix[, "pvalue.sexM"], method="BH")
 fitMatrix <- cbind(fitMatrix, adj.pvalue.sexM)
+#The column names are changed from sexM, to the current matrix being investigated.
 colnames(fitMatrix) <- sub("sexM",src,colnames(fitMatrix))
+#The new fit is bound to the result matrix
 res_matrix_pos<- cbind(res_matrix_pos, fitMatrix)
 
+#For reasons of aesthetics, the pvalue and coeffient is defined as variables 
+#before being passed to the volcano plot function
 pval <- res_matrix_pos[, paste0("adj.pvalue.", src)]
 coef <- res_matrix_pos[, paste0("coef.", src)]
 volcanoplotFunction(pval,coef,pLimit=0.01,foldLimit=2,Title=paste0("Volcano Plot, of Male vs Female in ", src))
@@ -178,14 +186,14 @@ volcanoplotFunction(pval,coef,pLimit=0.01,foldLimit=2,Title=paste0("Volcano Plot
 ```
 
 Surprisingly not a single feature are found to be significant. Numerous have 
-fold increases above 2, but none have an adjusted p-value below 0.01.
+fold change above 2, but none have an adjusted p-value below 0.01.
 The most extreme matrix is the RBC. Here almost all the features have a p-value
-effectively equavalent to 1.
+effectively equivalent to 1.
 
 Histograms of the nonadjusted values are made as well.
 
 ```{r Histogramofpvalues, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values in each of the matrices of male vs female. The histograms generally show somewhat few significant features, especially for RBC"}
-
+#Histograms of each of the sources are made in a for loop
 for (src in TestedSourcenames) {
     hist(res_matrix_pos[, paste0("pvalue.", src)],
          main = paste0("pvalue. of Male vs Female in ", src),
@@ -194,17 +202,17 @@ for (src in TestedSourcenames) {
 
 ```
 
-Looking at the histograms for the un-adjusted pvalues, it is also evident that, 
+Looking at the histograms for the unadjusted pvalues, it is also evident that, 
 compared to the inter-matrix changes, few significant features are found. Furthermore
 confounding effects may be present, as the pvalues are not uniformly distributed.
 
 ```{r feature-count-table-no-confounding}
-tableSums <- 0
 
+#The sum of unadjusted pvalues above 0.01 are found made put into a table
+tableSums <- c()
 for (src in TestedSourcenames) {
 tableSums <- cbind(tableSums,sum(res_matrix_pos[,paste0("pvalue.",src)]<0.01))
 }
-tableSums <- tableSums[-1]
 names(tableSums) <- TestedSourcenames
 cpt <- paste0("Number of features with a nonadjusted pvalue below 0.01 detected
               in each matrix")
@@ -214,8 +222,8 @@ pandoc.table(tableSums, style = "rmarkdown",
 
 ```
 As seen here most significant features are found in the three sources containing
-plasma with the most in the plasma sample itself. This is not surprising as this
-is where we would expect to see such differences.
+plasma with the most in the plasma sample itself. This is not surprising as the 
+plasma is where we would expect to see such differences.
 
 
 The same analysis is done again, this time with the only other known variable,
@@ -223,28 +231,27 @@ age, as a confounding factor.
 
 ```{r sex-fit-function-confounding}
 
-fitlmSexFunction <- function(x, dataMat, model = conc ~ source, weights = NULL){
-    dataMat <- cbind(conc = x,as.data.frame(dataMat))
-    mdl <- lm(model, data = dataMat)
-    smry <- data.frame(summary(mdl)$coefficients)
-        Output <- c(coef = smry["sexM", 1], pvalue =  smry["sexM", 4])
-    names(Output) <- c("coef.sexM","pvalue.sexM")
-    Output
-}
 
+#A new result matrix for the analysis done with confounding variables are made
 res_matrix_pos_Conf<- rowData(vams_pos)
-
-for (src in TestedSourcenames) {
 Data <- log2(assays(vams_pos)$Imputed)[,]
+
+#As before #A for loop in which each of the matrices are are passed to the above function
+for (src in TestedSourcenames) {
 fitMatrix <- t(apply(Data[, which(vams_pos$source==src)], 1, fitlmSexFunction, 
   dataMat = colData(vams_pos)[which(vams_pos$source==src),], model = conc ~ sex + age))
 
-
+#The p-value is adjusted
 adj.pvalue.sexM <- p.adjust(fitMatrix[, "pvalue.sexM"], method="BH")
 fitMatrix <- cbind(fitMatrix, adj.pvalue.sexM)
+
+#The column names are changed from sexM, to the current matrix being investigated.
 colnames(fitMatrix) <- sub("sexM",src,colnames(fitMatrix))
+#The new fit is bound to the result matrix
 res_matrix_pos_Conf<- cbind(res_matrix_pos_Conf, fitMatrix)
 
+#For reasons of aesthetics, the pvalue and coeffient is defined as variables 
+#before being passed to the volcano plot function
 pval <- res_matrix_pos_Conf[, paste0("adj.pvalue.", src)]
 coef <- res_matrix_pos_Conf[, paste0("coef.", src)]
 volcanoplotFunction(pval,coef,pLimit=0.01,foldLimit=2,Title=paste0("Volcano Plot, of Male vs Female in ", src))
@@ -261,6 +268,7 @@ a big effect of including it.
 A histrogram of the non-adjusted values are made as well.
 ```{r HistogramofpvaluesConfounding, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values in each of the matrices of male vs female. The histograms generally show somewhat few significant features, especially for RBC"}
 
+#Histograms for the pvalues of the different matrices are made in a for loop.
 for (src in TestedSourcenames) {
     hist(res_matrix_pos_Conf[, paste0("pvalue.", src)],
          main = paste0("pvalue. of Male vs Female in ", src),
@@ -275,12 +283,11 @@ Here a lot more low p-value features are found
 These are counted in the below table
 
 ```{r feature-count-table-confounding}
-tableSums <- 0
-
+#The sum of unadjusted pvalues above 0.01 are found made put into a table
+tableSums <- c()
 for (src in TestedSourcenames) {
 tableSums <- cbind(tableSums,sum(res_matrix_pos_Conf[,paste0("pvalue.",src)]<0.01))
 }
-tableSums <- tableSums[-1]
 names(tableSums) <- TestedSourcenames
 cpt <- paste0("Number of features with a nonadjusted pvalue below 0.01 detected
               in each matrix")
@@ -296,11 +303,13 @@ about 630, a more than a factor 2 difference
 
 The adjusted and unadjusted pvalue, and the coefficients in terms of 
 differentiating between male and female along with the retention time and
-the mass/charge ratio for each feature in each matrix is sent to "Output"" and
+the mass/charge ratio for each feature in each matrix is sent to "Output" and
 exported to "Output/Res-sex-pos.txt"
 
 
 ```{r Export}
+
+#each of the subtypes in the fit is defined as a seperate variable and then exported
 OutputAdjPval <- res_matrix_pos[, paste0("adj.pvalue.",c(TestedSourcenames))]
 OutputPval <- res_matrix_pos[, paste0("pvalue.",c(TestedSourcenames))]
 OutputCoef <- res_matrix_pos[, paste0("coef.",c(TestedSourcenames))]
