@@ -1,0 +1,123 @@
+---
+title: "Implementation of the cliqueMS-package"
+author: "Søren Fjelstrup"
+date: "12 apr 2019"
+output: html_document
+---
+
+author: "Johannes Rainer, Søren Fjelstrup, Chiara Volani and Giuseppe Paglia"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r biocstyle, echo = FALSE, results='hide', message = FALSE}
+library(BiocStyle)
+BiocStyle::markdown()
+```
+
+**Modified**: `r file.info("vams_sex_pos.Rmd")$mtime`<br />
+**Compiled**: `r date()`
+
+```{r settings, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
+#' Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+#' Define paths:
+filename <- "CAMERA package"
+#' Path to save the images; remove all old images.
+IMAGE_PATH <- paste0("images/", filename, "/")
+if (file.exists(IMAGE_PATH)) 
+    unlink(IMAGE_PATH, recursive = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE)
+#' Path to store RData files
+RDATA_PATH <- paste0("data/RData/", filename, "/")
+if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+
+#' Get the number of cpus allocated or fall back to 3
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+```
+
+```{r load-data , results='hide', message = FALSE}
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+registerDoParallel(ncores)
+register(DoparParam(), default = TRUE)
+#' register(SerialParam())
+library(SummarizedExperiment)
+library(UpSetR)
+library(pls)
+library(caret)
+library(cliqueMS)
+
+#' Load utility functions for the analysis
+source("util-functions.R")
+
+
+#load("data/RData/vams_normalization/vams_pos.RData")
+load("data/RData/vams_normalization/data_pos.RData")
+
+
+```
+
+```{r Example}
+## ----message=FALSE, xcms-------------------------------------------------
+
+mzfile <- system.file("standards.mzXML", package = "cliqueMS")
+mzraw <- MSnbase::readMSData(files = mzfile, mode = "onDisk")
+cpw <- xcms::CentWaveParam(ppm = 15, peakwidth = c(5,20), snthresh = 10)
+mzDataEx <- xcms::findChromPeaks(mzraw, cpw)
+
+
+## ----anclique------------------------------------------------------------
+ex.anClique <- createanClique(mzData)
+summary(ex.anClique)
+
+## ----cliquefind, include = TRUE------------------------------------------
+
+set.seed(2)
+ex.cliqueGroups <- getCliques(mzData, filter = TRUE)
+summary(ex.cliqueGroups)
+
+## ----isotopes, include = TRUE--------------------------------------------
+ex.Isotopes <- getIsotopes(ex.cliqueGroups, ppm = 10)
+summary(ex.Isotopes)
+
+## ----positive, include = TRUE--------------------------------------------
+head(positive.adinfo)
+
+## ----adducts, include = TRUE---------------------------------------------
+ex.Adducts <- getAnnotation(ex.Isotopes, ppm = 10,
+	   adinfo = positive.adinfo, polarity = "positive")
+summary(ex.Adducts)
+
+## ----peaklist, include = TRUE--------------------------------------------
+features.clique6 <- ex.Adducts$cliques[[1]]
+head(ex.Adducts$peaklist[features.clique6,
+	c("an1","mass1","an2", "mass2", "an3", "mass3", "an4", "mass4", "an5", "mass5")], n = 10)
+
+
+RDATA_PATH <- paste0("Output/", "cliqueMS", "/")
+
+ExportTable<- cbind(rownames(ex.Adducts$peaklist),ex.Adducts$peaklist) 
+write.table(ExportTable,file = paste0(RDATA_PATH, "AnnotatedID.txt"),sep = "\t",row.names = FALSE)
+
+
+
+```
+
+
+
+
