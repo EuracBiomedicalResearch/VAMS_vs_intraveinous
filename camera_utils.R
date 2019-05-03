@@ -20,17 +20,21 @@
 #' @examples
 #' 
 #' df <- data.frame(pcgroup = c(1, 2, 3, 3, 3, 4, 5, 5, 3, 6, 7, 3, 7, 7, 8, 8,
-#'     9, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11))
-#' df$isotopeGroup <- list(NA_integer_, NA_integer_, 4, 4, NA_integer_, NA_integer_,
-#'                    NA_integer_, NA_integer_, NA_integer_, NA_integer_,
-#'                    5, NA_integer_, 5, NA_integer_, NA_integer_, NA_integer_,
-#'                    NA_integer_, NA_integer_, 6, 6, 7, 8, 8, NA_integer_,
-#'                    NA_integer_, NA_integer_, 8, 8, 9)
+#'     9, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 13, 13, 13,
+#'     14, 14, 14, 14))
 #' df$adductGroup <- list(integer(), integer(), 1:2, integer(), 1L, integer(),
 #'                        integer(), integer(), 2L, integer(), integer(),
 #'                        integer(), integer(), integer(), 3L, 3L,
 #'                        4:5, 4:5, integer(), integer(), integer(), 6L,
-#'                        integer(), 6L, integer(), 7:8, 7L, integer(), 8L)
+#'                        integer(), 6L, integer(), 7:8, 7L, integer(), 8L,
+#'                        9:10, 9:10, integer(), 10:11, 10L, integer(),
+#'                        12:13, 12L, integer(), 13L)
+#' df$isotopeGroup <- list(NA_integer_, NA_integer_, 4, 4, NA_integer_, NA_integer_,
+#'                    NA_integer_, NA_integer_, NA_integer_, NA_integer_,
+#'                    5, NA_integer_, 5, NA_integer_, NA_integer_, NA_integer_,
+#'                    NA_integer_, NA_integer_, 6, 6, 7, 8, 8, NA_integer_,
+#'                    NA_integer_, NA_integer_, 8, 8, 9, 10, 10, 10, 11, 11, 11,
+#'                    NA_integer_, 13, 13, 13)
 #'
 #' res <- unsplit(lapply(split.data.frame(df, df$pcgroup),
 #'     FUN = group_compound), f = df$pcgroup)
