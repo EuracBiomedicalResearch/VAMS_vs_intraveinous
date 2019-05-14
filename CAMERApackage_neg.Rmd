@@ -1,0 +1,265 @@
+---
+title: "Implementation of the CAMERA-package"
+author: "Søren Fjelstrup"
+date: "12 apr 2019"
+output: html_document
+---
+
+author: "Johannes Rainer, Søren Fjelstrup, Chiara Volani and Giuseppe Paglia"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r biocstyle, echo = FALSE, results='hide', message = FALSE}
+library(BiocStyle)
+BiocStyle::markdown()
+```
+
+**Modified**: `r file.info("vams_sex_pos.Rmd")$mtime`<br />
+**Compiled**: `r date()`
+
+```{r settings, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
+#' Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+#' Define paths:
+filename <- "CAMERA package"
+#' Path to save the images; remove all old images.
+IMAGE_PATH <- paste0("images/", filename, "/")
+if (file.exists(IMAGE_PATH)) 
+    unlink(IMAGE_PATH, recursive = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE)
+#' Path to store RData files
+RDATA_PATH <- paste0("data/RData/", filename, "/")
+if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+
+#' Get the number of cpus allocated or fall back to 3
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+```
+
+```{r load-data , results='hide', message = FALSE}
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+registerDoParallel(ncores)
+register(DoparParam(), default = TRUE)
+#' register(SerialParam())
+library(SummarizedExperiment)
+library(UpSetR)
+library(pls)
+library(caret)
+library(CAMERA)
+
+#' Load utility functions for the analysis
+source("util-functions.R")
+
+#' Define colors for the groups.
+col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+load("data/RData/vams_normalization_neg/data_neg.RData")
+load("data/RData/vams_normalization/data_pos.RData")
+
+
+```
+
+
+
+```{r Own}
+
+#' The data_pos is converted into the xcmsSet format needed by CAMERA
+RDATA_PATH <- paste0("Output/", "CAMERA", "/")
+data_pos_xcms <- as(data_pos,"xcmsSet")
+
+#' Due to legacy issues, the negative polarity data needs to be reformated in a
+#' rather cumbersome way, but it is otherwise not different from the
+#' positive mode.
+tmp <- data_neg@msFeatureData$chromPeakData$is_filled
+tmp2 <- new("MsFeatureData")
+tmp2@.xData <- xcms:::.copy_env(data_neg@msFeatureData)
+tmp2@.xData$chromPeakData <- NULL
+rm(list = "chromPeakData", envir = tmp2@.xData)
+chromPeaks(tmp2) <- cbind(chromPeaks(tmp2), is_filled = as.numeric(tmp))
+lockEnvironment(tmp2@.xData)
+data_neg@msFeatureData <- tmp2
+data_neg_xcms <- as(data_neg,"xcmsSet")
+
+#' The positive mode data is now annotated, then grouped by retention time,
+#' finally possible isotopes are found
+an_pos <- xsAnnotate(data_pos_xcms, polarity = "positive") #' Extracts peaktable
+anGroupFWHM_pos <- groupFWHM(an_pos, perfwhm = 0.6)#' group peaks by retention time
+anIsotopes_pos<- findIsotopes(anGroupFWHM_pos, maxcharge = 1) #' Find isotopes
+
+
+#' The negative mode data is now annotated, then grouped by retention time,
+#' finally possible isotopes are found
+an_neg <- xsAnnotate(data_neg_xcms, polarity = "negative")
+anGroupFWHM_neg <- groupFWHM(an_neg, perfwhm = 0.6) # group peaks by retention time
+anIsotopes_neg <- findIsotopes(anGroupFWHM_neg, maxcharge = 1)
+
+
+#' Now the adduct annotation is performed using the rules tables made avaiable
+#' by the CAMERA package, Note that it is also possible to make these ourselves
+file_pos <- system.file('rules/primary_adducts_pos.csv', package = "CAMERA")
+rules_pos <- read.csv(file_pos)
+file_neg <- system.file('rules/primary_adducts_neg.csv', package = "CAMERA")
+rules_neg <- read.csv(file_neg)
+anAdduct_pos <- findAdducts(object = anIsotopes_pos, ppm = 10, mzabs = 0.01,
+                            polarity = "positive",rules = rules_pos) # annotate adducts
+anAdduct_neg <- findAdducts(object = anIsotopes_neg, ppm = 10, mzabs = 0.01,
+                            polarity = "negative",rules = rules_neg) # annotate adducts
+
+#' The information from the postive and negative mode are crosscorrelated as
+#' done in the original paper
+combinedAdducts <- combinexsAnnos(anAdduct_pos, anAdduct_neg, pos = FALSE, tol=2, ruleset=NULL)
+
+#' The final adduct, and isotope table is extracted, along with the
+#' corresponding mz and retention times.
+ ExportTable <- combinedAdducts[,c(1,4,210:212)]
+ rownames(ExportTable) <- rownames(featureDefinitions(data_neg))
+
+```
+
+```{r Functions-for-extraction-of-annotations}
+library(stringr)
+AnnoID <- combinedAdducts[,"adduct"]
+
+extractMass <-  function(x){
+  if (length(x) ){
+    x[seq(2, length(x), by = 2)]
+    
+  } else
+      NA
+  
+}
+
+extractType <-  function(x){
+  if (length(x) ){
+    x[seq(1, length(x), by = 2)]
+    
+  } else
+      NA
+  
+}
+```
+
+```{r Extraction-of-annotations}
+
+#' A list of the "parent" masses is extracted for each of the
+#' possible adducts found.
+monoIsotopicMassList <- lapply(strsplit(AnnoID,split = " "), extractMass)
+AdductTypeList  <- lapply(strsplit(AnnoID,split = " "), extractType)
+groupInfo <- cbind(monoIsotopicMassList,AdductTypeList)
+colnames(groupInfo) <- c("monoIsotopicMass","AdductType")
+
+
+
+```
+
+
+```{r Grouping-massAnnotations}
+
+
+
+#' Any non-unique mass in a row is removed
+monoIsotopicMassList <- lapply(monoIsotopicMassList,unique)
+
+#' The "parent" masses are grouped for each of the adduct groups.
+#' They are then named by which pc-group they belong to.
+combinedGroups <- list()
+for (n in 1:length(monoIsotopicMassList)){
+  if (any(is.na(monoIsotopicMassList[[n]]))) {
+  combinedGroups[[n]] <- paste0(combinedAdducts[n,"pcgroup"],"-", n)
+  }
+  else{
+  combinedGroups[[n]] <- paste0(combinedAdducts[n,"pcgroup"],"-", monoIsotopicMassList[[n]])
+  }
+}
+
+#' The occurance of each group is counted, This should have been as no 
+#' mass-group should be unique (by definition) However CAMERA removes some
+#' grouping in the combination step, but seems to leave some unique values.
+#' These are now removed
+counts <- table(unlist(combinedGroups))
+hist(counts)
+groups <- names(counts)[counts>1]
+
+#' The Data is now grouped into proper adduct groups.
+adductGroup <- list()
+for (n in 1:length(combinedGroups)){
+ind <- which(groups %in% combinedGroups[[n]])
+  if (!length(ind) == 0){
+             adductGroup[[n]] <- ind
+  }
+  else{
+  adductGroup[[n]] <- NA
+  }
+}
+
+
+#' The group are passed to the export table as "adductGroup"
+ExportTable$adductGroup <- adductGroup
+```
+```{r Function-for-extraction-of-isotopes}
+extractIsotope <-  function(x){
+  if (length(x) ){
+    x[seq(1, length(x), by = 2)]
+    
+  } else
+    NA
+  
+}
+```
+
+```{r grouping-of-isotopes}
+
+#' The isotopes annotation is extracted. A list is then made removing everything
+#' but the parent ion mass
+isotopes <- combinedAdducts[,"isotopes"]
+isotopesList <- gsub("\\[","",isotopes)
+isotopesList <- gsub("\\]","",isotopesList)
+
+isotopesList <- lapply(strsplit(isotopesList,split = "M"), extractIsotope)
+
+#' The isotope mass is passed so the export table as "isotopesList"
+ExportTable$isotopeGroups <- isotopesList
+
+
+```
+
+```{r TheNewAwesomeFunction}
+#' The camera_utils.R is loaded, this contains several functions later used.
+source("camera_utils.R")
+
+#' The combined isotope and adduct groups are used to make a compound grouping
+#' These compound groups are then passed to the export table as "res"
+res <- unsplit(lapply(split.data.frame(ExportTable, ExportTable$pcgroup), 
+               FUN = group_compound,isotope_column = "isotopeGroups"),
+               f = ExportTable$pcgroup )
+ExportTable$res <- res
+
+#' Finally the export is exported, but as RData, where it will be used later,
+#' but also as as human readable table.
+save(ExportTable, file = paste0(RDATA_PATH, "ExportTableNeg.RData"))
+write.table(as.matrix(ExportTable), 
+  file = paste0(RDATA_PATH, "CAMERA_Annotations_neg.txt"),sep = "\t", 
+  row.names = FALSE)
+
+```
+
+
