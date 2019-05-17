@@ -1,0 +1,115 @@
+# Testing how a semi-targeted analysis could be performed
+
+Here we start from the list of standards and identify features potentially
+matching these and subset the data to perform a *semi-quantitative*
+analysis. Alternatively we could start from the features, perform the annotation
+there based on m/z and fine-map using the standards (i.e. for features matching
+the mass of a standard determine whether it could be this compound based on the
+standard's approximate retention time).
+
+Below we load all required libraries and the data.
+
+```{r libs-data, message = FALSE}
+library(xcms)
+library(SummarizedExperiment)
+library(pander)
+library(RColorBrewer)
+library(doParallel)
+registerDoParallel(3)
+register(DoparParam(), default = TRUE)
+
+#' Define colors for the groups.
+col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+load("data/RData/vams_normalization/vams_pos.RData")
+load("data/RData/vams_normalization/data_pos.RData")
+
+```
+
+Next we load the measured retention times for the standards.
+
+```{r standards}
+url <- "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/"
+
+std <- read.table(paste0(url, "data/standards_rtime.txt"), header = TRUE,
+                  sep = "\t", as.is = TRUE, quote = "", comment.char = "")
+#' Subset to positive polarity
+std <- std[std$polarity == "POS", ]
+
+```
+
+Next we load the `CompDb` for HMDB version 4.1.
+
+```{r redefine-mz, message = FALSE}
+library(CompoundDb)
+cdb <- CompDb("local_data/CompDb.Hsapiens.HMDB.4.1.sqlite")
+```
+
+
+```{r match-features}
+#' First ensure we have the correct masses.
+masses <- vapply(std$hmdb_id, function(z)
+    compounds(cdb, column = "mass", filter = ~ compound_id == z)$mass,
+    numeric(1))
+std$mass <- masses
+
+
+#' identify all features matching the masses and adducts
+res <- lapply(seq_len(nrow(std)), function(i) {
+    match_features(mass = std$mass[i], rt = std$rt[i],
+                   object = rowData(vams_pos),
+                   adduct = c("[M+H]+", "[M+Na]+"),
+                   ppm = 10)
+})
+
+#' combine with the std table
+std_features <- cbind(
+    std[rep(seq_len(nrow(std)), vapply(res, nrow, integer(1))), ],
+    do.call(rbind, res))
+```
+
+Next we reduce redundancy due to duplicated feature assignments for retention
+times measured in water and in serum. For each standard we select thus the row
+of the standard measured in serum (unless the standard was only detected in
+water).
+
+```{r prefer-serum}
+#' reduce to have only a single hmdb_id/feature_id pair
+std_features_split <- split.data.frame(std_features, std_features$hmdb_id)
+std_features <- do.call(rbind,
+                        lapply(std_features_split, function(z) {
+                            tmp <- split(z, z$feature_id)
+                            do.call(rbind, lapply(tmp, function(ftr) {
+                                if (nrow(ftr) > 1) {
+                                    ## return the one for serum...
+                                    ftr[grep("serum", ftr$source_id)[1], ]
+                                }
+                                else ftr
+                            }))
+                        }))
+rownames(std_features) <- NULL
+
+```
+
+Next we restrict feature assignments based on the difference between the
+expected and observed retention time:
+
+- For standards with retention times measured in water: the retention time
+  difference has to be > -10: due to the higher sample complexity, we expect
+  retention times in serum to be higher than in water.
+- For standards with retention times measured in serum: the absolute retention
+  time difference should not be larger 30 seconds.
+  
+```{r restrict-rtime}
+water <- grepl("water", std_features$source_id)
+std_features <- std_features[(water & std_features$rt_diff > -10) | !water, ]
+
+serum <- grepl("serum", std_features$source_id)
+std_features <- std_features[(serum & abs(std_features$rt_diff) < 30) | !serum, ]
+```
+
+We could now use this feature mapping to perform a *semi-targeted* analysis.
