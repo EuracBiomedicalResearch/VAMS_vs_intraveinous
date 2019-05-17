@@ -1,5 +1,5 @@
 ---
-title: "Matrix comparison"
+title: "Matrix comparison - Pos"
 author: "Søren Fjelstrup, Chiara Volani, Giuseppe Paglia and Johannes Rainer"
 graphics: yes
 output:
@@ -129,8 +129,8 @@ wght_detected <- c(1, 0.9, 0.7, 0.5)
 #' which a peak was detected/
 prop_detected <- apply(assay(vams_pos, "weights"), 1, function(x, grps) {
     vapply(split(x, grps), function(z) sum(z %in% wght_detected) / length(z),
-           numeric(1))
-}, grps = vams_pos$source)
+    numeric(1))}, grps = vams_pos$source)
+
 prop_detected <- t(prop_detected)
 ```
 
@@ -243,7 +243,7 @@ assays(vams_pos)$Imputed <- imputeRowMinRand(
 We generate also extracted ion chromatograms for some randomly selected features
 common to all samples or specific for one matrix.
 
-```{r plot-common-features, echo = FALSE, warning = FALSE, eval = TRUE}
+```{r plot-common-features, echo = FALSE, warning = FALSE, eval = FALSE}
 load("data/RData/vams_normalization/data_pos.RData")
 col_sample <- col_source[data_pos$source]
 
@@ -550,7 +550,7 @@ The samples were identified as:
 It was then decided to look at the chromatograms of the two features to
 determine whether it could be found why they are so different.
 
-```{r Chromatogram, eval = TRUE, echo = FALSE, message = FALSE, warning = FALSE}
+```{r Chromatogram, eval = FALSE, echo = FALSE, message = FALSE, warning = FALSE}
 dr <- paste0(IMAGE_PATH, "Outlier_features/")
 dir.create(dr, showWarnings = FALSE)
 
@@ -712,7 +712,7 @@ for (i in 1:3){
          -log10(res_matrix_pos[, paste0("adj.pvalue.", SourcesTypes[i])]),
          pch = 16, main = paste0(TestedSourcenames[i], " vs capillary"), 
          col = col_volcano_Trans[colorFilter[, i]], 
-         ylab = expression(log[2]~p[BH]-value), 
+         ylab = expression(log[10]~p[BH]-value), 
          xlab = expression(log[2]~fold~change))
     abline(h = -log10(pLimit))
     abline(v = c(-foldLimit, foldLimit))
