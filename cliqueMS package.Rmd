@@ -51,20 +51,8 @@ ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 ```{r load-data , results='hide', message = FALSE}
 library(xcms)
 library(RColorBrewer)
-library(pander)
-library(doParallel)
-registerDoParallel(ncores)
-register(DoparParam(), default = TRUE)
-#' register(SerialParam())
 library(SummarizedExperiment)
-library(UpSetR)
-library(pls)
-library(caret)
 library(cliqueMS)
-
-#' Load utility functions for the analysis
-source("util-functions.R")
-
 
 #load("data/RData/vams_normalization/vams_pos.RData")
 load("data/RData/vams_normalization/data_pos.RData")
