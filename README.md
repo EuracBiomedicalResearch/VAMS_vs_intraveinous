@@ -27,10 +27,13 @@ will not work.
 ## Files and structure of the analysis
 
 - [vams_preprocessing.Rmd](vams_preprocessing.Rmd): Defines the pre-processing
-  of the data (chromatographic peak detection, alignment and correspondence).
+  of the positive polarity data (chromatographic peak detection, alignment and
+  correspondence).
 - [vams_normalization.Rmd](vams_normalization.Rmd): performs the normalization
-  of the feature abundances.
-
+  of the feature abundances (positive polarity).
+- [vams_matrix_pos.Rmd](vams_matrix_pos.Rmd): analysis of the matrix specific
+  effects (positive polarity).
+  
 
 ## Required packages and setup
 

@@ -107,6 +107,7 @@ load("data/RData/vams_normalization/vams_pos.RData")
 
 ```
 
+# *Qualtitative* data analysis
 
 ## Identifying detected/present features for each matrix
 
@@ -234,7 +235,7 @@ feature's smallest value in all samples adding a small standard deviation
 thus avoiding constant values.
 
 ```{r Imputation-of-Values}
-assays(vams_pos)$Imputed <- imputeRowMinRand(
+assays(vams_pos)$imputed <- imputeRowMinRand(
                     assay(vams_pos), min_fraction = 1/2,
                     sd_fraction = 1, abs = TRUE)
 
@@ -243,7 +244,7 @@ assays(vams_pos)$Imputed <- imputeRowMinRand(
 We generate also extracted ion chromatograms for some randomly selected features
 common to all samples or specific for one matrix.
 
-```{r plot-common-features, echo = FALSE, warning = FALSE, eval = FALSE}
+```{r plot-common-features, echo = FALSE, warning = FALSE, eval = TRUE}
 load("data/RData/vams_normalization/data_pos.RData")
 col_sample <- col_source[data_pos$source]
 
@@ -391,6 +392,7 @@ two-fold lower than the abundance of *common* features. Thus many features might
 appear to be matrix specific because their abundance is below the detection
 limit in other matrices.
 
+# *Quantitative* data analysis
 
 ## Grouping samples based on metabolite abundances
 
@@ -399,7 +401,7 @@ samples/matrices in our experiment.
 
 ```{r pca-rsd, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 5, fig.cap = "PCA grouping samples based on (centered) feature abundances. Only features with an RSD < 30% in QC samples were used. Circles represent samples from female, rectangles from male participants. Missing values were replaced with half of the feature's minimal abundance adding also a small random variance."}
 #' RSD < 30% in QC samples
-tmp <- log2(assay(vams_pos, "Imputed")[which(rowData(vams_pos)$QC_rsd < 0.3), ])
+tmp <- log2(assay(vams_pos, "imputed")[which(rowData(vams_pos)$QC_rsd < 0.3), ])
 pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
 
@@ -447,14 +449,14 @@ feats_capillary <- rownames(present_call)[present_call[, "capillary"]]
 #' A list containing the abundances of the respective features were made. 
 #' Note that they are imputed as it otherwise have too many missing values
 intsMean <- list(
-    common =  rowMeans(assay(vams_pos, "Imputed")[feats_common, ]),
-    plasma = rowMeans(assay(vams_pos, "Imputed")[feats_plasma,
+    common =  rowMeans(assay(vams_pos, "imputed")[feats_common, ]),
+    plasma = rowMeans(assay(vams_pos, "imputed")[feats_plasma,
                                                  vams_pos$source == "plasma"]),
-    venous = rowMeans(assay(vams_pos, "Imputed")[feats_venous,
+    venous = rowMeans(assay(vams_pos, "imputed")[feats_venous,
                                                  vams_pos$source == "venous"]),
-    RBC = rowMeans(assay(vams_pos, "Imputed")[feats_RBC,
+    RBC = rowMeans(assay(vams_pos, "imputed")[feats_RBC,
                                               vams_pos$source == "RBC"]),
-    capillary = rowMeans(assay(vams_pos, "Imputed")[feats_capillary,
+    capillary = rowMeans(assay(vams_pos, "imputed")[feats_capillary,
                                                     vams_pos$source == "capillary"])
 )
   
@@ -510,7 +512,7 @@ showing large differences.
 
 #' Note that this is done using data for which log10 has not been taken, if this is done the outliers are not found
 #' A PCA is performed of the samples.
-pc <- prcomp(t(assay(vams_pos, "Imputed")[feats_common, ]),
+pc <- prcomp(t(assay(vams_pos, "imputed")[feats_common, ]),
              scale = FALSE, center = TRUE)
 pchs <- ifelse(vams_pos$sex == "F", 21, 22)
 
@@ -541,10 +543,11 @@ plot(sortedLoading[1:10], xlab = "Rank in 1st dimension loading",
 #' The two outlier features are defined
 feats <- c(names(sortedLoading[1:2]))
 ```
-The samples were identified as:
- `r names(OutlierFilter)[OutlierFilter]` these seem to be clear outlier samples,
- indeed if the loadings in the first and second dimension is found it is seen
- that they have just 2 outlier features  `r feats`.
+
+The samples were identified as: `r names(OutlierFilter)[OutlierFilter]` these 
+seem to be clear outlier samples, indeed if the loadings in the first and 
+second dimension is found it is seen that they have just 2 outlier 
+features `r feats`.
 
 
 It was then decided to look at the chromatograms of the two features to
@@ -553,7 +556,6 @@ determine whether it could be found why they are so different.
 ```{r Chromatogram, eval = FALSE, echo = FALSE, message = FALSE, warning = FALSE}
 dr <- paste0(IMAGE_PATH, "Outlier_features/")
 dir.create(dr, showWarnings = FALSE)
-
 
 feats <- c("FT08876","FT08384")
 feats_chrs <- featureChromatograms(data_pos, expandRt = 4, features = feats)
@@ -574,7 +576,7 @@ Knowing this, a new PCA is performed excluding these features.
 ```{r OutlierFilteredPCA, echo = FALSE, fig.cap = "PCA of abundances of all common features, with FT08876 and FT08384 removed. Only the plasma samples separate from the other samples, in the 2nd dimension"}
 
 #' PCA without the outliers are made
-commonImputedValues <- assays(vams_pos)$Imputed[feats_common,]
+commonImputedValues <- assays(vams_pos)$imputed[feats_common,]
 intsCommonNoOutliers <- commonImputedValues[!(rownames(commonImputedValues)
                                               %in% feats), ] 
 
@@ -588,8 +590,6 @@ legend("topright", col = col_source, legend = names(col_source), pch = 16)
 plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_pos$source], 80),
          bg = paste0(col_source[vams_pos$source], 40), pch = pchs, cex = 1.5)
 
-
-
 ```
 
 Removing the outliers resulted in a plot without any real discernable
@@ -602,18 +602,18 @@ dimensions (data not shown)
 
 ## Linear Model
 
-The multiple linear regression of the features is made without imputation.
+In this analysis we fit the regression model to log2 transformed abundances
+(including imputed values) of each feature and extract the coefficients from the
+fitted model representing the slope (or difference) of the average abundance of
+samples from the respective matrix to the base line capillary samples. The
+p-value represents the significance from the Wald test against the null
+hypothesis of the coefficient being 0 (i.e. no differences between the average
+abundances).
+
 The models were made using the capillary as a baseline. Since the RBC and the
 plasma were made from the venous it is expected to see large differences in all 
 the models made. Although it would be expected that the pure venous would be the
 most alike to the capillary.
-
-In this analysis we fit the regression model to log2 transformed abundances of
-each feature and extract the coefficients from the fitted model representing the
-slope (or difference) of the average abundance of samples from the respective
-matrix to the base line capillary samples. The p-value represents the
-significance from the Wald test against the null hypothesis of the coefficient
-being 0 (i.e. no differences between the average abundances).
 
 The p-values are subsequently adjusted for multiple hypothesis testing using the
 method from Benjamini and Hochberg for a strong control of the false discovery
@@ -625,6 +625,8 @@ similar results (not shown).
 
 ```{r ModelforlinearmodelVSplasmanoconfounding, warning = FALSE}
 SourcesTypes <- c("sourceplasma","sourceRBC","sourcevenous")
+pLimit <- 0.01
+foldLimit <- 1
 
 #' The function for the multiple linear regression is made. This takes a numeric
 #' input along with a matrix containing the confounding factors, it returns the
@@ -643,17 +645,24 @@ fitlmFunction <- function(x, dataMat, model = conc ~ source) {
 }
 
 #' The data is log2 transformed to make it mostly gaussian in distribution  
-Data <- log2(assay(vams_pos, "abundances"))
-fitMatrix <- t(apply(Data, 1, fitlmFunction, 
+fitMatrix <- t(apply(log2(assay(vams_pos, "imputed")), 1, fitlmFunction, 
                      dataMat = as.data.frame(colData(vams_pos)),
                      model = conc ~ source + sex))
 
 #' Adjusting for multiple hypothesis testing
-p.adjusted <- apply(fitMatrix[ ,paste0("pvalue.", SourcesTypes)], 2, p.adjust, 
+p.adjusted <- apply(fitMatrix[ , paste0("pvalue.", SourcesTypes)], 2, p.adjust, 
                     method = "BH")
-#' The fitMatrix is appended to the rest of the data in vams_pos, making the
-#' new dataframe res_matrix_pos
-res_matrix_pos<- cbind(rowData(vams_pos), fitMatrix, adj = p.adjusted)
+
+#' Define "significant" features
+sign <- p.adjusted < pLimit &
+    abs(fitMatrix[, grep("^coef", colnames(fitMatrix))]) > foldLimit
+colnames(sign) <- sub("pvalue.", "", colnames(sign), fixed = TRUE)
+
+#' Compiling the final result table
+res_matrix_pos <- cbind(rowData(vams_pos), fitMatrix,
+                        adj = p.adjusted, significant = sign,
+                        present = present_call)
+
 ```
 
 Histograms of each of the 3 matrixes against capillary is made.
@@ -679,13 +688,10 @@ Based on the models created in the previous section volcano plots are made for
 each of the matrices compared to capillary.
 
 ```{r VolcanoPlotMultipleRegression, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots of each of the linear models against capillary. Benjamini-Hochberg adjusted values, against the mean differences for each feature, show a large proportion of the features are statistically significantly different between matrixes", fig.width = 12, fig.height = 4}
-#' A new color set is defined to better conform to what is need by the volcano plot
-col_volcano <- brewer.pal(4, name = "Set1")
-col_volcano[1] <- "#DDDDDD" #' Grey
-col_volcano_Trans <- paste0(col_volcano, 80)
 
-pLimit <- 0.01
-foldLimit <- 1
+#' A new color set is defined to better conform to what is need by the volcano plot
+col_volcano <- brewer.pal(9, name = "Set1")[c(9, 9, 9, 3)]
+names(col_volcano) <- c("all", "pLimit", "foldLimit", "significant")
 
 #' The filters for pvalue and fold increase is defined
 colorFilterLowP <- as.matrix(
@@ -699,27 +705,25 @@ colorFilter[colorFilterHighFold] <- 2
 colorFilter[colorFilterHighFold * colorFilterLowP == 1] <- 3
 colorFilter <- colorFilter + 1
 
-#' The significant samples (both high fold difference and low p-value) are
-#' defined
-sign <- colorFilterLowP & colorFilterHighFold
-#' replace the "coef" in the column names with "significant"
-colnames(sign) <- sub("adj.pvalue", "significant", colnames(sign))
-res_matrix_pos <- cbind(res_matrix_pos, sign)
-
 par(mfrow=c(1, 3), mar = c(4.3, 4.3, 1, 1))
+x_range <- range(as.matrix(
+    res_matrix_pos[, grep("^coef", colnames(res_matrix_pos))]), na.rm = TRUE)
+y_range <- range(
+    -log10(as.matrix(res_matrix_pos[, grep("^adj", colnames(res_matrix_pos))])),
+    na.rm = TRUE)
 for (i in 1:3){
-    plot(res_matrix_pos[, paste0("coef.", SourcesTypes[i])],  cex = 0.6,
-         -log10(res_matrix_pos[, paste0("adj.pvalue.", SourcesTypes[i])]),
-         pch = 16, main = paste0(TestedSourcenames[i], " vs capillary"), 
-         col = col_volcano_Trans[colorFilter[, i]], 
-         ylab = expression(log[10]~p[BH]-value), 
-         xlab = expression(log[2]~fold~change))
+    plot(3, 3, pch = NA, xlim = x_range, ylim = y_range,
+         xlab = expression(log[2]~fold~change),
+         ylab = expression(-log[10]~p[BH]~value),
+         main = paste0(TestedSourcenames[i], " vs capillary"))
+    grid(col = "#cecece20")
+    points(res_matrix_pos[, paste0("coef.", SourcesTypes[i])],
+           -log10(res_matrix_pos[, paste0("adj.pvalue.", SourcesTypes[i])]),
+           pch = 16, col = paste0(col_volcano[colorFilter[, i]], 60),
+           cex = 0.6)
     abline(h = -log10(pLimit))
     abline(v = c(-foldLimit, foldLimit))
-    legend("top", c("non-Significant", "lowP", "Highfold", "Significant"),
-           col = col_volcano, pch = 16, bg = "white")
 }
-
 
 ```
 
@@ -734,6 +738,7 @@ cpt <- paste0("Number of features with a significant difference in abundances",
 pandoc.table(colSums(as.matrix(
     res_matrix_pos[, grep("significant", colnames(res_matrix_pos))]),
     na.rm = TRUE), style = "rmarkdown", caption = cpt)
+
 ```
 
 As expected, the largest number of features with differences in abundances was
@@ -824,6 +829,7 @@ for (i in 1:3) {
         na.rm = TRUE), col = paste0(col_source[TestedSourcenames[i]], 80),
         lwd = 2)
 }
+
 ```
 
 This distribution includes only the features shown to be significantly different
@@ -915,6 +921,36 @@ significantly higher abundances in plasma and in venous samples compared to the
 capillary samples at a retention time of about 160 (between 150 and
 165). Capillary, but also RBC samples seem to have a lower sensitivity to detect
 these features.
+
+# Result object
+
+The results of this analysis are exported to the *vams_matrix_pos_results.txt*
+file.
+
+```{r writexl}
+library(writexl)
+write_xlsx(as.data.frame(res_matrix_pos),
+           path = "data/xls/vams_matrix_pos_results.xlsx")
+
+save(res_matrix_pos, file = paste0(RDATA_PATH, "res_matrix_pos.RData"))
+```
+
+The most important columns in the result table are:
+- `mzmed`, `mzmin`, `mzmax`: m/z of the feature.
+- `rtmed`, `rtmin`, `rtmax`: retention time window of the feature.
+- `QC_rsd`: RSD over QC samples.
+- `coef.source<matrix>`: log2 fold change of feature abundance between
+  `<matrix>` and capillary samples.
+- `pvalue.source<matrix>`: p-value representing the significance of the
+  difference in abundances between `<matrix>` and capillary samples. These are
+  raw (unadjusted) p-values and should only considered for sorting of the
+  features.
+- `adj.pvalue.source<matrix>`: p-values adjusted for multiple hypothesis
+  testing representing the significance of differential abundance.
+- `significant.source<matrix>`: logical indicating whether the feature was
+  identified to have a significant difference in abundances.
+- `present.<matrix>`: *present* call of the feature from the qualitative
+  analysis.
 
 
 # Session information
