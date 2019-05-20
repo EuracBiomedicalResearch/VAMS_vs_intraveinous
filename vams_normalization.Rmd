@@ -222,8 +222,8 @@ Below we compare the signal distribution of detected and filled-in peak signals.
 ```{r compare-detected-filled-plot, fig.path = IMAGE_PATH, message = FALSE, echo = FALSE, warning = FALSE, fig.cap = "Distribution of (log2) signal intensities of detected (green) and filled-in peaks (blue). Left: all features/peaks, right: only peaks of features used in the present analysis based on the above definition.", fig.width = 8, fig.height = 4}
 ##' First all features.
 tmp_pks <- chromPeaks(data_pos)
-dpks_dens <- density(log2(tmp_pks[tmp_pks[, "is_filled"] == 0, "into"]))
-fpks_dens <- density(log2(tmp_pks[tmp_pks[, "is_filled"] == 1, "into"]))
+dpks_dens <- density(log2(tmp_pks[!chromPeakData(data_pos)$is_filled, "into"]))
+fpks_dens <- density(log2(tmp_pks[chromPeakData(data_pos)$is_filled, "into"]))
 yl <- c(0, max(dpks_dens$y, fpks_dens$y))
 xl <- range(dpks_dens$x, fpks_dens$x)
 
@@ -238,8 +238,10 @@ legend("topright", col = c("#00ce0080", "#0000ce80"), lwd = 2,
 ##' Features being used in the analysis: fts_used
 pk_idxs <- sort(unlist(featureDefinitions(data_pos)[fts_used, "peakidx"]))
 tmp_pks <- chromPeaks(data_pos)[pk_idxs, ]
-dpks_dens <- density(log2(tmp_pks[tmp_pks[, "is_filled"] == 0, "into"]))
-fpks_dens <- density(log2(tmp_pks[tmp_pks[, "is_filled"] == 1, "into"]))
+dpks_dens <- density(
+    log2(tmp_pks[!chromPeakData(data_pos)$is_filled[pk_idxs], "into"]))
+fpks_dens <- density(
+    log2(tmp_pks[chromPeakData(data_pos)$is_filled[pk_idxs], "into"]))
 yl <- c(0, max(dpks_dens$y, fpks_dens$y))
 xl <- range(dpks_dens$x, fpks_dens$x)
 
@@ -985,7 +987,7 @@ smpls_b <- data_pos$batch == 1022018
 qcs_b <- data_pos$sample == "POOL" & smpls_b
 mdls_b <- xcms:::rowFitModel(
                      y ~ inj_idx, data = pData(data_pos)[qcs_b, ],
-                     y = log2(fv_nofill[, qcs_b]), method = "lm",
+                     y = log2(fv_nofill[, qcs_b]), method = "lmrob",
                      minVals = 4)
 ```
 
