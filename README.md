@@ -33,6 +33,8 @@ will not work.
   of the feature abundances (positive polarity).
 - [vams_matrix_pos.Rmd](vams_matrix_pos.Rmd): analysis of the matrix specific
   effects (positive polarity).
+- [vams_sex_pos.Rmd](vams_sex_pos.Rmd): analysis to identify features with
+  significant abundances between male and female participants.
   
 
 ## Required packages and setup
