@@ -1,0 +1,729 @@
+---
+title: "Matrix comparison - Neg"
+author: "Søren Fjelstrup, Chiara Volani, Giuseppe Paglia and Johannes Rainer"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r biocstyle, echo = FALSE, results='hide', message = FALSE}
+library(BiocStyle)
+BiocStyle::markdown()
+```
+
+**Modified**: `r file.info("vams_matrix_pos.Rmd")$mtime`<br />
+**Compiled**: `r date()`
+
+```{r settings, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
+#' Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+#' Define paths:
+filename <- "vams_matrix_pos"
+#' Path to save the images; remove all old images.
+IMAGE_PATH <- paste0("images/", filename, "/")
+if (file.exists(IMAGE_PATH)) 
+    unlink(IMAGE_PATH, recursive = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE)
+#' Path to store RData files
+RDATA_PATH <- paste0("data/RData/", filename, "/")
+if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+
+#' Get the number of cpus allocated or fall back to 3
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+```
+
+# Introduction
+
+In this document we evaluate differences between the 4 matrices (sample sources)
+*venous*, *capillary*, *plasma* and *RBC*. We are specifically interested in
+identifying features which are specific to one matrix or common to all matrices
+(qualitative analysis) as well as features with different abundances between
+matrices (quantitative analyses). For the former analysis we use determine for
+each feature whether it is *present* in a sample or not based on whether a
+chromatographic peak was identified for it. The latter analysis is based on the
+feature abundances.
+
+The analysis uses the normalized feature abundances generated in
+[vams_normalization.Rmd](vams_normalization.Rmd). The normalized data contains
+abundance estimates for all features that are present in at least 30% of samples
+of a matrix (QC samples excluded). The abundances from the two technical
+replicates of each sample were combined into a single feature abundance. Also,
+flags have been defined that provide information about the *quality* of a
+normalized feature concentration. It is based on whether a chromatographic peak
+was identified in a sample and how similar the reported abundances for the
+feature in the two (technical) replicates for each sample are. Based on their
+flag value, features can be classified into 6 different types:
+
+- `1`: signal from 2 detected peaks present and the RSD of their abundances is <
+  30%. The `mean` of the two is reported.
+- `0.9`: 1 detected and one filled-in signal present and their RSD is < 30%. The
+  `mean` of the two is reported.
+- `0.8`: only filled-in signal, but their RSD is < 30%. The `mean` of the two is
+  reported.
+- `0.7`: signal for two detected peaks but their RSD is >= 30%. The `mean` of
+  the two is reported.
+- `0.5`: signal from 1 detected peak present (independently of whether a
+  filled-in signal is present for the other replicate). Report only
+  the value for the detected peak.
+- `0.25`: only filled-in signal is present. Either mean or single value
+  reported.
+
+Below we load all required libraries, define a color for each matrix and load
+the normalized data.
+
+```{r load-data , results='hide', message = FALSE}
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+registerDoParallel(ncores)
+register(DoparParam(), default = TRUE)
+#' register(SerialParam())
+library(SummarizedExperiment)
+library(UpSetR)
+
+#' Load utility functions for the analysis
+source("util-functions.R")
+
+#' Define colors for the groups.
+col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+load("data/RData/vams_normalization_neg/vams_neg.RData")
+
+```
+
+## Identifying detected/present features for each matrix
+
+We next aim to identify *present* (detected) features for each matrix which
+allows to perform qualitative comparisons between the matrices. In contrast to
+features with differences in abundances (identified in the next section) we do
+not consider absolute intensities in this analysis but rather evaluate whether a
+feature is detected in most samples of a matrix or not, i.e. whether a
+chromatographic peak was identified or not. This information is encoded into th
+*weight* of a measurement (see Introduction for the definition of the weights):
+a chromatographic peak was detected for a feature in at least one of the two
+replicates if the weight is either 1, 0.9, 0.7 or 0.5. Below we use these
+weights to determine the proportion of samples for each matrix in which a
+chromatographic peak was identified.
+
+```{r proportion-detected, message = FALSE, warning = FALSE}
+wght_detected <- c(1, 0.9, 0.7, 0.5)
+
+#' Determine for each feature the proportion of samples (per matrix) in
+#' which a peak was detected/
+prop_detected <- apply(assay(vams_neg, "weights"), 1, function(x, grps) {
+    vapply(split(x, grps), function(z) sum(z %in% wght_detected) / length(z),
+           numeric(1))
+}, grps = vams_neg$source)
+prop_detected <- t(prop_detected)
+```
+
+Defining absent/present calls is not trivial. Using a hard cut-off on the
+proportion of samples with a detected peak can be problematic, as features can
+not be expected to be present in all samples. Sex-specific features would for
+example be expected to be present in only 50% of samples. Requiring features to
+be present in 60% of samples to define them as *present* would thus flag all
+sex-specific features to be *absent*.
+
+We therefore use an approach that compares, separately for each feature, and in
+each matrix the number of samples in which a chromatographic peak was detected
+to the maximum such number in any of the matrices. Specifically, features are
+called *absent* in a certain matrix, if a peak was detected in less than one
+third of the maximal number of samples with a detected peak in any of the
+matrices. As example, if a feature was detected in 10 samples of a matrix, but
+only in 3 in another matrix, it will be called *absent* in the latter. On the
+other hand, if a feature was detected at most in 4 samples in a matrix, it is
+still considered to be present in matrices in which e.g. in 2 samples a peak was
+detected.
+
+Below we calculate first the ratio between the proportion of samples in which a
+peak was detected and the maximal proportion for that feature and subsequently
+define the absent/present calls for each feature in each matrix based on these
+values.
+
+Note that the present analysis bases on features with a detected peak in at
+least 1/3 of samples.
+
+```{r present-absent-call, message = FALSE, warning = FALSE}
+#' Calculate ratio between proportion and max proportion
+prop_ratio <- (1 / rowMax(prop_detected)) * prop_detected
+
+#' Define present/absent calls
+present_call <- prop_ratio > 1/3
+```
+
+
+
+## Comparison of numbers of features detected in each matrix
+
+With the present/absent calls available we can next evaluate the number of
+features being detected in each matrix. The results are represented with the
+barplot below.
+
+```{r barplot-features, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Number of features detected by each matrix", fig.width = 6, fig.height = 8}
+par(mfrow = c(1, 1), mar = c(7, 4.5, 2, 0.5))
+barplot(colSums(present_call), col = col_source[colnames(present_call)],
+        main = "Detected features", ylab = "count", las = 2)
+```
+
+Most features are present in venous samples followed by plasma and then 
+capillary. The fewest are present in RBC samples. The numbers
+are also shown in the table below.
+This is in contrast to postive mode, where the order was:
+Venous, Capillary, RBC, Plasma.
+
+```{r feature-count-table, results = "asis", echo = FALSE}
+cpt <- paste0("Number of features detected in each matrix")
+pandoc.table(colSums(present_call), style = "rmarkdown",
+             caption = cpt)
+```
+
+
+## Matrix-specific features and features present in all matrices
+
+We next compare the overlaps and intersects of features being *present* in the 4
+matrices.
+
+```{r upsetr-plot, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Visualisation of the feature intersects between the 4 matrices.", fig.width = 10, fig.height = 8}
+ints <- apply(present_call, MARGIN = 2, which)
+upset(fromList(ints), order.by = "freq",
+      sets.bar.color = col_source[c("venous", "plasma", "capillary", "RBC")])
+```
+
+
+
+About one third of the ~ 16,000 features is detectable in all 4 matrices. The
+next largest overlap with ~ 2,000 features is between venous, and plasma
+samples followed by about 1,700 features that are shared between venous, 
+capillary and RBC. The plasma is the largest unique with about 1400, the others 
+have about 500 unique features. About 1300 are shared between plasma,
+capillary and venous.
+It would seem that in negative mode the Plasma has very large differences 
+compared to the others, with some overlap with the venous.
+
+
+The features present in either all matrices, or all of a specific matrix is
+defined.
+
+```{r matrix-specific-features}
+feats_common <- rownames(present_call)[rowSums(present_call) == 4]
+feats_plasma <- rownames(present_call)[rowSums(present_call) == 1 &
+                                       present_call[, "plasma"]]
+feats_venous <- rownames(present_call)[rowSums(present_call) == 1 &
+                                       present_call[, "venous"]]
+feats_RBC <- rownames(present_call)[rowSums(present_call) == 1 &
+                                    present_call[, "RBC"]]
+feats_capillary <- rownames(present_call)[rowSums(present_call) == 1 &
+                                          present_call[, "capillary"]]
+```
+
+Below we impute missing feature intensities. These are replaced with half of the
+feature's smallest value in all samples adding a small standard deviation
+to avoid constant values.
+
+```{r Imputation-of-Values}
+assays(vams_neg)$Imputed <- imputeRowMinRand(
+                    assay(vams_neg), min_fraction = 1/2,
+                    sd_fraction = 1, abs = TRUE)
+
+```
+
+What seems to be common to all matrix-specific features is that their abundance
+is moderate. Below we thus evaluate whether the average abundance level of
+matrix-specific features is different to those from common features.
+
+```{r matrix-specific-abundance, message = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of average (across samples) abundances of common and matrix-specific features.", fig.width = 6, fig.height = 8}
+ints <- list(
+    common = rowMeans(assay(vams_neg)[feats_common, ]),
+    plasma = rowMeans(assay(vams_neg)[feats_plasma,
+                                      vams_neg$source == "plasma"]),
+    venous = rowMeans(assay(vams_neg)[feats_venous,
+                                      vams_neg$source == "venous"]),
+    RBC = rowMeans(assay(vams_neg)[feats_RBC,
+                                   vams_neg$source == "RBC"]),
+    capillary = rowMeans(assay(vams_neg)[feats_capillary,
+                                         vams_neg$source == "capillary"])
+)
+par(mar = c(7, 4.5, 1, 1))
+boxplot(lapply(ints, log2), varwidth = TRUE, col = col_source[names(ints)],
+        ylab = expression(log[2]~abundance), las = 2, main = "average abundance")
+grid(nx = NA, ny = NULL)
+```
+
+Indeed, the average abundance of matrix-specific features seems to be about
+two to three-fold lower than the abundance of *common* features. Thus many features might
+appear to be matrix specific because their abundance is below the detection
+limit in other matrices.
+
+
+## Grouping samples based on metabolite abundances
+
+We perform a principal component analysis to evaluate the grouping of the
+samples/matrices in our experiment.
+
+```{r pca-rsd, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 5, fig.cap = "PCA grouping samples based on (centered) feature abundances. Only features with an RSD < 30% in QC samples were used. Circles represent samples from female, rectangles from male participants. Missing values were replaced with half of the feature's minimal abundance adding also a small random variance."}
+#' RSD < 30% in QC samples
+tmp <- log2(assay(vams_neg, "Imputed")[which(rowData(vams_neg)$QC_rsd < 0.3), ])
+pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_neg$sex == "F", 21, 22)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_neg$source], "ce"),
+         bg = paste0(col_source[vams_neg$source], 60), pch = pchs, cex = 1.5)
+legend("bottomright", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_neg$source], 80),
+         bg = paste0(col_source[vams_neg$source], 40), pch = pchs, cex = 1.5)
+
+```
+The first dimension very strongly separate the plasma, venous and capillary 
+samples. The RBC are spilt, with most being close to the capillary and some 
+being close to the venous. The RBC has a very large spread, whereas all other 
+groups in all dimension are compact clusters.
+The second dimension separate the venous from the capillary and plasma.
+The RBS is spread evenly across the second dimension.
+The third dimension separate the plasma from the venous and capillary.
+all but four (likely the same 4 being close to venous in PC1) of the RBC
+sample have lower values in PC3 than all the other samples in the other matrices.
+The fourth dimension does not seem to have a specific seperation, apart from
+internal seperation of the RBC samples.
+
+
+## Identifying features with differential abundance between the matrices
+
+It is possible that the differences seen in the previous PCA plots are due to
+overall concentration differences. Thus each of the sample types were plotted to 
+see if significant differences in overall concentration is found.
+
+```{r BoxplotOfAbundances, fig.path = IMAGE_PATH, fig.cap = "Distribution of average abundances of common features and features detected within a certain matrix.", echo = FALSE}
+
+#' All feautures present in the respective sample types are found. Note this is
+#' different to when only the unique were found.
+feats_plasma <- rownames(present_call)[present_call[, "plasma"]]
+feats_venous <- rownames(present_call)[present_call[, "venous"]]
+feats_RBC <- rownames(present_call)[present_call[, "RBC"]]
+feats_capillary <- rownames(present_call)[present_call[, "capillary"]]
+
+#' A list containing the abundances of the respective features were made. 
+#' Note that they are imputed as it otherwise have too many missing values
+intsMean <- list(
+    common =  rowMeans(assay(vams_neg, "Imputed")[feats_common, ]),
+    plasma = rowMeans(assay(vams_neg, "Imputed")[feats_plasma,
+                                                 vams_neg$source == "plasma"]),
+    venous = rowMeans(assay(vams_neg, "Imputed")[feats_venous,
+                                                 vams_neg$source == "venous"]),
+    RBC = rowMeans(assay(vams_neg, "Imputed")[feats_RBC,
+                                              vams_neg$source == "RBC"]),
+    capillary = rowMeans(assay(vams_neg, "Imputed")[feats_capillary,
+                                                    vams_neg$source == "capillary"])
+)
+  
+#' Boxplot showing the distributions of the different groups
+par(mar = c(7, 4.5, 1, 1))
+boxplot(lapply(intsMean, log2), varwidth = TRUE, col = col_source[names(intsMean)],
+        ylab = expression(log[2]~abundance), las = 2, main = "average abundance")
+```
+
+With the exception of common features that show slightly higher average
+abundances, the average abundances of features detected in a matrix are
+comparable. In addition to boxplots we create also cumulative distribution
+functions to evaluate whether the distribution of average feature abundances are
+comparable.
+
+```{r CumulativeDistributionFunctionsOfAbundances, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Cumulative density function of each matrix. The distributions of the matrices are mostly identical, with the plasma having a sligthly higher overall abundance and the RBC a slightly higher proportion of low abundance features"}
+#' Cumulative distribution functions are made for the different groups, 
+#' log2 is necessary due to the large differences in abundances
+plasma_ecdf <- ecdf(as.numeric(log2(intsMean$plasma)))
+venous_ecdf <- ecdf(as.numeric(log2(intsMean$venous))) 
+RBC_ecdf <- ecdf(as.numeric(log2(intsMean$RBC)))
+capillary_ecdf <- ecdf(as.numeric(log2(intsMean$capillary)))
+
+plot(plasma_ecdf, col = col_source["plasma"], main = "cdf of abundance",
+     xlab = "log2 abundance", ylab = "Density" , xlim = c(0,20), ylim = (c(0,1)))
+lines(venous_ecdf, col = col_source["venous"])
+lines(RBC_ecdf, col = col_source["RBC"])
+lines(capillary_ecdf, col = col_source["capillary"])
+
+legend('left', c("plasma","venous","RBC","capillary"), fill = col_source[
+  c("plasma","venous","RBC","capillary")], border=NA)
+```
+
+
+The cumulative density function shows that the abundances of the features for
+the RBC is the lowest,and the plasma is the highest, the venous and capillary
+are almost identical. The differences are however very minor, so it is unlikely
+to have had much of an effect.
+
+
+
+# Unsupervised modelling
+
+A PCA of the samples, based on the features which for all the sources are found
+in at least 30% of the samples within that source. This means that all features 
+specific for a matrix is excluded. Thus it is expected that the seperation will 
+be much smaller than the earlier PCA plot, where matrix specific features would 
+naturally be a large part of the variation seen.
+
+Note also that this PCA is performed on the actual concentrations without log2
+transformation or scaling. PCA separation will thus mostly be driven by features
+showing large differences.
+
+```{r PCAOfAbundances, fig.cap = "PCA of all common features by abundance. In plot showing the 1st and 2nd dimension, 6 outliers are found. Some difference by martrix is seen as well, with the capillary being separated, this is also seen in the 3rd dimension.", echo = FALSE}
+
+#' Note that this is done using data for which log10 has not been taken, if this is done the outliers are not found
+#' A PCA is performed of the samples.
+pc <- prcomp(t(assay(vams_neg, "Imputed")[feats_common, ]),
+             scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_neg$sex == "F", 21, 22)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_neg$source], "ce"),
+         bg = paste0(col_source[vams_neg$source], 60), pch = pchs, cex = 1.5)
+legend("topleft", col = col_source, legend = names(col_source), pch = 16)
+plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_neg$source], 80),
+         bg = paste0(col_source[vams_neg$source], 40), pch = pchs, cex = 1.5)
+
+
+```
+
+As with the positive mode, the plasma easily separate from the other samples, 
+The seperation is however stronger in this case, and in the first dimension as 
+opposed to the second. Likewise the venous separate to a lesser extent in the 
+first dimension. The capillary and the RBC separate to some extent from one 
+another in the second dimension.
+The thrid and fourth dimension does not seem to hold any information.
+
+# Supervised modelling
+
+## Linear Model
+
+The multiple linear regression of the features is made without imputation.
+The models were made using the capillary as a baseline. Since the RBC and the
+plasma were made from the venous it is expected to see large differences in all 
+the models made. Although it would be expected from the earlier PCA plots, that
+the capillary is more akin to the RBC.
+
+In this analysis we fit the regression model to log2 transformed abundances of
+each feature and extract the coefficients from the fitted model representing the
+slope (or difference) of the average abundance of samples from the respective
+matrix to the base line capillary samples. The p-value represents the
+significance from the Wald test against the null hypothesis of the coefficient
+being 0 (i.e. no differences between the average abundances).
+
+The p-values are subsequently adjusted for multiple hypothesis testing using the
+method from Benjamini and Hochberg for a strong control of the false discovery
+rate.
+
+The employed model `conc ~ source + sex` adjusts for sex-specific differences. A
+simple model without accounting for any confounding effects yielded however
+similar results (not shown).
+
+```{r ModelforlinearmodelVSplasmanoconfounding, warning = FALSE}
+SourcesTypes <- c("sourceplasma","sourceRBC","sourcevenous")
+
+#' The function for the multiple linear regression is made. This takes a numeric
+#' input along with a matrix containing the confounding factors, it returns the
+#' means and the p value
+fitlmFunction <- function(x, dataMat, model = conc ~ source) {
+    dataMat$conc <- x
+    dataMat$source <- factor(x = dataMat$source, 
+                             levels = c("capillary", "plasma", "RBC", "venous"))
+    mdl <- lm(model, data = dataMat)
+    smry <- data.frame(summary(mdl)$coefficients)
+    SourceTypes <- paste0("source", levels(dataMat$source)[-1])
+    Output <- c(coef = smry[SourceTypes, 1], pvalue =  smry[SourceTypes, 4])
+    names(Output) <- c(paste0("coef.", SourceTypes),
+                       paste0("pvalue.", SourceTypes))
+    Output
+}
+
+#' The data is log2 transformed to make it mostly gaussian in distribution  
+Data <- log2(assay(vams_neg, "Imputed"))
+fitMatrix <- t(apply(Data, 1, fitlmFunction, 
+                     dataMat = as.data.frame(colData(vams_neg)),
+                     model = conc ~ source + sex))
+
+#' Adjusting for multiple hypothesis testing
+p.adjusted <- apply(fitMatrix[ ,paste0("pvalue.", SourcesTypes)], 2, p.adjust, 
+                    method = "BH")
+#' The fitMatrix is appended to the rest of the data in vams_neg, making the
+#' new dataframe res_matrix_neg
+res_matrix_neg<- cbind(rowData(vams_neg), fitMatrix, adj = p.adjusted)
+```
+
+Histograms of each of the 3 matrixes against capillary is made.
+
+```{r Histogramofpvalues, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values each of the linear models against capillary. All histograms show a smooth decrease over the range of pvalues, indicating only a small possible effect from confounding factors"}
+TestedSourcenames <-  c("plasma", "RBC", "venous")
+par(mfrow=c(1, 3))
+for (i in 1:3) {
+    hist(res_matrix_neg[, paste0("pvalue.", SourcesTypes[i])],
+         main = paste0(TestedSourcenames[i], " vs capillary"),
+         xlab = "p-value")
+}
+
+
+```
+
+
+It looks like the p-values decrease gradually, this suggest that the effect of
+any confounding effects are likely to be minor, compared to the overall
+differences from the matrices. We do however have a very large number of
+features with differences in their abundances.
+
+Based on the models created in the previous section volcano plots are made for
+each of the matrices compared to capillary.
+
+```{r VolcanoPlotMultipleRegression, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots of each of the linear models against capillary. Benjamini-Hochberg adjusted values, against the mean differences for each feature, show a large proportion of the features are statistically significantly different between matrixes", fig.width = 12, fig.height = 4}
+#' A new color set is defined to better conform to what is need by the volcano plot
+col_volcano <- brewer.pal(4, name = "Set1")
+col_volcano[1] <- "#DDDDDD" #' Grey
+col_volcano_Trans <- paste0(col_volcano, 80)
+
+pLimit <- 0.01
+foldLimit <- 1
+
+#' The filters for pvalue and fold increase is defined
+colorFilterLowP <- as.matrix(
+    res_matrix_neg[, paste0("adj.pvalue.", SourcesTypes)]) < pLimit
+colorFilterHighFold <- abs(as.matrix(
+    res_matrix_neg[, paste0("coef.", SourcesTypes)])) > foldLimit
+
+#' The filter for coloring the points is made
+colorFilter <- 1 * colorFilterLowP
+colorFilter[colorFilterHighFold] <- 2
+colorFilter[colorFilterHighFold * colorFilterLowP == 1] <- 3
+colorFilter <- colorFilter + 1
+
+#' The significant samples (both high fold difference and low p-value) are
+#' defined
+sign <- colorFilterLowP & colorFilterHighFold
+#' replace the "coef" in the column names with "significant"
+colnames(sign) <- sub("adj.pvalue", "significant", colnames(sign))
+res_matrix_neg <- cbind(res_matrix_neg, sign)
+
+par(mfrow=c(1, 3), mar = c(4.3, 4.3, 1, 1))
+for (i in 1:3){
+    plot(res_matrix_neg[, paste0("coef.", SourcesTypes[i])],  cex = 0.6,
+         -log10(res_matrix_neg[, paste0("adj.pvalue.", SourcesTypes[i])]),
+         pch = 16, main = paste0(TestedSourcenames[i], " vs capillary"), 
+         col = col_volcano_Trans[colorFilter[, i]], 
+         ylab = expression(log[10]~p[BH]-value), 
+         xlab = expression(log[2]~fold~change))
+    abline(h = -log10(pLimit))
+    abline(v = c(-foldLimit, foldLimit))
+    legend("top", c("non-Significant", "lowP", "Highfold", "Significant"),
+           col = col_volcano, pch = 16, bg = "white")
+}
+
+
+```
+
+
+A surprisingly large amount of features were detected to have statistically
+different abundances between the compared matrices. This was expected for the
+RBC and plasma, but not for the venous one, but is consistent with what was seen
+in the PCA plots. The number of significant features for each comparison are
+listed below.
+
+```{r count-table_linear_model, results = "asis", echo = FALSE}
+cpt <- paste0("Number of features with a significant difference in abundances",
+              " (more than two-fold difference in abundances at a 1% FDR.")
+pandoc.table(colSums(as.matrix(
+    res_matrix_neg[, grep("significant", colnames(res_matrix_neg))]),
+    na.rm = TRUE), style = "rmarkdown", caption = cpt)
+```
+
+
+
+As expected, the largest number of features with differences in abundances was
+identified between plasma and capillary samples. The number of significant
+features is much smaller for the comparisons between RBC and capillary and for
+venous and capillary samples.
+
+The large differences may have many sources. To help identify these it was
+decided to probe the underlying distributions of the features based on the
+two factors we know. The mass/charge ratio and the retention time. It would be
+expected that the venous and capillary would be mostly the same with the plasma
+and RBC being different.
+
+Plots showing the distributions of the matrixes based on m/z were made.
+
+```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values (left) or retention time (right) for detected features in a matrix.", echo = FALSE, fig.width = 12, fig.height = 6}
+
+#' Distributions of mz values for each matrix.
+par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1, 1))
+plot(density(res_matrix_neg$mzmed[present_call[, 1]], na.rm = TRUE),
+     col = paste0(col_source[colnames(present_call)[1]], 80),
+     main = "Detected features in a matrix",
+     xlab = "m/z", ylim = c(0, 0.002), lwd = 2)
+for (i in 2:4) {
+    lines(density(res_matrix_neg$mzmed[present_call[, i]], na.rm = TRUE), 
+          col = paste0(col_source[colnames(present_call)[i]], 80), lwd = 2)
+}
+legend("topleft", legend = c(colnames(present_call)),
+       col = col_source[colnames(present_call)], pch = 16)
+#' retention time
+plot(density(res_matrix_neg$rtmed[present_call[, 1]], na.rm = TRUE),
+     col = paste0(col_source[colnames(present_call)[1]], 80),
+     main = "Detected features in a matrix",
+     xlab = "rt", ylim = c(0, 0.015), lwd = 2)
+for (i in 2:4) {
+    lines(density(res_matrix_neg$rtmed[present_call[, i]], na.rm = TRUE), 
+          col = paste0(col_source[colnames(present_call)[i]], 80), lwd = 2)
+}
+
+```
+
+
+Looking at the distribution of detected features as a function of their m/z,
+The RBC and capillary, and the plasma and venous. Generally follow the same
+distributions.
+For RBC and capillary, a higher proportion of low mz features are found.
+Which conversely means that for plasma and venous a higher proportion of higher 
+mz features is found.
+
+Looking at the retention time instead. It is the same story. The plasma 
+generally follow the venous. The capillary and RBC are however more different 
+especially in the high retention time region.
+
+
+Next we evaluate the distribution of m/z and retention times for the features
+with significant differences in abundances compared to capillary samples.
+
+```{r mzSignificant, fig.cap = "Distributions of m/z values (left) and retention times (right) for features with significant different abundances compared to the levels in capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6}
+par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1, 1))
+#' m/z
+plot(density(res_matrix_neg$mzmed, na.rm = TRUE),
+     col = "#cecece", main = "Significant features",
+     xlab = "m/z", ylim = c(0, 0.002), lwd = 2)
+for (i in 1:3) {
+    lines(density(
+        res_matrix_neg$mzmed[res_matrix_neg[, paste0("significant.",
+                                                     SourcesTypes[i])]],
+        na.rm = TRUE), col = paste0(col_source[TestedSourcenames[i]], 80),
+        lwd = 2)
+}
+legend("topleft", legend=c("All features", TestedSourcenames), 
+       col = c("#cecece", col_source[TestedSourcenames]), pch = 16)
+#' rt
+plot(density(res_matrix_neg$rtmed, na.rm = TRUE),
+     col = "#cecece", main = "Significant features",
+     xlab = "rt", ylim = c(0, 0.04), lwd = 2)
+for (i in 1:3) {
+    lines(density(
+        res_matrix_neg$rtmed[res_matrix_neg[, paste0("significant.",
+                                                     SourcesTypes[i])]],
+        na.rm = TRUE), col = paste0(col_source[TestedSourcenames[i]], 80),
+        lwd = 2)
+}
+```
+
+This distribution includes only the features shown to be significantly different
+in the previous model. The overall shape of the density lines is mostly similar
+with the one for all features with the most notable differences in the m/z range
+from 200 to 700.
+
+The distribution of significant features along the retention time dimension
+differs considerably between matrices. THe venous being the most striking.
+in the low rt range (0-150), the venous has very few significantly different
+features compared to capillary, comparing to the overall distribution of values.
+At the 150 mark an marked increase is seen and from here to 200 a very large 
+difference is seen. Two large peaks at aprox. 160 and 220 is noticeably.
+For RBC the distribution mostly follows the overall distribution for the low 
+to medium values (0-150) with a slight over representation at 160-200.
+Plasma follows the distribution at at low rt (0-100) then like venous it is 
+underrepresentated at 100-150, and increased at 150-220. Although not as extreme.
+
+
+Next we evaluate over- and under-represented features (compared to capillary
+samples) separately.
+
+```{r mzCountsSignificant, fig.cap = "Distribution of m/z values (left) and retention time (right) for significant features with a higher or lower abundance compared to capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6}
+
+par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1.5, 1))
+plot(x = 1, y = 1, pch = NA, xlim = c(50, 1100), ylim = c(-100, 100),
+     xlab = "m/z", ylab = "count", main = "Significant features")
+text(x = c(50, 50), y = c(-90, 90), pos = c(4, 4),
+     label = c("lower abundance than capillary",
+               "higher abundance than capillary"))
+for (src in TestedSourcenames) {
+    yLow <- res_matrix_neg[
+        which(res_matrix_neg[, paste0("significant.source", src)] & 
+              res_matrix_neg[, paste0("coef.source", src)] < 0), "mzmed"]
+    yLow <- hist(yLow, breaks = seq(50, 1100, 5), plot = FALSE)   
+    yHigh <- res_matrix_neg[
+        which(res_matrix_neg[, paste0("significant.source", src)] & 
+              res_matrix_neg[, paste0("coef.source", src)] > 0), "mzmed"]
+    yHigh <- hist(yHigh, breaks = seq(50, 1100, 5), plot = FALSE)
+    lines(yHigh$mids, yHigh$counts, col = paste0(col_source[src], 80), lwd = 2)
+    lines(yLow$mids, -yLow$counts, col = paste0(col_source[src], 80), lwd = 2)
+}
+grid()
+abline(h = 0)
+legend("topright", legend = TestedSourcenames, lwd = 2, lty = 1,
+       col = col_source[TestedSourcenames], inset = c(0, 0))
+plot(x = 1, y = 1, pch = NA, xlim = c(0, 250), ylim = c(-800, 800),
+     xlab = "rt", ylab = "count", main = "Significant features")
+text(x = c(0, 0), y = c(-750, 750), pos = c(4, 4),
+     label = c("lower abundance than capillary",
+               "higher abundance than capillary"))
+for (src in TestedSourcenames) {
+    yLow <- res_matrix_neg[
+        which(res_matrix_neg[, paste0("significant.source", src)] & 
+              res_matrix_neg[, paste0("coef.source", src)] < 0), "rtmed"]
+    yLow <- hist(yLow, breaks = seq(0, 255, 5), plot = FALSE)   
+    yHigh <- res_matrix_neg[
+        which(res_matrix_neg[, paste0("significant.source", src)] & 
+              res_matrix_neg[, paste0("coef.source", src)] > 0), "rtmed"]
+    yHigh <- hist(yHigh, breaks = seq(0, 255, 5), plot = FALSE)
+    lines(yHigh$mids, yHigh$counts, col = paste0(col_source[src], 80), lwd = 2)
+    lines(yLow$mids, -yLow$counts, col = paste0(col_source[src], 80), lwd = 2)
+}
+grid()
+abline(h = 0)
+
+```
+ As opposed to the positive mode the plasma sample is characterized by having
+ lower abundance for features in the low m/z range. In the 400-1000 range, the
+ venous generally have fewer low abundancy features than the RBC and plasma 
+ which follows one another quite well. The RBC samples are generally have fewer
+ samples with a higher abundancy throughout the entire range. plasma and venous
+ are comparable in this regard.
+
+The distribution of retention times, representing the polarity, for significant
+features is very informative too (right plot in the figure above).
+For the low RT, the the plasma has a lot of features whuch are both over- and 
+underrepresentated. at the 125-220 range most of the plasma mostly follows the
+two other matrices. With the exception of 200-250 where it has more 
+underrepresentated features. 
+The RBC has most of its significant features as underrepresentated in the low 
+RT range.
+apart from about 150, the RBC follows the two other matrices. Here a large amount
+of features are underrepresentated. likewise a very large peak or perfectly 
+overlapping size of overrepresentated features for plasma and venous are found,
+but not for RBC.
+For venous, it seems to act as an average of the venous and RBC, as expected.
+
+
+
+
+# Session information
+
+```{r sessionInfo}
+devtools::session_info()
+```
