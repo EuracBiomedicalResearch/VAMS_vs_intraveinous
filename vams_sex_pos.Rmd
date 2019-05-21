@@ -1,6 +1,6 @@
 ---
 title: "Sex comparison, positive polarity"
-author: "Søren Fjelstrup, Johannes Rainer, Chiara Volani and Giuseppe Paglia"
+author: "Søren Fjelstrup, Chiara Volani, Giuseppe Paglia, Johannes Rainer"
 graphics: yes
 output:
   BiocStyle::html_document:
@@ -83,7 +83,8 @@ load("data/RData/vams_normalization/vams_pos.RData")
 ```
 
 Below we impute missing values replacing them with half of the feature's
-smallest reported abundance adding also a small random value.
+smallest reported abundance adding also a small random value. The analysis will
+be performed on this imputed data set.
 
 ```{r Imputation-of-Values}
 assays(vams_pos)$imputed <- imputeRowMinRand(
@@ -274,7 +275,7 @@ Things we could do:
   *vice versa*.
 
 
-## All Matrices Combined
+## Multiple regression analysis
 
 We next use multiple linear regression to identify features with (potentially
 significant) differences between male and female participants. We use a linear
@@ -308,10 +309,13 @@ fit <- eBayes(fit)
 #' Adjust for multiple hypothesis testing
 adjp <- apply(fit$p.value, 2, p.adjust, method = "BH")
 
+sign <- adjp < pLimit & abs(fit$coefficients) > foldLimit
+
 res_sex_pos <- cbind(rowData(vams_pos),
                      pvalue = fit$p.value,
                      coef = fit$coefficients,
-                     adj.pvalue = adjp)
+                     adj.pvalue = adjp,
+                     significant = sign)
 
 ```
 
@@ -360,6 +364,40 @@ for (src in TestedSourcenames) {
 
 In plasma samples, quite some features show significant differences in the
 abundances between male and female individuals. 
+
+The table below lists all features that are found to be significant in at least
+one of the matrices.
+
+```{r sex_pos_sig_table, results = "asis", echo = FALSE}
+sig_count <- rowSums(
+    as.matrix(res_sex_pos[, grep("significant", colnames(res_sex_pos))]))
+sig_fts <- rownames(res_sex_pos)[sig_count > 0]
+sig_fts <- sig_fts[order(sig_count[sig_fts], decreasing = TRUE)]
+
+T <- res_sex_pos[sig_fts, c("mzmed", "rtmed", "coef.capillary.sexM",
+                            "coef.plasma.sexM", "coef.RBC.sexM",
+                            "coef.venous.sexM", "adj.pvalue.capillary.sexM",
+                            "adj.pvalue.plasma.sexM", "adj.pvalue.RBC.sexM",
+                            "adj.pvalue.venous.sexM")]
+colnames(T) <- sub(".sexM", "", colnames(T), fixed = TRUE)
+cap <- paste0("Features with significant difference in abundances between ",
+              "male and female individuals in at least one matrix.")
+pandoc.table(as.data.frame(T), style = "rmarkdown", caption = cap)
+
+```
+
+There is indeed no overlap of significant features. With the exception of some
+(rows 3, 4, 12) there is also no agreement in the extent and direction of
+differential abundance.
+
+```{r sex_pos_sig_ann, echo = FALSE, eval = FALSE}
+library(CompoundDb)
+cdb <- CompDb("~/Projects/compounds/hmdb/4.1/CompDb.Hsapiens.HMDB.4.1.sqlite")
+
+annotateMz(T$mzmed, cdb, adduct = c("[M+H]+", "[M+Na]+"), ppm = 10)
+
+#' it's a mess - either no annotation or multiple.
+```
 
 At last we compare the top 50 features with the most significant differences
 between male and female for each matrix to evaluate whether they are shared
