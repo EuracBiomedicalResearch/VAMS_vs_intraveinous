@@ -1,6 +1,6 @@
 ---
-title: "Sex comparison"
-author: "Johannes Rainer, Søren Fjelstrup, Chiara Volani and Giuseppe Paglia"
+title: "Sex comparison, negative polarity"
+author: "Søren Fjelstrup, Chiara Volani, Giuseppe Paglia and Johannes Rainer"
 graphics: yes
 output:
   BiocStyle::html_document:
@@ -20,7 +20,7 @@ library(BiocStyle)
 BiocStyle::markdown()
 ```
 
-**Modified**: `r file.info("vams_sex_pos.Rmd")$mtime`<br />
+**Modified**: `r file.info("vams_sex_neg.Rmd")$mtime`<br />
 **Compiled**: `r date()`
 
 ```{r settings, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
@@ -29,7 +29,7 @@ options(useFancyQuotes = FALSE)
 set.seed(18011977)
 
 #' Define paths:
-filename <- "vams_sex_pos"
+filename <- "vams_sex_neg"
 #' Path to save the images; remove all old images.
 IMAGE_PATH <- paste0("images/", filename, "/")
 if (file.exists(IMAGE_PATH)) 
@@ -44,13 +44,12 @@ ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 ```
 
 # Introduction
-Having found the differences between each matrix in [vams_matrix_neg.Rmd](vams_matrix_neg.Rmd).
-We move to a different way of comparing the matrices. Here we focus on the 
-differences in the blood able to distinguish between male and female. 
-We would expect that certain hormones (such as testosterone and estradiol) will 
-be clear differences between genders, as well as derived differences such as 
-creatine, as a consequences of higher average muscle mass in the males etc.
 
+In this document we aim to identify compounds with significantly different
+abundances between male and female participants of the study for each of the
+matrices. The analysis is performed analogous to the one described in
+[vams_sex_pos.Rmd](vams_sex_pos.Rmd) for positive polarity data hence we do not
+repeat methodological descriptions here.
 
 Below we load all required libraries, define a color for each matrix and load
 the normalized data.
@@ -65,8 +64,7 @@ register(DoparParam(), default = TRUE)
 #' register(SerialParam())
 library(SummarizedExperiment)
 library(UpSetR)
-library(pls)
-library(caret)
+library(limma)
 
 #' Load utility functions for the analysis
 source("util-functions.R")
@@ -80,13 +78,14 @@ names(col_source) <- c("RBC",           #' red
 
 load("data/RData/vams_normalization_neg/vams_neg.RData")
 
-
 ```
 
-The values are imputed to allow their later usage in the linear model.
+Below we impute missing values replacing them with half of the feature's
+smallest reported abundance adding also a small random value. The analysis will
+be performed on this imputed data set.
 
 ```{r Imputation-of-Values}
-assays(vams_neg)$Imputed <- imputeRowMinRand(
+assays(vams_neg)$imputed <- imputeRowMinRand(
                     assay(vams_neg), min_fraction = 1/2,
                     sd_fraction = 1, abs = TRUE)
 
@@ -94,236 +93,296 @@ TestedSourcenames <-  c("capillary","plasma", "RBC", "venous")
 
 ```
 
+# Data filtering
+
+Optionally we could filter the data, e.g. exclude low intensity features or
+similar. At present we do not pre-filter the data prior to the differential
+abundance analysis.
+
 
 # Supervised modelling
 
 ## Linear Model - no confounding effects
-A function for making the volcano plot later used for the linear model is made.
 
 
-```{r volcanoplot-function}
-
+```{r volcanoplot-function, echo = FALSE}
 col_volcano <- brewer.pal(4, name = "Set1")
 col_volcano[1] <- "#DDDDDD" #' Grey
 col_volcano_Trans <- paste0(col_volcano, 80)
 
-
-
-volcanoplotFunction <- function(pval,coef,pLimit,foldLimit,Title){
-
-#' The filters for pvalue and fold increase is defined
-colorFilterLowP <- as.matrix(pval) < pLimit
-colorFilterHighFold <- abs(coef) > foldLimit
-
-#' The filter for coloring the points is made
-colorFilter <- 1 * colorFilterLowP
-colorFilter[colorFilterHighFold] <- 2
-colorFilter[colorFilterHighFold * colorFilterLowP == 1] <- 3
-colorFilter <- colorFilter + 1
+volcanoplotFunction <- function(coef, pval, pLimit, foldLimit, Title,
+                                xlim = range(coef), ylim = range(-log10(pval)),
+                                col_volcano = paste0(
+                                    brewer.pal(9, "Set1")[c(9, 9, 9, 3)], 60)) {
+    
+    colorFilterLowP <- as.matrix(pval) < pLimit
+    colorFilterHighFold <- abs(coef) > foldLimit
+    
+    colorFilter <- 1 * colorFilterLowP
+    colorFilter[colorFilterHighFold] <- 2
+    colorFilter[colorFilterHighFold * colorFilterLowP == 1] <- 3
+    colorFilter <- colorFilter + 1
 
     plot(coef, -log10(pval), cex = 0.6,
          pch = 16, main = Title, 
-         col = col_volcano_Trans[colorFilter], 
-         ylab = expression(log[2]~p[BH]-value), 
-         xlab = expression(log[2]~fold~change))
-    abline(h = -log10(pLimit))
-    abline(v = c(-foldLimit, foldLimit))
-    legend("bottomleft", c("non-Significant", "lowP", "Highfold", "Significant"),
-           col = col_volcano, pch = 16, bg = "white")
-     
+         col = col_volcano[colorFilter], 
+         ylab = expression(log[2] ~ p[BH]-value), 
+         xlab = expression(log[2] ~ fold ~ change),
+         xlim = xlim, ylim = ylim)
+    abline(h = -log10(pLimit), col = "grey", lty = 3)
+    abline(v = c(-foldLimit, foldLimit), col = "grey", lty = 3)
 }
-
-
 
 ```
 
+We use a linear model-based approach with empirical Bayes-based p-value
+estimation (with Bioconductor's `limma` packages). 
 
-The differences between male and female are found within each of the matrices.
-Using a multiple linear model. No confounding factors are included.
+```{r sex-fit-function-limma, message = FALSE, warning = FALSE}
+pLimit <- 0.05
+foldLimit <- 1
+res_sex_neg_sep <- rowData(vams_neg)
 
-
-```{r sex-fit-function}
-
-#The new fit function is defined
-fitlmSexFunction <- function(x, dataMat, model = conc ~ source, weights = NULL){
-    dataMat <- cbind(conc = x,as.data.frame(dataMat))
-    mdl <- lm(model, data = dataMat)
-    smry <- data.frame(summary(mdl)$coefficients)
-        Output <- c(coef = smry["sexM", 1], pvalue =  smry["sexM", 4])
-    names(Output) <- c("coef.sexM","pvalue.sexM")
-    Output
-}
-
-#The rowdata of vamspos is put into the result matrix. Likewise the imputed data
-#is redefined into the container Data
-res_matrix_neg<- rowData(vams_neg)
-Data <- log2(assays(vams_neg)$Imputed)[,]
-
-#A for loop in which each of the matrices are are passed to the above function
 for (src in TestedSourcenames) {
-
-fitMatrix <- t(apply(Data[, which(vams_neg$source==src)], 1, fitlmSexFunction, 
-  dataMat = colData(vams_neg)[which(vams_neg$source==src),], model = conc ~ sex))
-
-#The p-value is adjusted
-adj.pvalue.sexM <- p.adjust(fitMatrix[, "pvalue.sexM"], method="BH")
-fitMatrix <- cbind(fitMatrix, adj.pvalue.sexM)
-#The column names are changed from sexM, to the current matrix being investigated.
-colnames(fitMatrix) <- sub("sexM",src,colnames(fitMatrix))
-#The new fit is bound to the result matrix
-res_matrix_neg<- cbind(res_matrix_neg, fitMatrix)
-
-#For reasons of aesthetics, the pvalue and coeffient is defined as variables 
-#before being passed to the volcano plot function
-pval <- res_matrix_neg[, paste0("adj.pvalue.", src)]
-coef <- res_matrix_neg[, paste0("coef.", src)]
-volcanoplotFunction(pval, coef, pLimit = 0.01, foldLimit = 2, Title=paste0("Volcano Plot, of Male vs Female in ", src))
+    sex <- vams_neg$sex[vams_neg$source == src]
+    dsgn <- model.matrix(~ sex)
+    fit <- lmFit(log2(assay(vams_neg, "imputed")[, vams_neg$source == src]),
+                 design = dsgn)
+    fit <- eBayes(fit)
+    fitm <- cbind(fit$p.value[, "sexM"], fit$coefficients[, "sexM"],
+                  p.adjust(fit$p.value[, "sexM"], method = "BH"))
+    fitm <- cbind(fitm, fitm[, 3] < pLimit & abs(fitm[, 2]) > foldLimit)
+    colnames(fitm) <- paste0(c("pvalue.", "coef.", "adj.pvalue.",
+                               "significant."), src, ".sexM")
+    res_sex_neg_sep <- cbind(res_sex_neg_sep, fitm)
 }
-
-
-
 
 ```
 
-Surprisingly not a single feature are found to be significant. Numerous have 
-fold change above 2, but none have an adjusted p-value below 0.01.
-The most extreme matrix is the RBC. Here almost all the features have a p-value
-effectively equivalent to 1.
+Next we create histograms of the raw p-values.
 
-Histograms of the nonadjusted values are made as well.
-
-```{r Histogramofpvalues, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values in each of the matrices of male vs female. The histograms generally show somewhat few significant features, especially for RBC"}
-#Histograms of each of the sources are made in a for loop
+```{r Histogramofpvalues, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values in each of the matrices of male vs female. The histograms generally show somewhat few significant features, especially for RBC", fig.width = 12, fig.height = 4}
+par(mfrow = c(1, 4))
 for (src in TestedSourcenames) {
-    hist(res_matrix_neg[, paste0("pvalue.", src)],
-         main = paste0("pvalue. of Male vs Female in ", src),
+    hist(res_sex_neg_sep[, paste0("pvalue.", src, ".sexM")],
+         main = paste0("p-value of Male vs Female in ", src),
          xlab = "p-value")
 }
 
 ```
 
-Looking at the histograms for the unadjusted pvalues, it is also evident that, 
-compared to the inter-matrix changes, few significant features are found. Furthermore
-confounding effects may be present, as the pvalues are not uniformly distributed.
+Similar to the positive polarity data we see an enrichment for small p-values
+only for capillary, plasma and venous samples. Given the relatively high
+variance in RBC samples (also seen e.g. in PCA plots in
+[vams_matrix_neg.html](vams_matrix_neg.html)) this is however not unexpected.
 
-```{r feature-count-table-no-confounding}
-
-#The sum of unadjusted pvalues above 0.01 are found made put into a table
-tableSums <- c()
+```{r sex_sep_volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed separately for each matrix. Horizontal and vertical dotted lines indicate the cut-off criteria for significance.", fig.width = 12, fig.height = 4}
+par(mfrow = c(1, 4))
+xlim <- range(as.matrix(res_sex_neg_sep[, grep("^coef", colnames(res_sex_neg_sep))]))
+ylim <- range(as.matrix(res_sex_neg_sep[, grep("^adj", colnames(res_sex_neg_sep))]), pLimit)
 for (src in TestedSourcenames) {
-tableSums <- cbind(tableSums,sum(res_matrix_neg[,paste0("pvalue.",src)]<0.01))
-}
-names(tableSums) <- TestedSourcenames
-cpt <- paste0("Number of features with a nonadjusted pvalue below 0.01 detected
-              in each matrix")
-pandoc.table(tableSums, style = "rmarkdown",
-             caption = cpt)
-
-
-```
-As seen here most significant features are found in the three sources containing
-plasma with the most in the plasma sample itself. This is not surprising as the 
-plasma is where we would expect to see such differences.
-
-
-The same analysis is done again, this time with the only other known variable,
-age, as a confounding factor.
-
-```{r sex-fit-function-confounding}
-
-
-#A new result matrix for the analysis done with confounding variables are made
-res_matrix_neg_Conf<- rowData(vams_neg)
-Data <- log2(assays(vams_neg)$Imputed)[,]
-
-#As before #A for loop in which each of the matrices are are passed to the above function
-for (src in TestedSourcenames) {
-fitMatrix <- t(apply(Data[, which(vams_neg$source==src)], 1, fitlmSexFunction, 
-  dataMat = colData(vams_neg)[which(vams_neg$source==src),], model = conc ~ sex + age))
-
-#The p-value is adjusted
-adj.pvalue.sexM <- p.adjust(fitMatrix[, "pvalue.sexM"], method="BH")
-fitMatrix <- cbind(fitMatrix, adj.pvalue.sexM)
-
-#The column names are changed from sexM, to the current matrix being investigated.
-colnames(fitMatrix) <- sub("sexM",src,colnames(fitMatrix))
-#The new fit is bound to the result matrix
-res_matrix_neg_Conf<- cbind(res_matrix_neg_Conf, fitMatrix)
-
-#For reasons of aesthetics, the pvalue and coeffient is defined as variables 
-#before being passed to the volcano plot function
-pval <- res_matrix_neg_Conf[, paste0("adj.pvalue.", src)]
-coef <- res_matrix_neg_Conf[, paste0("coef.", src)]
-volcanoplotFunction(pval,coef,pLimit=0.01,foldLimit=2,Title=paste0("Volcano Plot, of Male vs Female in ", src))
+    volcanoplotFunction(
+        res_sex_neg_sep[, paste0("coef.", src, ".sexM")],
+        res_sex_neg_sep[, paste0("adj.pvalue.", src, ".sexM")],
+        pLimit = pLimit, foldLimit = foldLimit, xlim = xlim,
+        ylim = range(-log10(ylim)), Title = paste0("M vs F ", src))
 }
 
+```
 
+Only in plasma samples we could identify features with significant differences
+in abundances.
 
+At last we compare the top 50 features with the most significant differences
+between male and female for each matrix to evaluate whether they are shared
+between matrices.
+
+```{r sex_sep_top_50_pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
+fts_capillary <- rownames(res_sex_neg_sep)[
+    order(res_sex_neg_sep$pvalue.capillary.sexM)][1:50]
+fts_venous <- rownames(res_sex_neg_sep)[
+    order(res_sex_neg_sep$pvalue.venous.sexM)][1:50]
+fts_plasma <- rownames(res_sex_neg_sep)[
+    order(res_sex_neg_sep$pvalue.plasma.sexM)][1:50]
+fts_RBC <- rownames(res_sex_neg_sep)[
+    order(res_sex_neg_sep$pvalue.RBC.sexM)][1:50]
+
+fts_any <- unique(c(fts_capillary, fts_venous, fts_plasma, fts_RBC))
+ovlp <- matrix(nrow = length(fts_any), ncol = 4, 0,
+               dimnames = list(fts_any, c("capillary", "plasma", "RBC",
+                                          "venous")))
+ovlp[fts_capillary, "capillary"] <- 1
+ovlp[fts_plasma, "plasma"] <- 1
+ovlp[fts_RBC, "RBC"] <- 1
+ovlp[fts_venous, "venous"] <- 1
+
+upset(data.frame(ovlp))
 
 ```
-Since the only other possible confounding factor available is the age, which is 
-somewhat evenly distrubted among genders it is not surprising that we don't find
-a big effect of including it.
 
-A histrogram of the non-adjusted values are made as well.
-```{r HistogramofpvaluesConfounding, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values in each of the matrices of male vs female. The histograms generally show somewhat few significant features, especially for RBC"}
+The overlap is surprisingly low.
 
-#Histograms for the pvalues of the different matrices are made in a for loop.
+```{r sex_sep_export, echo = FALSE}
+library(writexl)
+write_xlsx(as.data.frame(res_sex_neg_sep),
+           path = "data/xls/vams_sex_neg_sep_results.xlsx")
+
+save(res_sex_neg_sep, file = paste0(RDATA_PATH, "res_sex_neg_sep.RData"))
+
+```
+
+Things we could do:
+- check if the plasma-specific features are very low in the other matrices and
+  *vice versa*.
+
+
+
+## Multiple regression analysis
+
+We next use multiple linear regression to identify features with (potentially
+significant) differences between male and female participants on the full data
+set.
+
+```{r Linear-fit-combined, message = FALSE, warning = FALSE}
+sex <- vams_neg$sex
+source <- vams_neg$source
+age <- vams_neg$age
+#' Define the design of the study
+dsgn <- model.matrix(~ 0 + sex : source)
+colnames(dsgn) <- sub(":", ".", colnames(dsgn), fixed = TRUE)
+
+#' Fit the linear model
+fit <- lmFit(log2(assay(vams_neg, "imputed")), design = dsgn)
+
+#' Define and fit the contrasts
+contr <- makeContrasts(
+    capillary.sexM = sexM.sourcecapillary - sexF.sourcecapillary,
+    plasma.sexM = sexM.sourceplasma - sexF.sourceplasma,
+    RBC.sexM = sexM.sourceRBC - sexF.sourceRBC,
+    venous.sexM = sexM.sourcevenous - sexF.sourcevenous,
+    levels = dsgn)
+fit <- contrasts.fit(fit, contr)
+#' Calculate p-values
+fit <- eBayes(fit)
+
+#' Adjust for multiple hypothesis testing
+adjp <- apply(fit$p.value, 2, p.adjust, method = "BH")
+
+sign <- adjp < pLimit & abs(fit$coefficients) > foldLimit
+
+res_sex_neg <- cbind(rowData(vams_neg),
+                     pvalue = fit$p.value,
+                     coef = fit$coefficients,
+                     adj.pvalue = adjp,
+                     significant = sign)
+
+```
+
+As before, histograms of the unadjusted p-values are made.
+
+```{r sex_neg_pvalue_hist, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p-values for male vs female in each of the matrices. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
+par(mfrow = c(1, 4))
 for (src in TestedSourcenames) {
-    hist(res_matrix_neg_Conf[, paste0("pvalue.", src)],
-         main = paste0("pvalue. of Male vs Female in ", src),
+    hist(res_sex_neg[, paste0("pvalue.", src, ".sexM")],
+         main = paste0("p-value of Male vs Female in ", src),
          xlab = "p-value")
 }
 
 ```
 
-The distributions mostly look the same, with the sole exception of the capillary.
-Here more low p-value features are found
+The enrichment for small p-values seems smaller than in the analysis performed
+separately for each matrix. We even see an enrichment of large p-values. By
+including the participant's age into the linear model this enrichment in large
+p-values disappears, but the results are similar (data not shown). Next we
+create volcano plots representing the results for the comparison between male
+and female individuals.
 
-These are counted in the below table
-
-```{r feature-count-table-confounding}
-#The sum of unadjusted pvalues above 0.01 are found made put into a table
-tableSums <- c()
+```{r sex_neg_volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
+par(mfrow = c(1, 4))
+xlim <- range(as.matrix(res_sex_neg[, grep("^coef", colnames(res_sex_neg))]))
+ylim <- range(as.matrix(res_sex_neg[, grep("^adj", colnames(res_sex_neg))]))
 for (src in TestedSourcenames) {
-tableSums <- cbind(tableSums,sum(res_matrix_neg_Conf[,paste0("pvalue.",src)]<0.01))
+    volcanoplotFunction(
+        res_sex_neg[, paste0("coef.", src, ".sexM")],
+        res_sex_neg[, paste0("adj.pvalue.", src, ".sexM")],
+        pLimit = pLimit, foldLimit = foldLimit, xlim = xlim,
+        ylim = range(-log10(ylim)), Title = paste0("M vs F ", src))
 }
-names(tableSums) <- TestedSourcenames
-cpt <- paste0("Number of features with a nonadjusted pvalue below 0.01 detected
-              in each matrix")
-pandoc.table(tableSums, style = "rmarkdown",
-             caption = cpt)
-
 
 ```
 
-Surprisingly only the capillary has a higher amount of low-pvalue features.
-The others are mostly the same whereas the capillary changes from about 300 to
-about 400, plasma falls from 400 to 330 
+We do now find (at least) one significant feature in all matrices.
 
-The adjusted and unadjusted pvalue, and the coefficients in terms of 
-differentiating between male and female along with the retention time and
-the mass/charge ratio for each feature in each matrix is sent to "Output" and
-exported to "Output/Res-sex-pos.txt"
+The table below lists all features that are found to be significant in at least
+one of the matrices.
 
+```{r sex_neg_sig_table, results = "asis", echo = FALSE}
+sig_count <- rowSums(
+    as.matrix(res_sex_neg[, grep("significant", colnames(res_sex_neg))]))
+sig_fts <- rownames(res_sex_neg)[sig_count > 0]
+sig_fts <- sig_fts[order(sig_count[sig_fts], decreasing = TRUE)]
 
-```{r Export}
-
-#each of the subtypes in the fit is defined as a seperate variable and then exported
-OutputAdjPval <- res_matrix_neg[, paste0("adj.pvalue.",c(TestedSourcenames))]
-OutputPval <- res_matrix_neg[, paste0("pvalue.",c(TestedSourcenames))]
-OutputCoef <- res_matrix_neg[, paste0("coef.",c(TestedSourcenames))]
-OutputMzRt <- cbind(res_matrix_neg$rtmed,res_matrix_neg$mzmed)
-colnames(OutputMzRt) <- c("mass/charge","Retention time")
-
-Output <- as.data.frame(c(OutputAdjPval,OutputPval,OutputCoef,OutputMzRt))
-Output <- cbind(row.names(res_matrix_neg),Output)
-names(Output)[1] <- "FeatureID"
-
-write.table(Output,"Output/Res-sex-pos.txt",sep="\t",row.names = FALSE)
+T <- res_sex_neg[sig_fts, c("mzmed", "rtmed", "coef.capillary.sexM",
+                            "coef.plasma.sexM", "coef.RBC.sexM",
+                            "coef.venous.sexM", "adj.pvalue.capillary.sexM",
+                            "adj.pvalue.plasma.sexM", "adj.pvalue.RBC.sexM",
+                            "adj.pvalue.venous.sexM")]
+colnames(T) <- sub(".sexM", "", colnames(T), fixed = TRUE)
+cap <- paste0("Features with significant difference in abundances between ",
+              "male and female individuals in at least one matrix.")
+pandoc.table(as.data.frame(T), style = "rmarkdown", caption = cap)
 
 ```
 
+There is indeed no overlap of significant features. With the exception of some
+(rows 3, 4, 12) there is also no agreement in the extent and direction of
+differential abundance.
+
+```{r sex_neg_sig_ann, echo = FALSE, eval = FALSE}
+library(CompoundDb)
+cdb <- CompDb("~/Projects/compounds/hmdb/4.1/CompDb.Hsapiens.HMDB.4.1.sqlite")
+
+annotateMz(T$mzmed, cdb, adduct = c("[M-H]-", "[M+Cl]-"), ppm = 10)
+
+#' it's a mess - either no annotation or multiple.
+```
+
+At last we compare the top 50 features with the most significant differences
+between male and female for each matrix to evaluate whether they are shared
+between matrices.
+
+```{r sex_neg_top_50_pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
+fts_capillary <- rownames(res_sex_neg)[
+    order(res_sex_neg$pvalue.capillary.sexM)][1:50]
+fts_venous <- rownames(res_sex_neg)[
+    order(res_sex_neg$pvalue.venous.sexM)][1:50]
+fts_plasma <- rownames(res_sex_neg)[
+    order(res_sex_neg$pvalue.plasma.sexM)][1:50]
+fts_RBC <- rownames(res_sex_neg)[
+    order(res_sex_neg$pvalue.RBC.sexM)][1:50]
+
+fts_any <- unique(c(fts_capillary, fts_venous, fts_plasma, fts_RBC))
+ovlp <- matrix(nrow = length(fts_any), ncol = 4, 0,
+               dimnames = list(fts_any, c("capillary", "plasma", "RBC",
+                                          "venous")))
+ovlp[fts_capillary, "capillary"] <- 1
+ovlp[fts_plasma, "plasma"] <- 1
+ovlp[fts_RBC, "RBC"] <- 1
+ovlp[fts_venous, "venous"] <- 1
+
+upset(data.frame(ovlp))
+
+```
+
+The overlap is again surprisingly low.
+
+```{r sex_neg_export, echo = FALSE}
+write_xlsx(as.data.frame(res_sex_neg),
+           path = "data/xls/vams_sex_neg_results.xlsx")
+
+save(res_sex_neg, file = paste0(RDATA_PATH, "res_sex_neg.RData"))
+
+```
 
 # Session information
 
