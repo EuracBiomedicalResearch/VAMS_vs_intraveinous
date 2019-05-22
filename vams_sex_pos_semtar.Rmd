@@ -1,0 +1,401 @@
+---
+title: "Sex comparison"
+author: "Johannes Rainer, Søren Fjelstrup, Chiara Volani and Giuseppe Paglia"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r biocstyle, echo = FALSE, results='hide', message = FALSE}
+library(BiocStyle)
+BiocStyle::markdown()
+```
+
+**Modified**: `r file.info("vams_sex_pos.Rmd")$mtime`<br />
+**Compiled**: `r date()`
+
+```{r settings, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
+#' Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+#' Get the number of cpus allocated or fall back to 3
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+```
+
+# Introduction
+Having found the differences between each matrix in [vams_matrix_pos_semtar.Rmd](vams_matrix_pos_semtar.Rmd).
+We move to a different way of comparing the matrices. Here we focus on the 
+differences in the blood able to distinguish between male and female. 
+We would expect that certain hormones (such as testosterone and estradiol) will 
+be clear differences between genders, as well as derived differences such as 
+creatine, as a consequences of higher average muscle mass in the males etc.
+
+Note that this is performed with only a subset of already indentified features.
+
+
+Below we load all required libraries, define a color for each matrix and load
+the normalized data.
+
+```{r load-data , results='hide', message = FALSE}
+library(xcms)
+library(RColorBrewer)
+library(pander)
+library(doParallel)
+registerDoParallel(ncores)
+register(DoparParam(), default = TRUE)
+#' register(SerialParam())
+library(SummarizedExperiment)
+
+#' Load utility functions for the analysis
+source("util-functions.R")
+
+#' Define colors for the groups.
+col_source <- brewer.pal(5, name = "Set1")[c(1, 2, 4, 5)]
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+load("data/RData/vams_normalization/SemiTargeted_pos.RData")
+
+
+```
+
+The values are imputed to allow their later usage in the linear model.
+This is needed as the later models are run on one matrix at a time.
+This means that if the imputation is not done, rows will be dropped, and the
+final matrix will not fit.
+
+```{r Imputation-of-Values}
+assays(SemiTargeted)$Imputed <- imputeRowMinRand(
+                    assay(SemiTargeted), min_fraction = 1/2,
+                    sd_fraction = 1, abs = TRUE)
+
+TestedSourcenames <-  c("capillary","plasma", "RBC", "venous")
+
+```
+
+
+# Supervised modelling
+
+## Linear Model - no confounding effects
+A function for making the volcano plot later used for the linear model is made.
+
+```{r volcanoplot-function}
+
+col_volcano <- brewer.pal(4, name = "Set1")
+col_volcano[1] <- "#DDDDDD" #' Grey
+col_volcano_Trans <- paste0(col_volcano, 80)
+
+
+
+volcanoplotFunction <- function(pval, coef, pLimit, foldLimit, Title){
+
+#' The filters for pvalue and fold increase is defined
+colorFilterLowP <- as.matrix(pval) < pLimit
+colorFilterHighFold <- abs(coef) > foldLimit
+
+#' The filter for coloring the points is made
+colorFilter <- 1 * colorFilterLowP
+colorFilter[colorFilterHighFold] <- 2
+colorFilter[colorFilterHighFold * colorFilterLowP == 1] <- 3
+colorFilter <- colorFilter + 1
+
+plot(coef, -log10(pval), cex = 0.6, pch = 16, main = Title,
+  col = col_volcano_Trans[colorFilter], ylab = expression(log[2] ~ p[BH]-value), 
+  xlab = expression(log[2] ~ fold ~ change))
+
+abline(h = -log10(pLimit))
+abline(v = c(-foldLimit, foldLimit))
+legend("bottomleft", c("non-Significant", "lowP", "Highfold", "Significant"),
+col = col_volcano, pch = 16, bg = "white")
+     
+}
+
+
+
+```
+
+
+The differences between male and female are found within each of the matrices.
+Using a multiple linear model. No confounding factors are included.
+
+
+```{r sex-fit-function}
+
+#' The new fit function is defined
+fitlmSexFunction <- function(x, dataMat, model = conc ~ source, weights = NULL){
+    dataMat <- cbind(conc = x, as.data.frame(dataMat))
+    mdl <- lm(model, data = dataMat)
+    smry <- data.frame(summary(mdl)$coefficients)
+        Output <- c(coef = smry["sexM", 1], pvalue =  smry["sexM", 4])
+    names(Output) <- c("coef.sexM", "pvalue.sexM")
+    Output
+}
+
+#' The rowdata of vamspos is put into the result matrix. Likewise the imputed data
+#' is redefined into the container Data
+res_matrix_pos <- rowData(SemiTargeted)
+Data <- log2(assays(SemiTargeted)$Imputed)[, ]
+
+#' A for loop in which each of the matrices are are passed to the above function
+for (src in TestedSourcenames) {
+  fitMatrix <- t(apply(Data[, which(SemiTargeted$source == src)], 1,
+    fitlmSexFunction, dataMat = colData(SemiTargeted)
+    [which(SemiTargeted$source == src), ], model = conc ~ sex))
+
+#' The p-value is adjusted
+  adj.pvalue.sexM <- p.adjust(fitMatrix[, "pvalue.sexM"], method = "BH")
+  fitMatrix <- cbind(fitMatrix, adj.pvalue.sexM)
+#' The column names are changed from sexM, to the current matrix being prossesed
+  colnames(fitMatrix) <- sub("sexM", src, colnames(fitMatrix))
+#' The new fit is bound to the result matrix
+  res_matrix_pos<- cbind(res_matrix_pos, fitMatrix)
+
+#' For reasons of aesthetics, the pvalue and coeffient is defined as variables 
+#' before being passed to the volcano plot function
+  pval <- res_matrix_pos[, paste0("adj.pvalue.", src)]
+  coef <- res_matrix_pos[, paste0("coef.", src)]
+  volcanoplotFunction(pval, coef, pLimit = 0.01, foldLimit = 2, 
+    Title = paste0("Volcano Plot, of Male vs Female in ", src))
+}
+
+
+
+
+```
+
+Surprisingly not a single feature are found to be significant. Some have 
+fold changes above 2, but none have an adjusted p-value below 0.01.
+The most extreme matrix is the RBC. Here almost all the features have a p-value
+effectively equivalent to 1.
+
+Histograms of the nonadjusted values are made as well.
+
+```{r Histogramofpvalues, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values in each of the matrices of male vs female. The histograms generally show somewhat few significant features, especially for RBC"}
+#' Histograms of each of the sources are made in a for loop
+for (src in TestedSourcenames) {
+    hist(res_matrix_pos[, paste0("pvalue.", src)],
+         main = paste0("pvalue. of Male vs Female in ", src),
+         xlab = "p-value")
+}
+
+```
+
+Looking at the histograms for the unadjusted pvalues, it is also evident that,
+compared to the inter-matrix changes, few significant features are found.
+Furthermore confounding effects may be present, as the pvalues are not uniformly
+distributed.
+
+```{r feature-count-table-no-confounding}
+
+#' The sum of unadjusted pvalues above 0.01 are found made put into a table
+tableSums <- c()
+for (src in TestedSourcenames) {
+  tableSums <- cbind(tableSums, sum(res_matrix_pos[, paste0("pvalue.", src)] < 0.01))
+}
+names(tableSums) <- TestedSourcenames
+cpt <- paste0("Number of features with a nonadjusted pvalue below 0.01 detected
+              in each matrix")
+pandoc.table(tableSums, style = "rmarkdown", caption = cpt)
+
+
+```
+As seen here, most significant features are found in the three sources
+containing plasma with the most in the plasma sample itself. This is not
+surprising as the plasma is where we would expect to see differences between
+genders.
+The same analysis is done again, this time with the only other known variable,
+age, as a confounding factor.
+
+```{r sex-fit-function-confounding}
+
+
+#' A new result matrix for the analysis done with confounding variables are made
+res_matrix_pos_Conf <- rowData(SemiTargeted)
+Data <- log2(assays(SemiTargeted)$Imputed)[, ]
+
+#' As before #A for loop in which each of the matrices are are passed to the above function
+for (src in TestedSourcenames) {
+fitMatrix <- t(apply(Data[, which(SemiTargeted$source == src)], 1,
+  fitlmSexFunction, dataMat = colData(SemiTargeted)
+  [which(SemiTargeted$source == src), ], model = conc ~ sex + age))
+
+#' The p-value is adjusted
+adj.pvalue.sexM <- p.adjust(fitMatrix[, "pvalue.sexM"], method="BH")
+fitMatrix <- cbind(fitMatrix, adj.pvalue.sexM)
+
+#' The column names are changed from sexM, to the current matrix being investigated.
+colnames(fitMatrix) <- sub("sexM", src, colnames(fitMatrix))
+#' The new fit is bound to the result matrix
+res_matrix_pos_Conf<- cbind(res_matrix_pos_Conf, fitMatrix)
+
+#' For reasons of aesthetics, the pvalue and coeffient is defined as variables 
+#' before being passed to the volcano plot function
+pval <- res_matrix_pos_Conf[, paste0("adj.pvalue.", src)]
+coef <- res_matrix_pos_Conf[, paste0("coef.", src)]
+volcanoplotFunction(pval, coef, pLimit = 0.01, foldLimit = 2, 
+  Title = paste0("Volcano Plot, of Male vs Female in ", src))
+}
+
+
+
+
+```
+Since the only other possible confounding factor available is the age, which is 
+somewhat evenly distrubted among genders it is not surprising that we don't find
+a big effect of including it. Although we do find some effect.
+
+A histrogram of the non-adjusted values are made as well.
+```{r HistogramofpvaluesConfounding, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values in each of the matrices of male vs female. The histograms generally show somewhat few significant features, especially for RBC"}
+
+#' Histograms for the pvalues of the different matrices are made in a for loop.
+for (src in TestedSourcenames) {
+    hist(res_matrix_pos_Conf[, paste0("pvalue.", src)],
+         main = paste0("pvalue. of Male vs Female in ", src), xlab = "p-value")
+}
+
+ ages <- split(SemiTargeted$age, SemiTargeted$sex)
+
+ hist(ages$F, col=rgb(1,0.1,0.1,0.5),xlim=c(25,55),breaks = 30)
+ hist(ages$M, col=rgb(0.1,1,0.1,0.5),xlim=c(25,55),breaks = 30, add= T)
+
+```
+
+The distributions mostly look the same, 
+
+These are counted in the below table
+
+```{r feature-count-table-confounding}
+#' The sum of unadjusted pvalues above 0.01 are found made put into a table
+tableSums <- c()
+for (src in TestedSourcenames) {
+  tableSums <- cbind(tableSums,
+    sum(res_matrix_pos_Conf[, paste0("pvalue.", src)] < 0.01))
+}
+names(tableSums) <- TestedSourcenames
+cpt <- paste0("Number of features with a nonadjusted pvalue below 0.01 detected
+  in each matrix")
+pandoc.table(tableSums, style = "rmarkdown", caption = cpt)
+
+
+```
+
+A surprisingly big difference is seen, plasma halves from 7 to 3 and venous
+loses all significance, going from 7 to 0
+
+The adjusted and unadjusted pvalue, and the coefficients in terms of 
+differentiating between male and female along with the retention time and
+the mass/charge ratio for each feature in each matrix is sent to "Output" and
+exported to "Output/Res-sex-pos-semtar.txt"
+
+
+```{r Export}
+
+#' Each of the subtypes in the fit is defined as a seperate variable 
+#' and then exported
+OutputAdjPval <- res_matrix_pos[, paste0("adj.pvalue.", c(TestedSourcenames))]
+OutputPval <- res_matrix_pos[, paste0("pvalue.", c(TestedSourcenames))]
+OutputCoef <- res_matrix_pos[, paste0("coef.", c(TestedSourcenames))]
+OutputMzRt <- cbind(res_matrix_pos$rtmed, res_matrix_pos$mzmed)
+colnames(OutputMzRt) <- c("Retention time","mass/charge")
+
+Output <- as.data.frame(c(OutputAdjPval, OutputPval, OutputCoef, OutputMzRt))
+Output <- cbind(row.names(res_matrix_pos), Output)
+names(Output)[1] <- "FeatureID"
+
+Output <- cbind(Output, rowData(SemiTargeted)[,c("name", "mass", "mz_diff_ppm"
+        ,"rt","rt_diff", "adduct" )])
+
+write.table(Output,"Output/Res-sex-pos-semtar.txt", sep = "\t", row.names = FALSE)
+
+```
+
+## All Matrices Combined
+
+Since the differences within each matrix were not clear enough to give a
+definitive answer. It was decided to test the gender differences across all
+matrices, but adjusted for the matrix differences.
+
+
+```{r Linear-fit-combined}
+
+#' The rowdata of vamspos is put into the result matrix. Likewise the imputed data
+#' is redefined into the container Data
+res_matrix_pos_All <- rowData(SemiTargeted)
+Data <- log2(assays(SemiTargeted)$Imputed)[, ]
+
+fitMatrix <- t(apply(Data[, ], 1, fitlmSexFunction, 
+  dataMat = colData(SemiTargeted)[, ], model = conc ~ sex + source + age))
+
+#' The p-value is adjusted
+adj.pvalue.sexM <- p.adjust(fitMatrix[, "pvalue.sexM"], method = "BH")
+fitMatrix <- cbind(fitMatrix, adj.pvalue.sexM)
+#' The new fit is bound to the result matrix
+res_matrix_pos_sexM<- cbind(res_matrix_pos, fitMatrix)
+
+#' For reasons of aesthetics, the pvalue and coeffient is defined as variables 
+#' before being passed to the volcano plot function
+pval <- res_matrix_pos_sexM[, "adj.pvalue.sexM"]
+coef <- res_matrix_pos_sexM[, "coef.sexM"]
+volcanoplotFunction(pval, coef, pLimit = 0.01, foldLimit = 2, 
+  Title = paste0("Volcano Plot, of Male vs Female"))
+
+```
+
+The model made from the combined matrices look different from the model made
+on the individual matrices. Interestingly, Multiple samples with an adjusted 
+p-values below 0.01 were found, but no feature with a fold change
+above 2. This is in contrast to the individual models, where some features with
+a large fold change, but no significant p-values were found.
+
+As before, a histogram of the unadjusted p-values are made.
+
+```{r HistogramofpvaluesNoConfounding, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values in each of the matrices of male vs female. The histograms generally show somewhat few significant features, especially for RBC"}
+
+#' Histograms for the pvalues of the combined matrices are made.
+
+hist(res_matrix_pos_sexM[, "pvalue.sexM"],
+  main = paste0("pvalue. of Male vs Female"), xlab = "p-value")
+
+
+```
+
+The histogram resembles the one seen for the capillary. With a peak of around
+40, and a very steep decrease. This indicates that the effect of confounding 
+values are likely to be minor.
+
+The features with an unadjusted pvalue below 0.01 are summed in the table below.
+
+```{r feature-count-table-all}
+#' The sum of unadjusted pvalues above 0.01 are found made put into a table
+tableSums <- sum(res_matrix_pos_sexM[,"pvalue.sexM"] < 0.01)
+names(tableSums) <- "Features"
+
+cpt <- paste0("Number of features with a nonadjusted pvalue below 0.01")
+pandoc.table(tableSums, style = "rmarkdown",
+             caption = cpt)
+
+
+```
+
+16 features were found to have unadjusted p-values below 0.01. This is more than
+double than any of the individual matrices by themselves.
+
+# Session information
+
+```{r sessionInfo}
+devtools::session_info()
+```
+
+# References
