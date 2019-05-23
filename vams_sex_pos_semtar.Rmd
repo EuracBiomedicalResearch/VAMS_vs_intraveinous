@@ -323,7 +323,7 @@ sex <- vams_pos_semtar$sex
 source <- vams_pos_semtar$source
 age <- vams_pos_semtar$age
 #' Define the design of the study
-dsgn <- model.matrix(~ 0 + sex : source + age)
+dsgn <- model.matrix(~ 0 + sex : source)
 colnames(dsgn) <- sub(":", ".", colnames(dsgn), fixed = TRUE)
 
 #' Fit the linear model
