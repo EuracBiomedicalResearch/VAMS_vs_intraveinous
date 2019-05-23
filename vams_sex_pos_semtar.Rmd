@@ -218,7 +218,8 @@ sig_count <- rowSums(
 sig_fts <- rownames(res_sex_pos_sep)[sig_count > 0]
 sig_fts <- sig_fts[order(sig_count[sig_fts], decreasing = TRUE)]
 
-T <- res_sex_pos_sep[sig_fts, c("mzmed", "rtmed", "name", "coef.capillary.sexM",
+T <- res_sex_pos_sep[sig_fts, c("mzmed", "rtmed", "name", "QC_rsd",
+                                "coef.capillary.sexM",
                                 "coef.plasma.sexM", "coef.RBC.sexM",
                                 "coef.venous.sexM", "adj.pvalue.capillary.sexM",
                                 "adj.pvalue.plasma.sexM", "adj.pvalue.RBC.sexM",
@@ -394,7 +395,8 @@ sig_count <- rowSums(
 sig_fts <- rownames(res_sex_pos)[sig_count > 0]
 sig_fts <- sig_fts[order(sig_count[sig_fts], decreasing = TRUE)]
 
-T <- res_sex_pos[sig_fts, c("mzmed", "rtmed", "name", "coef.capillary.sexM",
+T <- res_sex_pos[sig_fts, c("mzmed", "rtmed", "name", "QC_rsd",
+                            "coef.capillary.sexM",
                             "coef.plasma.sexM", "coef.RBC.sexM",
                             "coef.venous.sexM", "adj.pvalue.capillary.sexM",
                             "adj.pvalue.plasma.sexM", "adj.pvalue.RBC.sexM",
