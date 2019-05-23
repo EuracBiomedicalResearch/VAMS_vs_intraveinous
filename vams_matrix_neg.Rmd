@@ -272,6 +272,7 @@ to three-fold lower than the abundance of *common* features. Thus many features
 might appear to be matrix specific because their abundance is below the
 detection limit in other matrices.
 
+# *Quantitative* data analysis
 
 ## Grouping samples based on metabolite abundances
 
@@ -371,47 +372,7 @@ are almost identical. The differences are however very minor, so it is unlikely
 to have had much of an effect.
 
 
-
-# Unsupervised modelling
-
-A PCA of the samples, based on the features which for all the sources are found
-in at least 30% of the samples within that source. This means that all features 
-specific for a matrix is excluded. Thus it is expected that the seperation will 
-be much smaller than the earlier PCA plot, where matrix specific features would 
-naturally be a large part of the variation seen.
-
-Note also that this PCA is performed on the actual concentrations without log2
-transformation or scaling. PCA separation will thus mostly be driven by features
-showing large differences.
-
-```{r PCAOfAbundances, fig.cap = "PCA of all common features by abundance. In plot showing the 1st and 2nd dimension, 6 outliers are found. Some difference by martrix is seen as well, with the capillary being separated, this is also seen in the 3rd dimension.", echo = FALSE, fig.path = IMAGE_PATH}
-
-#' Note that this is done using data for which log10 has not been taken, if this is done the outliers are not found
-#' A PCA is performed of the samples.
-pc <- prcomp(t(assay(vams_neg, "imputed")[feats_common, ]),
-             scale = FALSE, center = TRUE)
-pchs <- ifelse(vams_neg$sex == "F", 21, 22)
-
-par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
-plot_pca(pc, pc_x = 1, pc_y = 2, col = paste0(col_source[vams_neg$source], "ce"),
-         bg = paste0(col_source[vams_neg$source], 60), pch = pchs, cex = 1.5)
-legend("topleft", col = col_source, legend = names(col_source), pch = 16)
-plot_pca(pc, pc_x = 3, pc_y = 4, col = paste0(col_source[vams_neg$source], 80),
-         bg = paste0(col_source[vams_neg$source], 40), pch = pchs, cex = 1.5)
-
-
-```
-
-As with the positive mode, the plasma easily separate from the other samples, 
-The seperation is however stronger in this case, and in the first dimension as 
-opposed to the second. Likewise the venous separate to a lesser extent in the 
-first dimension. The capillary and the RBC separate to some extent from one 
-another in the second dimension.
-The thrid and fourth dimension does not seem to hold any information.
-
-# Supervised modelling
-
-## Linear Model
+## Differential abundance analysis
 
 In this analysis we fit the regression model to log2 transformed abundances
 (including imputed values) of each feature and extract the coefficients from the
