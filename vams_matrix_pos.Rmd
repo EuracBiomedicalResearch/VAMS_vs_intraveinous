@@ -646,7 +646,7 @@ and RBC being different.
 
 Plots showing the distributions of the matrixes based on m/z were made.
 
-```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values (left) or retention time (right) for detected features in a matrix.", echo = FALSE, fig.width = 12, fig.height = 6}
+```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values (left) or retention time (right) for detected features in a matrix.", echo = FALSE, fig.width = 12, fig.height = 6, fig.path = IMAGE_PATH}
 
 #' Distributions of mz values for each matrix.
 par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1, 1))
@@ -695,7 +695,7 @@ seconds.
 Next we evaluate the distribution of m/z and retention times for the features
 with significant differences in abundances compared to capillary samples.
 
-```{r mzSignificant, fig.cap = "Distributions of m/z values (left) and retention times (right) for features with significant different abundances compared to the levels in capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6}
+```{r mzSignificant, fig.cap = "Distributions of m/z values (left) and retention times (right) for features with significant different abundances compared to the levels in capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6, fig.path = IMAGE_PATH}
 par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1, 1))
 #' m/z
 plot(density(res_matrix_pos$mzmed, na.rm = TRUE),
@@ -746,7 +746,7 @@ suprisingly mostly different in the high range (200-220 seconds).
 Next we evaluate over- and under-represented features (compared to capillary
 samples) separately.
 
-```{r mzCountsSignificant, fig.cap = "Distribution of m/z values (left) and retention time (right) for significant features with a higher or lower abundance compared to capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6}
+```{r mzCountsSignificant, fig.cap = "Distribution of m/z values (left) and retention time (right) for significant features with a higher or lower abundance compared to capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6, fig.path = IMAGE_PATH}
 
 par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1.5, 1))
 plot(x = 1, y = 1, pch = NA, xlim = c(50, 1100), ylim = c(-100, 100),

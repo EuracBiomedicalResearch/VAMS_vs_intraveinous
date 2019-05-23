@@ -384,7 +384,7 @@ Note also that this PCA is performed on the actual concentrations without log2
 transformation or scaling. PCA separation will thus mostly be driven by features
 showing large differences.
 
-```{r PCAOfAbundances, fig.cap = "PCA of all common features by abundance. In plot showing the 1st and 2nd dimension, 6 outliers are found. Some difference by martrix is seen as well, with the capillary being separated, this is also seen in the 3rd dimension.", echo = FALSE}
+```{r PCAOfAbundances, fig.cap = "PCA of all common features by abundance. In plot showing the 1st and 2nd dimension, 6 outliers are found. Some difference by martrix is seen as well, with the capillary being separated, this is also seen in the 3rd dimension.", echo = FALSE, fig.path = IMAGE_PATH}
 
 #' Note that this is done using data for which log10 has not been taken, if this is done the outliers are not found
 #' A PCA is performed of the samples.
@@ -565,7 +565,7 @@ and RBC being different.
 
 Plots showing the distributions of the matrixes based on m/z were made.
 
-```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values (left) or retention time (right) for detected features in a matrix.", echo = FALSE, fig.width = 12, fig.height = 6}
+```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values (left) or retention time (right) for detected features in a matrix.", echo = FALSE, fig.width = 12, fig.height = 6, fig.path = IMAGE_PATH}
 
 #' Distributions of mz values for each matrix.
 par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1, 1))
@@ -605,7 +605,7 @@ retention time region.
 Next we evaluate the distribution of m/z and retention times for the features
 with significant differences in abundances compared to capillary samples.
 
-```{r mzSignificant, fig.cap = "Distributions of m/z values (left) and retention times (right) for features with significant different abundances compared to the levels in capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6}
+```{r mzSignificant, fig.cap = "Distributions of m/z values (left) and retention times (right) for features with significant different abundances compared to the levels in capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6, fig.path = IMAGE_PATH}
 par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1, 1))
 #' m/z
 plot(density(res_matrix_neg$mzmed, na.rm = TRUE),
@@ -651,7 +651,7 @@ distribution at at low rt (0-100) then like venous it is underrepresentated at
 Next we evaluate over- and under-represented features (compared to capillary
 samples) separately.
 
-```{r mzCountsSignificant, fig.cap = "Distribution of m/z values (left) and retention time (right) for significant features with a higher or lower abundance compared to capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6}
+```{r mzCountsSignificant, fig.cap = "Distribution of m/z values (left) and retention time (right) for significant features with a higher or lower abundance compared to capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6, fig.path = IMAGE_PATH}
 
 par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1.5, 1))
 plot(x = 1, y = 1, pch = NA, xlim = c(50, 1100), ylim = c(-100, 100),
