@@ -1,11 +1,58 @@
-# Testing how a semi-targeted analysis could be performed
+---
+title: "Matrix comparison, semi-targeted analysis, negative polarity"
+author: "Søren Fjelstrup, Chiara Volani, Giuseppe Paglia and Johannes Rainer"
+graphics: yes
+output:
+  BiocStyle::html_document:
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
 
-Here we start from the list of standards and identify features potentially
-matching these and subset the data to perform a *semi-quantitative*
-analysis. Alternatively we could start from the features, perform the annotation
-there based on m/z and fine-map using the standards (i.e. for features matching
-the mass of a standard determine whether it could be this compound based on the
-standard's approximate retention time).
+```{r biocstyle, echo = FALSE, results='hide', message = FALSE}
+library(BiocStyle)
+BiocStyle::markdown()
+```
+
+**Modified**: `r file.info("vams_matrix_neg_semtar.Rmd")$mtime`<br />
+**Compiled**: `r date()`
+
+```{r settings, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
+#' Set general options
+options(useFancyQuotes = FALSE)
+set.seed(18011977)
+
+#' Define paths:
+filename <- "vams_matrix_neg_semtar"
+#' Path to save the images; remove all old images.
+IMAGE_PATH <- paste0("images/", filename, "/")
+if (file.exists(IMAGE_PATH)) 
+    unlink(IMAGE_PATH, recursive = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE)
+#' Path to store RData files
+RDATA_PATH <- paste0("data/RData/", filename, "/")
+if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
+
+#' Get the number of cpus allocated or fall back to 3
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+```
+
+# Introduction
+
+In this document we evaluate differences between the 4 matrices *venous*,
+*capillary*, *plasma* and *RBC* using a *semi-targeted* approach: instead of
+analyzing the full (untatgeted) data set (described in
+[vams_matrix_neg.html](vams_matrix_neg.html)) we restrict the analysis to
+features potentially representing a set of previously measured standards. The
+matching of features to these standards is done based on the m/z of the expected
+adduct and the proximity of the features' retention time to the expected
+retention time of the standards.
 
 Below we load all required libraries and the data.
 
@@ -28,11 +75,27 @@ names(col_source) <- c("RBC",           #' red
                        "venous")        #' orange
 
 load("data/RData/vams_normalization_neg/vams_neg.RData")
-#' find path
-load("data/RData/vams_normalization/grpDta_neg.RData")
 
 ```
 
+Below we impute missing feature intensities. These are replaced with half of the
+feature's smallest value in all samples adding a small standard deviation
+thus avoiding constant values.
+
+```{r Imputation-of-Values}
+assays(vams_neg)$imputed <- imputeRowMinRand(
+                    assay(vams_neg), min_fraction = 1/2,
+                    sd_fraction = 1, abs = TRUE)
+
+```
+
+
+# Identify features potentially representing measured standard compounds
+
+Below we load a table containing the measured retention times (in water and
+serum) for the set of standards. After that we load a database containing the
+annotations from HMDB (version 4.1) and use this to update/fix the exact
+(monoisotopic) masses of the standards.
 Next we load the measured retention times for the standards.
 
 ```{r standards}
@@ -43,25 +106,22 @@ std <- read.table(paste0(url, "data/standards_rtime.txt"), header = TRUE,
 #' Subset to negative polarity
 std <- std[std$polarity == "NEG", ]
 
-```
-
-Next we load the `CompDb` for HMDB version 4.1.
-
-```{r redefine-mz, message = FALSE}
 library(CompoundDb)
 cdb <- CompDb("local_data/CompDb.Hsapiens.HMDB.4.1.sqlite")
-```
 
-
-```{r match-features}
-#' First ensure we have the correct masses.
+#' Ensure we have the correct masses.
 masses <- vapply(std$hmdb_id, function(z)
     compounds(cdb, column = "mass", filter = ~ compound_id == z)$mass,
     numeric(1))
 std$mass <- masses
 
+```
 
-#' identify all features matching the masses and adducts
+Next we retrieve annotations from the database for each standard matching the
+m/z of expected adducts accepting a difference between m/z of 10 ppm.
+
+```{r match-features, message = FALSE, warning = FALSE}
+#' Identify all features matching the masses and adducts
 res <- lapply(seq_len(nrow(std)), function(i) {
     match_features(mass = std$mass[i], rt = std$rt[i],
                    object = rowData(vams_neg),
@@ -69,7 +129,7 @@ res <- lapply(seq_len(nrow(std)), function(i) {
                    ppm = 10)
 })
 
-#' combine with the std table
+#' Combine with the std table
 std_features <- cbind(
     std[rep(seq_len(nrow(std)), vapply(res, nrow, integer(1))), ],
     do.call(rbind, res))
@@ -98,7 +158,7 @@ rownames(std_features) <- NULL
 
 ```
 
-Next we restrict feature assignments based on the difference between the
+At last we restrict feature assignments based on the difference between the
 expected and observed retention time:
 
 - For standards with retention times measured in water: the retention time
@@ -115,104 +175,66 @@ serum <- grepl("serum", std_features$source_id)
 std_features <- std_features[(serum & abs(std_features$rt_diff) < 30) | !serum, ]
 ```
 
-We could now use this feature mapping to perform a *semi-targeted* analysis.
+In total `r nrow(std_features)` features were annotated in that way to the 
+`r length(unique(std_features$hmdb_id))` unique standards. We have thus for some
+standards a mapping to multiple features, e.g. representing different adducts of
+the same metabolite, or simply wrong assignments.
 
+At last we collapse multiple annotations of the same feature to many standards
+into a single field which we will then use in the annotation of the result
+tables.
 
-```{r Subsetting-of-SemiTargeted}
+```{r collapse-multimaps}
 
-
-std_features <- std_features[!duplicated(std_features[,"feature_id"]), ]
-
-SemiTargeted <- vams_neg[std_features[,"feature_id"], ]
-rowData(SemiTargeted) <- cbind(rowData(SemiTargeted), std_features)
-
-
-save(SemiTargeted,
-     file = "data/RData/vams_normalization/SemiTargeted_neg.RData")
-```
-
-The values are imputed to allow their later usage in the linear model.
-This is needed as the later models are run on one matrix at a time.
-This means that if the imputation is not done, rows will be dropped, and the
-final matrix will not fit.
-The data is then exported for use in the gender difference analysis.
-
-```{r Imputation-of-Values}
-assays(SemiTargeted)$Imputed <- imputeRowMinRand(
-                    assay(SemiTargeted), min_fraction = 1/2,
-                    sd_fraction = 1, abs = TRUE)
+tmp <- split(std_features, std_features$feature_id)
+std_features_ann <- do.call(rbind, lapply(tmp, function(z) {
+    c(hmdb_id = paste(z$hmdb_id, collapse = ";"),
+      name = paste(z$name, collapse = ";"))
+}))
 
 ```
 
-## Grouping samples based on metabolite abundances
+# Filtering of the data set
 
-We perform a principal component analysis to evaluate the grouping of the
-samples/matrices in our experiment.
+We next subset the full data set consisting of abundances of `r nrow(vams_pos)`
+features to the features potentially measuring the standards.
 
-```{r pca-rsd, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 5, fig.cap = "PCA grouping samples based on (centered) feature abundances. Only features with an RSD < 30% in QC samples were used. Circles represent samples from female, rectangles from male participants. Missing values were replaced with half of the feature's minimal abundance adding also a small random variance."}
-#' RSD < 30% in QC samples
-tmp <- log2(assay(SemiTargeted, "Imputed"))
-pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
-pchs <- ifelse(SemiTargeted$sex == "F", 21, 22)
-
-par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
-plot_pca(pc, pc_x = 1, pc_y = 2, 
-         col = paste0(col_source[SemiTargeted$source], "ce"),
-         bg = paste0(col_source[SemiTargeted$source], 60),
-         pch = pchs, cex = 1.5)
-
-legend("top", col = col_source, legend = names(col_source), pch = 16)
-
-plot_pca(pc, pc_x = 3, pc_y = 4,
-         col = paste0(col_source[SemiTargeted$source], "ce"),
-         bg = paste0(col_source[SemiTargeted$source], 60),
-         pch = pchs, cex = 1.5)
-
+```{r filter, message = FALSE, warning = FALSE}
+vams_neg_semtar <- vams_neg[rownames(std_features_ann), ]
+rowData(vams_neg_semtar) <- cbind(rowData(vams_neg_semtar), std_features_ann)
 ```
 
-The PCA above was performed on the identified features (about 170). Missing
-values were replaced with half of the feature's smallest abundance adding also a
-small random value based on the features' standard deviations. Despite
-containing only about 1% of the features, the clustering of the samples are
-almost identical the ones made using the entire dataset.
+# *Qualitative* data analysis
+
+Similar to the corresponding section in the analysis on the full data set
+[vams_matrix_neg.html](vams_matrix_neg.html) we perform first a *qualitative*
+analysis in which we simply evaluate whether features are *present* or *absent*
+in a matrix.
 
 ## Identifying detected/present features for each matrix
 
 We next aim to identify *present* (detected) features for each matrix which
-allows to perform qualitative comparisons between the matrices. we evaluate
-whether a feature is detected in most samples of a matrix or not, i.e. whether a
-chromatographic peak was identified or not. This information is encoded into the
-*weight* of a measurement (see Introduction for the definition of the weights):
-a chromatographic peak was detected for a feature in at least one of the two
-replicates if the weight is either 1, 0.9, 0.7 or 0.5. Below we use these
-weights to determine the proportion of samples for each matrix in which a
-chromatographic peak was identified.
+allows to perform qualitative comparisons between the matrices. We use the same
+approach described in the analysis of the full data (see
+[vams_matrix_neg.Rmd](vams_matrix_neg.Rmd), respectively the compiled html/pdf
+file for details) and hence don't show the code to perform the analysis here.
 
-```{r proportion-detected, message = FALSE, warning = FALSE}
+```{r proportion-detected, message = FALSE, warning = FALSE, echo = FALSE}
 wght_detected <- c(1, 0.9, 0.7, 0.5)
 
 #' Determine for each feature the proportion of samples (per matrix) in
-#' which a peak was detected/
-prop_detected <- apply(assay(SemiTargeted, "weights"), 1, function(x, grps) {
+#' which a peak was detected
+prop_detected <- apply(assay(vams_neg_semtar, "weights"), 1, function(x, grps) {
   vapply(split(x, grps), function(z) sum(z %in% wght_detected) / length(z),
-           numeric(1)) }, grps = vams_neg$source)
+           numeric(1)) }, grps = vams_neg_semtar$source)
 prop_detected <- t(prop_detected)
-```
 
-Below we calculate first the ratio between the proportion of samples in which a
-peak was detected and the maximal proportion for that feature and subsequently
-define the absent/present calls for each feature in each matrix based on these
-values.
-
-Note that the present analysis bases on features with a detected peak in at
-least 1/3 of samples.
-
-```{r present-absent-call, message = FALSE, warning = FALSE}
 #' Calculate ratio between proportion and max proportion
 prop_ratio <- (1 / rowMax(prop_detected)) * prop_detected
 
 #' Define present/absent calls
 present_call <- prop_ratio > 1/3
+
 ```
 
 ## Comparison of numbers of features detected in each matrix
@@ -225,31 +247,39 @@ barplot below.
 par(mfrow = c(1, 1), mar = c(7, 4.5, 2, 0.5))
 barplot(colSums(present_call), col = col_source[colnames(present_call)],
         main = "Detected features", ylab = "count", las = 2)
+
 ```
 
-The distributions of contained samples is interesting the amount of features
-found in RBC and venous are almost identical, with the plasma having
-about 20% fewer, and capillary 15% more.
+Similarly to the analysis on the full data set, the fewest number of features
+was detected in plasma samples. The highest number of standards was detected in
+capillary samples (for the full data set it was in venous samples). The results
+are summarized in the table below.
 
 ```{r feature-count-table, results = "asis", echo = FALSE}
 cpt <- paste0("Number of features detected in each matrix")
-pandoc.table(colSums(present_call), style = "rmarkdown", caption = cpt)
+pandoc.table(colSums(present_call), style = "rmarkdown",
+             caption = cpt)
+
 ```
+
+
 ## Matrix-specific features and features present in all matrices
 
-We next compare the overlaps and intersects of features being *present* in the 4
-matrices.
+We next compare the overlaps and intersects of features for standards being
+*present* in the 4 matrices.
+
 ```{r upsetr-plot, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Visualisation of the feature intersects between the 4 matrices.", fig.width = 10, fig.height = 8}
 ints <- apply(present_call, MARGIN = 2, which)
 upset(fromList(ints), order.by = "freq",
       sets.bar.color = col_source[c("venous", "capillary", "RBC", "plasma")])
 ```
 
-About half of the features are shared between all matrices, with about 30% being
-shared between all but the plasma matrix. Only few samples are unique to a
-matrix.
+As before, most features are shared between all matrices, followed by all
+matrices containing cell content (i.e. all except plasma). Only very few samples
+are unique to a matrix. We next evaluate the average abundance of common or
+matrix specific features.
 
-```{r matrix-specific-features}
+```{r matrix-specific-features, echo = FALSE}
 feats_common <- rownames(present_call)[rowSums(present_call) == 4]
 feats_plasma <- rownames(present_call)[rowSums(present_call) == 1 &
                                        present_call[, "plasma"]]
@@ -261,34 +291,77 @@ feats_capillary <- rownames(present_call)[rowSums(present_call) == 1 &
                                           present_call[, "capillary"]]
 ```
 
-The features present in either all matrices, or all of a specific matrix is
-defined.
-
-
-```{r matrix-specific-abundance, message = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of average (across samples) abundances of common and matrix-specific features.", fig.width = 6, fig.height = 8}
+```{r matrix-specific-abundance, message = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of average (across samples) abundances of common and matrix-specific features.", fig.width = 6, fig.height = 8, echo = FALSE}
 ints <- list(
-    common = rowMeans(assay(SemiTargeted)[feats_common, ]),
-    plasma = rowMeans(assay(SemiTargeted)[feats_plasma,
-                                      SemiTargeted$source == "plasma"]),
-    venous = rowMeans(assay(SemiTargeted)[feats_venous,
-                                      SemiTargeted$source == "venous"]),
-    RBC = rowMeans(assay(SemiTargeted)[feats_RBC,
-                                   SemiTargeted$source == "RBC"]),
-    capillary = rowMeans(assay(SemiTargeted)[feats_capillary,
-                                         SemiTargeted$source == "capillary"])
+    common = rowMeans(assay(vams_neg_semtar)[feats_common, ]),
+    plasma = rowMeans(assay(vams_neg_semtar)[feats_plasma,
+                                             vams_neg_semtar$source == "plasma"]),
+    venous = rowMeans(assay(vams_neg_semtar)[feats_venous,
+                                         vams_neg_semtar$source == "venous"]),
+    RBC = rowMeans(assay(vams_neg_semtar)[feats_RBC,
+                                          vams_neg_semtar$source == "RBC"]),
+    capillary = rowMeans(assay(vams_neg_semtar)[feats_capillary,
+                                                vams_neg_semtar$source == "capillary"])
 )
 par(mar = c(7, 4.5, 1, 1))
 boxplot(lapply(ints, log2), varwidth = TRUE, col = col_source[names(ints)],
-  ylab = expression(log[2]~abundance), las = 2, main = "average abundance")
+        ylab = expression(log[2]~abundance), las = 2, main = "average abundance")
 grid(nx = NA, ny = NULL)
+
 ```
 
-As before, the average abundance of matrix-specific features seems to be about
-much lower than the abundance of *common* features. Thus many features might
-appear to be matrix specific because their abundance is below the detection
-limit in other matrices.
+As before, the average abundance of matrix-specific features is much lower than
+the abundance of *common* features. Thus many features might appear to be matrix
+specific because their abundance is below the detection limit in other matrices.
+
+
+# *Quantitative* data analysis
+
+Next we evaluate and compare abundance levels of features for measured standards
+between the matrices.
+
+## Grouping samples based on metabolite abundances
+
+We perform a principal component analysis to evaluate the grouping of the
+samples/matrices in our experiment.
+
+```{r pca-rsd, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 5, fig.cap = "PCA grouping samples based on (centered) feature abundances. Only features for measured standards are used. Circles represent samples from female, rectangles from male participants. Missing values were replaced with half of the feature's minimal abundance adding also a small random variance."}
+tmp <- log2(assay(vams_neg_semtar, "imputed"))
+pc <- prcomp(t(tmp), scale = FALSE, center = TRUE)
+pchs <- ifelse(vams_neg_semtar$sex == "F", 21, 22)
+
+par(mfrow = c(1, 2), mar = c(4.5, 4.5, 1, 1))
+plot_pca(pc, pc_x = 1, pc_y = 2, 
+         col = paste0(col_source[vams_neg_semtar$source], "ce"),
+         bg = paste0(col_source[vams_neg_semtar$source], 60),
+         pch = pchs, cex = 1.5)
+
+legend("top", col = col_source, legend = names(col_source), pch = 16)
+
+plot_pca(pc, pc_x = 3, pc_y = 4,
+         col = paste0(col_source[vams_neg_semtar$source], "ce"),
+         bg = paste0(col_source[vams_neg_semtar$source], 60),
+         pch = pchs, cex = 1.5)
+
+```
+
+Despite being based on only about 1% of the total features, the clustering of
+the samples are almost identical to the ones seen on the PCA of the full data
+set (see [vams_matrix_neg.html](vams_matrix_neg.html) and also
+[vams_matrix_pos.html](vams_matrix_pos.html)).
+
+
+## Differential abundance analysis
+
+We next identify features with significant differences in abundances between
+matrices. Analogous to the analysis in the full data set we use multiple
+regression for the differential abundance analysis employing a model that
+explains observed abundances on the matrix, the sex and the ID of the
+individual. 
 
 ```{r ModelforlinearmodelVSplasmanoconfounding, warning = FALSE}
+pLimit <- 0.01
+foldLimit <- 1
 SourcesTypes <- c("sourceplasma","sourceRBC","sourcevenous")
 
 #' The function for the multiple linear regression is made. This takes a numeric
@@ -308,20 +381,54 @@ fitlmFunction <- function(x, dataMat, model = conc ~ source) {
 }
 
 #' The data is log2 transformed to make it mostly gaussian in distribution  
-Data <- log2(assay(SemiTargeted))
-fitMatrix <- t(apply(Data, 1, fitlmFunction, 
-                     dataMat = as.data.frame(colData(SemiTargeted)),
-                     model = conc ~ source + sex + age))
+fitMatrix <- t(apply(log2(assay(vams_neg_semtar, "imputed")), 1,
+                     fitlmFunction, 
+                     dataMat = as.data.frame(colData(vams_neg_semtar)),
+                     model = conc ~ source + sex))
 
 #' Adjusting for multiple hypothesis testing
-p.adjusted <- apply(fitMatrix[ ,paste0("pvalue.", SourcesTypes)], 2, p.adjust, 
-                    method = "BH")
-#' The fitMatrix is appended to the rest of the data in vams_neg, making the
-#' new dataframe res_matrix_neg
-res_matrix_neg<- cbind(rowData(SemiTargeted), fitMatrix, adj = p.adjusted)
+padj <- apply(fitMatrix[ ,paste0("pvalue.", SourcesTypes)], 2, p.adjust, 
+              method = "BH")
+sign <- abs(fitMatrix[, grep("coef", colnames(fitMatrix))]) > foldLimit &
+    padj < pLimit
+colnames(sign) <- sub("coef.", "", colnames(sign), fixed = TRUE)
+#' Compile the result table
+res_matrix_neg <- cbind(rowData(vams_neg_semtar),
+                        fitMatrix,
+                        adj = padj,
+                        significant = sign)
+
 ```
 
-Histograms of each of the 3 matrixes against capillary is made.
+```{r with-limma, echo = FALSE, eval = FALSE}
+library(limma)
+
+source <- vams_neg_semtar$source
+sex <- vams_neg_semtar$sex
+dsgn <- model.matrix(~ 0 + source + sex)
+
+fit <- lmFit(log2(assay(vams_neg_semtar, "imputed")), design = dsgn)
+cntr <- makeContrasts(sourceplasma = sourceplasma - sourcecapillary,
+                      sourceRBC = sourceRBC - sourcecapillary,
+                      sourcevenous = sourcevenous - sourcecapillary,
+                      levels = dsgn)
+fit <- contrasts.fit(fit, cntr)
+fit <- eBayes(fit)
+
+padj <- apply(fit$p.value, 2, p.adjust, method = "BH")
+
+sign <- abs(fit$coefficients) > foldLimit & padj < pLimit
+
+res_matrix_posl <- cbind(rowData(vams_pos_semtar),
+                         pvalue = fit$p.value,
+                         adj.pvalue = padj,
+                         coef = fit$coefficients,
+                         significant = sign)
+
+```
+
+The distribution of raw p-values for the significance of differential abundance
+for features between a source and capillary samples is shown below.
 
 ```{r Histogramofpvalues, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p values each of the linear models against capillary. All histograms show a smooth decrease over the range of pvalues, indicating only a small possible effect from confounding factors"}
 TestedSourcenames <-  c("plasma", "RBC", "venous")
@@ -332,24 +439,15 @@ for (i in 1:3) {
          xlab = "p-value")
 }
 
-
 ```
 
-As with the full dataset most of the features are different between the
-matrices. For the higher pvalues, no permutations in the distribution is
-apparent suggesting that no additional strong confounding factors are present.
-
-The volcano plots for the linear models for each of the matrices, are produced.
-The samples significantly different samples are likewise defined.
+The results from the differential abundance analysis are visualized with volcano
+plots below.
 
 ```{r VolcanoPlotMultipleRegression, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots of each of the linear models against capillary. Benjamini-Hochberg adjusted values, against the mean differences for each feature, show a large proportion of the features are statistically significantly different between matrixes", fig.width = 12, fig.height = 4}
 #' A new color set is defined to better conform to what is need by the volcano plot
-col_volcano <- brewer.pal(4, name = "Set1")
-col_volcano[1] <- "#DDDDDD" #' Grey
-col_volcano_Trans <- paste0(col_volcano, 80)
-
-pLimit <- 0.01
-foldLimit <- 1
+col_volcano <- brewer.pal(9, name = "Set1")[c(9, 9, 9, 3)]
+names(col_volcano) <- c("all", "pLimit", "foldLimit", "significant")
 
 #' The filters for pvalue and fold increase is defined
 colorFilterLowP <- as.matrix(
@@ -363,33 +461,30 @@ colorFilter[colorFilterHighFold] <- 2
 colorFilter[colorFilterHighFold * colorFilterLowP == 1] <- 3
 colorFilter <- colorFilter + 1
 
-#' The significant samples (both high fold difference and low p-value) are
-#' defined
-sign <- colorFilterLowP & colorFilterHighFold
-#' replace the "coef" in the column names with "significant"
-colnames(sign) <- sub("adj.pvalue", "significant", colnames(sign))
-res_matrix_neg <- cbind(res_matrix_neg, sign)
-
 par(mfrow=c(1, 3), mar = c(4.3, 4.3, 1, 1))
+x_range <- range(as.matrix(
+    res_matrix_neg[, grep("^coef", colnames(res_matrix_neg))]), na.rm = TRUE)
+y_range <- range(
+    -log10(as.matrix(res_matrix_neg[, grep("^adj", colnames(res_matrix_neg))])),
+    na.rm = TRUE)
 for (i in 1:3){
-    plot(res_matrix_neg[, paste0("coef.", SourcesTypes[i])],  cex = 1.6,
-         -log10(res_matrix_neg[, paste0("adj.pvalue.", SourcesTypes[i])]),
-         pch = 16, main = paste0(TestedSourcenames[i], " vs capillary"), 
-         col = col_volcano_Trans[colorFilter[, i]], 
-         ylab = expression(log[10]~p[BH]-value), 
-         xlab = expression(log[2]~fold~change))
-    abline(h = -log10(pLimit))
-    abline(v = c(-foldLimit, foldLimit))
-    legend("top", c("non-Significant", "lowP", "Highfold", "Significant"),
-           col = col_volcano, pch = 16, bg = "white")
+    plot(3, 3, pch = NA, xlim = x_range, ylim = y_range,
+         xlab = expression(log[2]~fold~change),
+         ylab = expression(-log[10]~p[BH]~value),
+         main = paste0(TestedSourcenames[i], " vs capillary"))
+    grid(col = "#cecece20")
+    points(res_matrix_neg[, paste0("coef.", SourcesTypes[i])],
+           -log10(res_matrix_neg[, paste0("adj.pvalue.", SourcesTypes[i])]),
+           pch = 16, col = paste0(col_volcano[colorFilter[, i]], 60),
+           cex = 1.2)
+    abline(h = -log10(pLimit), col = "grey", lty = 3)
+    abline(v = c(-foldLimit, foldLimit), col = "grey", lty = 3)
 }
-
 
 ```
 
-As expected from the histograms, and the full dataset, most of the features are
-found to be statistically significant between the capillary and the other
-matrices.
+The differences between the matrices are considerable and most differences were
+found between plasma and capillary.
 
 ```{r count-table_linear_model, results = "asis", echo = FALSE}
 cpt <- paste0("Number of features with a significant difference in abundances",
@@ -397,14 +492,18 @@ cpt <- paste0("Number of features with a significant difference in abundances",
 pandoc.table(colSums(as.matrix(
     res_matrix_neg[, grep("significant", colnames(res_matrix_neg))]),
     na.rm = TRUE), style = "rmarkdown", caption = cpt)
+
 ```
 
-Out of the 168 features, approximatively 70, 50 and 50% of the features for
-Plasma, RBC and venous respectively are found to be stasticially significant.
+Most of the features were found to have statistically significant abundances
+(compared to capillary samples) for plasma, RBC and venous samples,
+respectively.
 
 ## Distribution of features
-The distributions of the features based on m/z and retention time is now plotted.
 
+Next we visualize the distributions of the m/z and retention times for features
+either found to be detected in a certain matrix or being signifcantly
+differently abundant.
 
 ```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values (left) or retention time (right) for detected features in a matrix.", echo = FALSE, fig.width = 12, fig.height = 6}
 
@@ -431,23 +530,19 @@ for (i in 2:4) {
 }
 
 ```
-The detected features look very different compared to the full dataset. As
-before for the m/z, the capillary and RBC are almost identical. The venous and
-the plasma has proportionally more low m/z, and fewer medium m/z. The targeted
-almost no features with a m/z above 400.
 
-For the retention time, The RBC and capillary are again almost identical. The
-plasma is again mostly correlating with the venous, especially in the low
-rentention times range. Mostly features with a long retention time were found.
-In the full dataset almost equivalent high and low retention times were
-recorded.
+In contrast to the full data set (but similar to semi-targeted analysis of the positive polarity data), the distribution of m/z and retention times
+for detected features of the measured standards are very similar between the
+matrices. The only observable difference is in the m/z range around 300 where we
+have an enrichment of features in capillary and RBC samples and a depletion in
+plasma samples.
 
 ```{r mzSignificant, fig.cap = "Distributions of m/z values (left) and retention times (right) for features with significant different abundances compared to the levels in capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6}
 par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1, 1))
 #' m/z
 plot(density(res_matrix_neg$mzmed, na.rm = TRUE),
      col = "#cecece", main = "Significant features",
-     xlab = "m/z", ylim = c(0, 0.015), lwd = 2)
+     xlab = "m/z", ylim = c(0, 0.01), lwd = 2)
 for (i in 1:3) {
     lines(density(
         res_matrix_neg$mzmed[res_matrix_neg[, paste0("significant.",
@@ -455,12 +550,12 @@ for (i in 1:3) {
         na.rm = TRUE), col = paste0(col_source[TestedSourcenames[i]], 80),
         lwd = 2)
 }
-legend("topright", legend=c("All features", TestedSourcenames), 
+legend("topleft", legend=c("All features", TestedSourcenames), 
        col = c("#cecece", col_source[TestedSourcenames]), pch = 16)
 #' rt
 plot(density(res_matrix_neg$rtmed, na.rm = TRUE),
      col = "#cecece", main = "Significant features",
-     xlab = "rt", ylim = c(0, 0.05), lwd = 2)
+     xlab = "rt", ylim = c(0, 0.04), lwd = 2)
 for (i in 1:3) {
     lines(density(
         res_matrix_neg$rtmed[res_matrix_neg[, paste0("significant.",
@@ -468,19 +563,18 @@ for (i in 1:3) {
         na.rm = TRUE), col = paste0(col_source[TestedSourcenames[i]], 80),
         lwd = 2)
 }
+
 ```
 
-Very little difference is found for the significant features in the m/z
-In the rentention time plot, the RBC and plasma are almost identical with the
-plasma having fewer low retention time samples and more high rentention time
-samples. This overall corresponds to what was seen in the full dataset.
+Also regarding the m/z and retention time distribution for the significant
+features all matrices are similar.
 
 ```{r mzCountsSignificant, fig.cap = "Distribution of m/z values (left) and retention time (right) for significant features with a higher or lower abundance compared to capillary samples.", echo = FALSE, fig.width = 12, fig.height = 6}
 
 par(mfrow = c(1, 2), mar = c(4.3, 4.3, 1.5, 1))
-plot(x = 1, y = 1, pch = NA, xlim = c(50, 1100), ylim = c(-10, 10),
+plot(x = 1, y = 1, pch = NA, xlim = c(50, 1100), ylim = c(-15, 15),
      xlab = "m/z", ylab = "count", main = "Significant features")
-text(x = c(50, 50), y = c(-90, 90), pos = c(4, 4),
+text(x = c(50, 50), y = c(-10, 10), pos = c(4, 4),
      label = c("lower abundance than capillary",
                "higher abundance than capillary"))
 for (src in TestedSourcenames) {
@@ -499,9 +593,9 @@ grid()
 abline(h = 0)
 legend("topright", legend = TestedSourcenames, lwd = 2, lty = 1,
        col = col_source[TestedSourcenames], inset = c(0, 0))
-plot(x = 1, y = 1, pch = NA, xlim = c(0, 250), ylim = c(-35, 35),
+plot(x = 1, y = 1, pch = NA, xlim = c(0, 250), ylim = c(-20, 20),
      xlab = "rt", ylab = "count", main = "Significant features")
-text(x = c(0, 0), y = c(-750, 750), pos = c(4, 4),
+text(x = c(0, 0), y = c(-15, 15), pos = c(4, 4),
      label = c("lower abundance than capillary",
                "higher abundance than capillary"))
 for (src in TestedSourcenames) {
@@ -521,6 +615,45 @@ abline(h = 0)
 
 ```
 
-Since so few samples are significant, it is hard to say much for these plots. The most striking in the m/z plot is how similar all the matrices are , Which was also seen in the full data set.
+Due to the small number of tested features the plots are not so informative and
+also hard to interpret. Still, no big differences are observable.
 
-In the rentention time plot the matrices are again very similar, which is in contrast to the full dataset where very large differences were seen.
+# Result object
+
+The results of this analysis are exported to the
+*vams_matrix_neg_semtar_results.xlsx* file.
+
+```{r writexl}
+library(writexl)
+write_xlsx(as.data.frame(res_matrix_neg),
+           path = "data/xls/vams_matrix_neg_semtar_results.xlsx")
+
+save(res_matrix_neg, file = paste0(RDATA_PATH, "res_matrix_neg_semtar.RData"))
+```
+
+The most important columns in the result table are:
+- `mzmed`, `mzmin`, `mzmax`: m/z of the feature.
+- `rtmed`, `rtmin`, `rtmax`: retention time window of the feature.
+- `QC_rsd`: RSD over QC samples.
+- `coef.source<matrix>`: log2 fold change of feature abundance between
+  `<matrix>` and capillary samples.
+- `pvalue.source<matrix>`: p-value representing the significance of the
+  difference in abundances between `<matrix>` and capillary samples. These are
+  raw (unadjusted) p-values and should only considered for sorting of the
+  features.
+- `adj.pvalue.source<matrix>`: p-values adjusted for multiple hypothesis
+  testing representing the significance of differential abundance.
+- `significant.source<matrix>`: logical indicating whether the feature was
+  identified to have a significant difference in abundances.
+- `present.<matrix>`: *present* call of the feature from the qualitative
+  analysis.
+
+
+# Session information
+
+```{r sessionInfo}
+devtools::session_info()
+```
+
+
+

@@ -1,5 +1,5 @@
 ---
-title: "Matrix comparison, semi-targeted analysis, Pos"
+title: "Matrix comparison, semi-targeted analysis, positive polarity"
 author: "Søren Fjelstrup, Chiara Volani, Giuseppe Paglia and Johannes Rainer"
 graphics: yes
 output:
@@ -77,12 +77,6 @@ names(col_source) <- c("RBC",           #' red
 load("data/RData/vams_normalization/vams_pos.RData")
 
 ```
-
-The values are imputed to allow their later usage in the linear model.
-This is needed as the later models are run on one matrix at a time.
-This means that if the imputation is not done, rows will be dropped, and the
-final matrix will not fit.
-The data is then exported for use in the sex comparison analysis.
 
 Below we impute missing feature intensities. These are replaced with half of the
 feature's smallest value in all samples adding a small standard deviation
@@ -465,13 +459,6 @@ colorFilter[colorFilterHighFold] <- 2
 colorFilter[colorFilterHighFold * colorFilterLowP == 1] <- 3
 colorFilter <- colorFilter + 1
 
-#' The significant samples (both high fold difference and low p-value) are
-#' defined
-sign <- colorFilterLowP & colorFilterHighFold
-#' replace the "coef" in the column names with "significant"
-colnames(sign) <- sub("adj.pvalue", "significant", colnames(sign))
-res_matrix_pos <- cbind(res_matrix_pos, sign)
-
 par(mfrow=c(1, 3), mar = c(4.3, 4.3, 1, 1))
 x_range <- range(as.matrix(
     res_matrix_pos[, grep("^coef", colnames(res_matrix_pos))]), na.rm = TRUE)
@@ -487,7 +474,7 @@ for (i in 1:3){
     points(res_matrix_pos[, paste0("coef.", SourcesTypes[i])],
            -log10(res_matrix_pos[, paste0("adj.pvalue.", SourcesTypes[i])]),
            pch = 16, col = paste0(col_volcano[colorFilter[, i]], 60),
-           cex = 0.6)
+           cex = 1.2)
     abline(h = -log10(pLimit), col = "grey", lty = 3)
     abline(v = c(-foldLimit, foldLimit), col = "grey", lty = 3)
 }
@@ -513,8 +500,9 @@ samples) for plasma, RBC and venous samples, respectively.
 
 ## Distribution of features
 
-The distributions of the features based on m/z and retention time is now
-plotted.
+Next we visualize the distributions of the m/z and retention times for features
+either found to be detected in a certain matrix or being signifcantly
+differently abundant.
 
 ```{r pValueDependencyOnmzNoconfounding, fig.cap = "Distribution of m/z values (left) or retention time (right) for detected features in a matrix.", echo = FALSE, fig.width = 12, fig.height = 6}
 
