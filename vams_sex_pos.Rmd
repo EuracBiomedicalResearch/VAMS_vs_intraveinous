@@ -102,10 +102,14 @@ similar. At present we do not pre-filter the data prior to the differential
 abundance analysis.
 
 
-# Supervised modelling
+# Differential abundance analysis
 
-## Linear Model - no confounding effects
+Next we aim to identify features with significant differences in their
+abundances between male and female individuals. We perform the analysis first
+separately for each matrix followed by a multiple regression approach on the
+full data set.
 
+## Separate analysis for each matrix
 
 ```{r volcanoplot-function, echo = FALSE}
 col_volcano <- brewer.pal(4, name = "Set1")
