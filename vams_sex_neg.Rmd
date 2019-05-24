@@ -100,9 +100,9 @@ similar. At present we do not pre-filter the data prior to the differential
 abundance analysis.
 
 
-# Supervised modelling
+# Differential abundance analysis
 
-## Linear Model - no confounding effects
+## Separate analysis for each matrix
 
 
 ```{r volcanoplot-function, echo = FALSE}
@@ -176,7 +176,7 @@ only for capillary, plasma and venous samples. Given the relatively high
 variance in RBC samples (also seen e.g. in PCA plots in
 [vams_matrix_neg.html](vams_matrix_neg.html)) this is however not unexpected.
 
-```{r sex_sep_volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed separately for each matrix. Horizontal and vertical dotted lines indicate the cut-off criteria for significance.", fig.width = 12, fig.height = 4}
+```{r sex-sep-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed separately for each matrix. Horizontal and vertical dotted lines indicate the cut-off criteria for significance.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
 xlim <- range(as.matrix(res_sex_neg_sep[, grep("^coef", colnames(res_sex_neg_sep))]))
 ylim <- range(as.matrix(res_sex_neg_sep[, grep("^adj", colnames(res_sex_neg_sep))]), pLimit)
@@ -197,7 +197,7 @@ At last we compare the top 50 features with the most significant differences
 between male and female for each matrix to evaluate whether they are shared
 between matrices.
 
-```{r sex_sep_top_50_pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
+```{r sex-sep-top-50-pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
 fts_capillary <- rownames(res_sex_neg_sep)[
     order(res_sex_neg_sep$pvalue.capillary.sexM)][1:50]
 fts_venous <- rownames(res_sex_neg_sep)[
@@ -222,7 +222,7 @@ upset(data.frame(ovlp))
 
 The overlap is surprisingly low.
 
-```{r sex_sep_export, echo = FALSE}
+```{r sex-sep-export, echo = FALSE}
 library(writexl)
 write_xlsx(as.data.frame(res_sex_neg_sep),
            path = "data/xls/vams_sex_neg_sep_results.xlsx")
@@ -280,7 +280,7 @@ res_sex_neg <- cbind(rowData(vams_neg),
 
 As before, histograms of the unadjusted p-values are made.
 
-```{r sex_neg_pvalue_hist, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p-values for male vs female in each of the matrices. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
+```{r sex-neg-pvalue-hist, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p-values for male vs female in each of the matrices. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
 for (src in TestedSourcenames) {
     hist(res_sex_neg[, paste0("pvalue.", src, ".sexM")],
@@ -297,7 +297,7 @@ p-values disappears, but the results are similar (data not shown). Next we
 create volcano plots representing the results for the comparison between male
 and female individuals.
 
-```{r sex_neg_volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
+```{r sex-neg-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
 xlim <- range(as.matrix(res_sex_neg[, grep("^coef", colnames(res_sex_neg))]))
 ylim <- range(as.matrix(res_sex_neg[, grep("^adj", colnames(res_sex_neg))]))
@@ -316,7 +316,7 @@ We do now find (at least) one significant feature in all matrices.
 The table below lists all features that are found to be significant in at least
 one of the matrices.
 
-```{r sex_neg_sig_table, results = "asis", echo = FALSE}
+```{r sex-neg-sig-table, results = "asis", echo = FALSE}
 sig_count <- rowSums(
     as.matrix(res_sex_neg[, grep("significant", colnames(res_sex_neg))]))
 sig_fts <- rownames(res_sex_neg)[sig_count > 0]
@@ -338,7 +338,7 @@ There is indeed no overlap of significant features. With the exception of some
 (rows 3, 4, 12) there is also no agreement in the extent and direction of
 differential abundance.
 
-```{r sex_neg_sig_ann, echo = FALSE, eval = FALSE}
+```{r sex-neg-sig-ann, echo = FALSE, eval = FALSE}
 library(CompoundDb)
 cdb <- CompDb("~/Projects/compounds/hmdb/4.1/CompDb.Hsapiens.HMDB.4.1.sqlite")
 
@@ -351,7 +351,7 @@ At last we compare the top 50 features with the most significant differences
 between male and female for each matrix to evaluate whether they are shared
 between matrices.
 
-```{r sex_neg_top_50_pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
+```{r sex-neg-top-50-pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
 fts_capillary <- rownames(res_sex_neg)[
     order(res_sex_neg$pvalue.capillary.sexM)][1:50]
 fts_venous <- rownames(res_sex_neg)[
@@ -376,7 +376,7 @@ upset(data.frame(ovlp))
 
 The overlap is again surprisingly low.
 
-```{r sex_neg_export, echo = FALSE}
+```{r sex-neg-export, echo = FALSE}
 write_xlsx(as.data.frame(res_sex_neg),
            path = "data/xls/vams_sex_neg_results.xlsx")
 

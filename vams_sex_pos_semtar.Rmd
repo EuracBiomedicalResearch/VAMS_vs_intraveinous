@@ -190,7 +190,7 @@ for (src in TestedSourcenames) {
 In RBC samples we can again not observe any enrichment for small p-values, which
 might be explained by the high variability in this matrix (see PCA plot in [vams_matrix_pos_semtar.html](vams_matrix_pos_semtar.html).
 
-```{r sex_sep_volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed separately for each matrix. Horizontal and vertical dotted lines indicate the cut-off criteria for significance.", fig.width = 12, fig.height = 4}
+```{r sex-sep-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed separately for each matrix. Horizontal and vertical dotted lines indicate the cut-off criteria for significance.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
 xlim <- range(as.matrix(res_sex_pos_sep[, grep("^coef", colnames(res_sex_pos_sep))]))
 ylim <- range(as.matrix(res_sex_pos_sep[, grep("^adj", colnames(res_sex_pos_sep))]), pLimit)
@@ -212,7 +212,7 @@ very noisy signal (data not shown here).
 The table below lists all features that are found to be significant in at least
 one of the matrices.
 
-```{r sex_sep_sig_table, results = "asis", echo = FALSE}
+```{r sex-sep-sig-table, results = "asis", echo = FALSE}
 sig_count <- rowSums(
     as.matrix(res_sex_pos_sep[, grep("significant", colnames(res_sex_pos_sep))]))
 sig_fts <- rownames(res_sex_pos_sep)[sig_count > 0]
@@ -235,7 +235,7 @@ At last we compare the top 10 features with the most significant differences
 between male and female for each matrix to evaluate whether they are shared
 between matrices.
 
-```{r sex_sep_top_10_pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
+```{r sex-sep-top-10-pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
 fts_capillary <- rownames(res_sex_pos_sep)[
     order(res_sex_pos_sep$pvalue.capillary.sexM)][1:10]
 fts_venous <- rownames(res_sex_pos_sep)[
@@ -262,7 +262,7 @@ The overlap is relatively low but one feature is among the top 10 features
 across all matrices and 2 each are common to venous and capillary as well as to
 venous, RBC and plasma.
 
-```{r sex_sep_export, echo = FALSE}
+```{r sex-sep-export, echo = FALSE}
 library(writexl)
 write_xlsx(as.data.frame(res_sex_pos_sep),
            path = "data/xls/vams_sex_pos_semtar_sep_results.xlsx")
@@ -355,7 +355,7 @@ res_sex_pos <- cbind(rowData(vams_pos_semtar),
 
 As before, histograms of the unadjusted p-values are made.
 
-```{r sex_pos_pvalue_hist, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p-values for male vs female in each of the matrices. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
+```{r sex-pos-pvalue-hist, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Histogram of the p-values for male vs female in each of the matrices. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
 for (src in TestedSourcenames) {
     hist(res_sex_pos[, paste0("pvalue.", src, ".sexM")],
@@ -369,7 +369,7 @@ The enrichment for small p-values seems smaller than in the analysis performed
 separately for each matrix. Next we create volcano plots representing the
 results for the comparison between male and female individuals.
 
-```{r sex_pos_volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
+```{r sex-pos-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
 xlim <- range(as.matrix(res_sex_pos[, grep("^coef", colnames(res_sex_pos))]))
 ylim <- range(as.matrix(res_sex_pos[, grep("^adj", colnames(res_sex_pos))]))
@@ -389,7 +389,7 @@ samples.
 The table below lists all features that are found to be significant in at least
 one of the matrices.
 
-```{r sex_pos_sig_table, results = "asis", echo = FALSE}
+```{r sex-pos-sig-table, results = "asis", echo = FALSE}
 sig_count <- rowSums(
     as.matrix(res_sex_pos[, grep("significant", colnames(res_sex_pos))]))
 sig_fts <- rownames(res_sex_pos)[sig_count > 0]
@@ -418,7 +418,7 @@ At last we compare the top 10 features with the most significant differences
 between male and female for each matrix to evaluate whether they are shared
 between matrices.
 
-```{r sex_pos_top_10_pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
+```{r sex-pos-top-10-pval, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 50 features with smallest p-values (male vs female)."}
 fts_capillary <- rownames(res_sex_pos)[
     order(res_sex_pos$pvalue.capillary.sexM)][1:10]
 fts_venous <- rownames(res_sex_pos)[
@@ -443,7 +443,7 @@ upset(data.frame(ovlp))
 
 The overlap is again very low.
 
-```{r sex_pos_export, echo = FALSE}
+```{r sex-pos-export, echo = FALSE}
 write_xlsx(as.data.frame(res_sex_pos),
            path = "data/xls/vams_sex_pos_semtar_results.xlsx")
 
