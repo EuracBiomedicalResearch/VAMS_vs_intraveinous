@@ -854,7 +854,6 @@ drift is estimated on the detected peak data, i.e. prior to filling-in missing
 peak data.
 
 ```{r estimate-slopes-per-batch, message = FALSE, warning = FALSE, fig.path = IMAGE_PATH, fig.cap = "Plot of per-feataure estimates for the injection order dependent signal drift from the two batches.", fig.width = 6, fig.height = 6, echo = FALSE}
-
 #' y ~ inj_idx
 smps <- data_neg$batch == 6022018
 lm_btch1 <- xcms:::rowFitModel(
@@ -904,14 +903,12 @@ seem to be representative of all matrices.
 
 ```{r fit-model-batch, message = FALSE, warning = FALSE}
 smpls_a <- data_neg$batch == "6022018"
-qcs_a <- data_neg$sample == "POOL" & smpls_a
 mdls_a <- xcms:::rowFitModel(
                      y ~ inj_idx, data = pData(data_neg)[smpls_a, ],
                      y = log2(fv_nofill[, smpls_a]), method = "lmrob",
                      minVals = 12)
 
 smpls_b <- data_neg$batch == "7022018"
-qcs_b <- data_neg$sample == "POOL" & smpls_b
 mdls_b <- xcms:::rowFitModel(
                      y ~ inj_idx, data = pData(data_neg)[smpls_b, ],
                      y = log2(fv_nofill[, smpls_b]), method = "lmrob",
@@ -1168,8 +1165,8 @@ for (ft in fts_b) {
 
 ```
 
-Examples for linear models that were **excluded** because of QC sample measuring
-a too small range of injection indices are shown below.
+Examples for linear models that were **excluded** because of a too small range
+of injection indices are shown below.
 
 ```{r out.width = "750px", echo = FALSE}
 knitr::include_graphics(
@@ -1399,6 +1396,9 @@ Features that do not fulfill the above mentioned criteria will be normalized
 with a global model.
 
 ```{r estimate-betwee-batch-effect, message = FALSE, warning = FALSE}
+qcs_a <- data_neg$sample == "POOL" & smpls_a
+qcs_b <- data_neg$sample == "POOL" & smpls_b
+
 #' Use the linear model fit on DETECTED QC samples
 tmp <- fv_adj
 tmp[is.na(fv_nofill)] <- NA
@@ -1644,13 +1644,13 @@ pandoc.table(T, caption = cpt, style = "rmarkdown")
 
 ```
 
-The performance of the normalization is estimated based on the difference of
-normalized abundances for replicated samples. Each study sample is represented
-twice in the data set, with each replicate, while being from the same
-individual), representing the abundance measured on a single, separate, Mitra
-tip. We perform the quality assessment only on normalized signal from detected
-peaks. Note that, since replicates were measured **within** each batch, this
-will only allow to evaluate the **within** batch normalization.
+The performance of the normalization is also estimated based on the difference
+of normalized abundances for replicated samples. Each study sample is
+represented twice in the data set, with each replicate, while being from the
+same individual), representing the abundance measured on a single, separate,
+Mitra tip. We perform the quality assessment only on normalized signal from
+detected peaks. Note that, since replicates were measured **within** each batch,
+this will only allow to evaluate the **within** batch normalization.
 
 Below we calculate the difference in abundances between replicated measurements
 on detected peak data only.
@@ -1890,7 +1890,8 @@ pd$inj_idx <- fls[rownames(pd)]
 fd <- featureDefinitions(data_neg)
 fd <- cbind(fd[rownames(fv), colnames(fd) != "peakidx"],
             featureSummary(data_neg, data_neg$source)[rownames(fv), ],
-            QC_rsd = rowRsd(fv[, data_neg$source == "all"]))
+            QC_rsd = rowRsd(fv[, data_neg$source == "all"]),
+            QC_rsd_log2 = rowRsd(log2(fv[, data_pos$source == "all"])))
 
 #' Create and save result object.
 vams_neg <- SummarizedExperiment(
