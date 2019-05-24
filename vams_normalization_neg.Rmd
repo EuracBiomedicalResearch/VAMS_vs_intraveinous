@@ -1891,7 +1891,7 @@ fd <- featureDefinitions(data_neg)
 fd <- cbind(fd[rownames(fv), colnames(fd) != "peakidx"],
             featureSummary(data_neg, data_neg$source)[rownames(fv), ],
             QC_rsd = rowRsd(fv[, data_neg$source == "all"]),
-            QC_rsd_log2 = rowRsd(log2(fv[, data_pos$source == "all"])))
+            QC_rsd_log2 = rowRsd(log2(fv[, data_neg$source == "all"])))
 
 #' Create and save result object.
 vams_neg <- SummarizedExperiment(

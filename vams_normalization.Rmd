@@ -1,5 +1,5 @@
 ---
-title: "Normalization of the vams vs intraveneous untargeted metabolomics data"
+title: "Normalization of the vams vs intraveneous untargeted metabolomics data, positive polarity"
 author: "Johannes Rainer, Giuseppe Paglia and Sigurdur Smarason"
 graphics: yes
 output:
@@ -186,6 +186,7 @@ cptn <- paste("Summary of features used for the analysis. All features found",
               "with less than 10% of samples with multiple peaks per sample (",
               "relative to the samples in which a peak was identified).")
 pandoc.table(tab, style = "rmarkdown", caption = cptn)
+
 ```
 
 Next we fill-in data for samples in which no peak was detected. While we will
@@ -274,6 +275,7 @@ fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
 fv_raw <- fv
 fv_nofill <- featureValues(data_pos, method = "sum",
                            value = "into", filled = FALSE)[fts_used, ]
+
 ```
 
 Next we calculate and compare for each feature in QC samples the difference
@@ -444,6 +446,7 @@ int_std <- int_std[!is.na(int_std$mz), ]
 fts_int_std <- lapply(int_std$mz, function(mz) {
     featureDefinitions(data_pos, mz = mz, ppm = 10, type = "apex_within")
 })
+
 ```
 
 ```{r internal-standards-plot, echo = FALSE, message = FALSE, warning = FALSE}
@@ -502,6 +505,7 @@ fts_int_std <- int_std$feature
 names(fts_int_std) <- int_std$name
 fts_int_std <- fts_int_std[!is.na(fts_int_std)]
 fts_int_std <- fts_int_std[!(fts_int_std %in% c("FT01143", "FT00827"))]
+
 ```
 
 All features possibly related to internal standards have been manually evaluated
@@ -648,6 +652,7 @@ nf_mrm <- estimateSizeFactorsForMatrix(tmp)
 fv_sm <- sweep(fv, MARGIN = 2, nf_sm, `/`)
 fv_mdn <- sweep(fv, MARGIN = 2, nf_mdn, `/`)
 fv_mrm <- sweep(fv, MARGIN = 2, nf_mrm, `/`)
+
 ```
 
 In addition we perform the normalization using approaches that base on internal
@@ -664,6 +669,7 @@ fv_nms <- 2^t(NormQcmets(
 #' re-add the internal standards!
 fv_nms <- rbind(fv_nms, fv_imp[!(rownames(fv_imp) %in% rownames(fv_nms)), ])
 fv_nms <- fv_nms[rownames(fv_imp), ]
+
 ```
 
 Another approach that has been proposed for metabolomics data normalization
@@ -686,6 +692,7 @@ cor_int_std <- apply(log2(fv), MARGIN = 1, cor, y = log2(fts_int_std_mean))
 
 neg_ctrls <- which(cor_int_std > 0.6)
 neg_ctrls_int <- which(rownames(fv) %in% fts_int_std)
+
 ```
 
 RUV is available in a variety of flavors. We use the *RUV-rand* method described
@@ -707,6 +714,7 @@ library(ruv)
 ruv_3 <- RUVIII(t(log2(fv_imp)), ctl = neg_ctrls_int, k = 6,
                 M = design.matrix(data_pos$sample))
 fv_ruv3 <- 2^t(ruv_3)
+
 ```
 
 ## Evaluation of normalization performance
@@ -737,6 +745,7 @@ mra_mrm <- mra_for_mat(fv_mrm, fv_nofill, grp, "all-POOL")
 mra_ruvr <- mra_for_mat(fv_ruvr, fv_nofill, grp, "all-POOL")
 mra_ruv3 <- mra_for_mat(fv_ruv3, fv_nofill, grp, "all-POOL")
 mra_nms <- mra_for_mat(fv_nms, fv_nofill, grp, "all-POOL")
+
 ```
 
 The distribution of these 75% MRAs per method (across samples) as well as the
@@ -967,41 +976,42 @@ part batch dependent. If the model is fitted to all values, a higher correlation
 can however be observed (data not shown).
 
 Next we fit the linear models describing an (log scale) injection index
-dependent signal drift to abundances of QC samples **separately** for the two
-batches. The advantage of the separate analysis is that the analysis in one
-batch is not dependent also on the number of valid measurements of the feature
-also in the other batch. Below we fit linear models `y ~ inj_idx` to the log2 
-transformed abundances (only of detected peaks) using robust regression 
-[@Koller:2017jsa]. Model fitting is skipped for features with less than 4 valid 
-signals.
+dependent signal drift to abundances **separately** for the two batches. The
+advantage of the separate analysis is that the analysis in one batch is not
+dependent also on the number of valid measurements of the feature also in the
+other batch. Below we fit linear models `y ~ inj_idx` to the log2 transformed 
+abundances (only of detected peaks) using robust regression [@Koller:2017jsa]. 
+Model fitting is skipped for features with less than 12 valid signals. We fit 
+the linear models to the full data instead of only the QC samples as they do 
+not seem to be representative of all matrices (data not shown).
 
 ```{r fit-model-batch, message = FALSE, warning = FALSE}
 smpls_a <- data_pos$batch == 31012018
-qcs_a <- data_pos$sample == "POOL" & smpls_a
+#' qcs_a <- data_pos$sample == "POOL" & smpls_a
 mdls_a <- xcms:::rowFitModel(
-                     y ~ inj_idx, data = pData(data_pos)[qcs_a, ],
-                     y = log2(fv_nofill[, qcs_a]), method = "lmrob",
-                     minVals = 4)
+                     y ~ inj_idx, data = pData(data_pos)[smpls_a, ],
+                     y = log2(fv_nofill[, smpls_a]), method = "lmrob",
+                     minVals = 12)
 
 smpls_b <- data_pos$batch == 1022018
-qcs_b <- data_pos$sample == "POOL" & smpls_b
+#' qcs_b <- data_pos$sample == "POOL" & smpls_b
 mdls_b <- xcms:::rowFitModel(
-                     y ~ inj_idx, data = pData(data_pos)[qcs_b, ],
-                     y = log2(fv_nofill[, qcs_b]), method = "lmrob",
-                     minVals = 4)
+                     y ~ inj_idx, data = pData(data_pos)[smpls_b, ],
+                     y = log2(fv_nofill[, smpls_b]), method = "lmrob",
+                     minVals = 12)
+
 ```
 
 We next remove fitted linear models for features for which valid measurements do
-not span at least 2/3 of the injection index range or for which the mean of the
-absolute residuals is larger than 0.5. This avoids extrapolation of the signal
-drift and adjustment based on noisy signals in QC samples.
+not span at least 3/4 of the injection index range. In contrast to a previous
+analysis in which the linear models were fit only to QC samples we do not remove
+models based on large residuals, since we can not expect the abundances to be
+similar across samples/matrices.
 
-```{r fit-model-table-batch, message = FALSE, echo = FALSE, fig.cap = "Distribution of slopes of the fitted models for batch a and b. Red and blue represents slopes for models flagged because of too large range of residuals and too low span of injection index, respectively.", fig.width = 8, fig.height = 4, fig.path = IMAGE_PATH}
-##' Calculating flags for batch a
-##' flgs_res_a <- vapply(mdls_a, flag_model_residual, logical(1), diff_residual = 1)
-flgs_res_a <- vapply(mdls_a, flag_model_mean_residual, logical(1), cut_off = 0.5)
+```{r fit-model-table-batch, message = FALSE, echo = FALSE, fig.cap = "Distribution of slopes of the fitted models for batch a and b. Blue represents slopes for models flagged because of too low span of injection index, respectively.", fig.width = 8, fig.height = 4, fig.path = IMAGE_PATH}
+#' Calculating flags for batch a
 flgs_inj_range_a <- vapply(mdls_a, flag_model_inj_range, logical(1),
-                           min_range = diff(range(data_pos$inj_idx)) * 2/3)
+                           min_range = diff(range(data_pos$inj_idx)) * 3/4)
 
 ##' Calculate slopes for batch a
 slps_a <- vapply(mdls_a, function(z) {
@@ -1011,8 +1021,6 @@ slps_a <- vapply(mdls_a, function(z) {
 }, numeric(1))
 
 ##' Calculate flags for batch b
-##' flgs_res_b <- vapply(mdls_b, flag_model_residual, logical(1), diff_residual = 1)
-flgs_res_b <- vapply(mdls_b, flag_model_mean_residual, logical(1), cut_off = 0.5)
 flgs_inj_range_b <- vapply(mdls_b, flag_model_inj_range, logical(1),
                            min_range = diff(range(data_pos$inj_idx)) * 2/3)
 
@@ -1026,31 +1034,28 @@ slps_b <- vapply(mdls_b, function(z) {
 ##' Plot the distribution of slopes.
 par(mfrow = c(1, 2), mar = c(4, 4.5, 1, 0.5))
 hist(slps_a, breaks = 128, xlab = "slope", main = "Batch a")
-hist(slps_a[which(flgs_res_a)], breaks = 128, add = TRUE, col = "#ff000080")
 hist(slps_a[which(flgs_inj_range_a)], breaks = 128, add = TRUE,
      col = "#0000ff80")
 hist(slps_b, breaks = 128, xlab = "slope", main = "Batch b")
-hist(slps_b[which(flgs_res_b)], breaks = 128, add = TRUE, col = "#ff000080")
 hist(slps_b[which(flgs_inj_range_b)], breaks = 128, add = TRUE,
      col = "#0000ff80")
 
 #' Split into excluded and good mdls
-mdls_res_a <- mdls_a[which(flgs_res_a)]
 mdls_inj_range_a <- mdls_a[which(flgs_inj_range_a)]
-mdls_res_b <- mdls_b[which(flgs_res_b)]
 mdls_inj_range_b <- mdls_b[which(flgs_inj_range_b)]
 
 ##' Remove model fits for the flagged friends.
-mdls_a[unique(c(which(flgs_res_a), which(flgs_inj_range_a)))] <- NA
-mdls_b[unique(c(which(flgs_res_b), which(flgs_inj_range_b)))] <- NA
-slps_a[unique(c(which(flgs_res_a), which(flgs_inj_range_a)))] <- NA
-slps_b[unique(c(which(flgs_res_b), which(flgs_inj_range_b)))] <- NA
+mdls_a[unique(which(flgs_inj_range_a))] <- NA
+mdls_b[unique(which(flgs_inj_range_b))] <- NA
+slps_a[unique(which(flgs_inj_range_a))] <- NA
+slps_b[unique(which(flgs_inj_range_b))] <- NA
 
 #' Identify the features that are adjusted either in batch a or b
 fts_adj <- sort(unique(c(
     names(mdls_a)[!is.na(mdls_a)],
     names(mdls_b)[!is.na(mdls_b)]
 )))
+
 ```
 
 Most of the slopes, that represent the estimated injection order-dependent
@@ -1062,32 +1067,33 @@ The table below lists the number of features for which the model was fitted and
 the number of features for which model fitting was skipped or discarded.
 
 ```{r fit-model-table, message = FALSE, echo = FALSE, results = "asis"}
-tab <- cbind(batch_a = c(length(mdls_a), length(which(flgs_res_a)),
+tab <- cbind(batch_a = c(length(mdls_a),
                          length(which(flgs_inj_range_a)),
                          sum(!is.na(mdls_a))),
-             batch_b = c(length(mdls_b), length(which(flgs_res_b)),
+             batch_b = c(length(mdls_b),
                          length(which(flgs_inj_range_b)),
                          sum(!is.na(mdls_b)))
              )
-rownames(tab) <- c("total features", "large residuals", "low inj idx range",
+rownames(tab) <- c("total features", "low inj idx range",
                    "valid model fits")
 cptn <- paste("Numbers of features for which an injection index dependent",
               "model could be fitted.")
 pandoc.table(tab, style = "rmarkdown", caption = cptn)
+
 ```
 
-For about half of the features a model describing the injection dependent signal
-drift was defined.
+For almost all features a model describing the injection dependent signal drift
+was defined.
 
 Most of the slopes from the models describing the injection dependent signal
-drift are close to 0 suggesting only a relatively low influence. Only about 60
+drift are close to 0 suggesting only a relatively low influence. Only about 70
 have a absolute slope larger than 0.025.
 
 ```{r features-large-slopes-plots, echo = FALSE, message = FALSE, warning = FALSE}
 #' Plotting all features with an absolute slope larger than some value.
 #' Plots are created but not displayed here.
 
-##' Features with absolute slope > 0.025
+#' Features with absolute slope > 0.025
 dr <- paste0(IMAGE_PATH, "largest_slopes_batch_a/")
 dir.create(dr, showWarnings = FALSE)
 fts <- names(mdls_a)[which(abs(slps_a) > 0.025)]
@@ -1113,15 +1119,15 @@ for (ft in fts) {
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
-##' Most of the features seem to represent signal from the same compound
-##' (different adducts?).
-##' Question also is if we would be better of with simple lm instead of lmrob.
+#' Many features show a similar signal pattern (which is also not real but
+#' rather some quadratic function. Eventually different adducts?
+#' Also, batch a seems to be much noisier.
 ```
 
 ```{r features-large-r-squared, echo = FALSE, message = FALSE, warning = FALSE}
 #' Plot features with largest or smallest R squared.
 
-##' Calculate adjusted R squared
+#' Calculate adjusted R squared
 adjr_a <- vapply(mdls_a, function(z) {
     if (length(z) > 1)
         summary(z)$adj.r.squared
@@ -1134,7 +1140,7 @@ adjr_b <- vapply(mdls_b, function(z) {
 }, numeric(1))
 
 
-##' Features with poos R2
+#' Features with poos R2
 fts <- names(sort(abs(adjr_a)))[1:20]
 dr <- paste0(IMAGE_PATH, "lowest_R_batch_a/")
 dir.create(dr, showWarnings = FALSE)
@@ -1159,9 +1165,9 @@ for (ft in fts) {
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
-##' Mostly nice fits but with slope ~ 0 or those that don't fit that nicely.
+#' Mostly slope ~ 0 or those that don't fit that nicely.
 
-##' Features with very good R2
+#' Features with very good R2
 fts_a <- names(sort(abs(adjr_a), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_a/")
 dir.create(dr, showWarnings = FALSE)
@@ -1186,7 +1192,7 @@ for (ft in fts_b) {
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
-##' Mostly nice fits with relatively large slopes.
+#' Mostly fits to data in a single matrix
 ```
 
 Some examples for nice model fits for features with large injection order
@@ -1201,67 +1207,6 @@ knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/",
 knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_b/",
                               fts_b[1], ".png"))
 ```
-
-
-```{r features-excluded-residuals, echo = FALSE, warning = FALSE, message = FALSE}
-#' Plot data for features that were excluded due to large residuals
-
-#' Identify top 20 with largest slopes
-tmp_slps <- vapply(mdls_res_a, function(z) {
-    coefficients(z)[2]
-}, numeric(1))
-fts_a <- names(sort(abs(tmp_slps), decreasing = TRUE))[1:20]
-dr <- paste0(IMAGE_PATH, "largest_slopes_batch_a_residuals_excluded/")
-dir.create(dr, showWarnings = FALSE)
-for (ft in fts_a) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
-        res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_res_a[[ft]],
-                              lmodb = mdls_res_b[[ft]], main = ft)
-    dev.off()
-}
-tmp_slps <- vapply(mdls_res_b, function(z) {
-    coefficients(z)[2]
-}, numeric(1))
-fts_b <- names(sort(abs(tmp_slps), decreasing = TRUE))[1:20]
-dr <- paste0(IMAGE_PATH, "largest_slopes_batch_b_residuals_excluded/")
-dir.create(dr, showWarnings = FALSE)
-for (ft in fts_b) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
-        res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_res_a[[ft]],
-                              lmodb = mdls_res_b[[ft]], main = ft)
-    dev.off()
-}
-#' Now, most of the excluded model fits are indeed problematic, but some would
-#' represent more or less the overall data trend, but the measurements seem to
-#' be noisy. Here there has to be some tradeoff between introducing too much
-#' noise and not adjusting the trend for some features.
-```
-
-Examples for linear models that were **excluded** because of too large residuals
-are shown below (the first excluded in batch a and the second in batch b). The
-feature abundances in QC samples (green point) are highly variable for these
-compounds.
-
-```{r out.width = "750px", echo = FALSE}
-knitr::include_graphics(
-           paste0(IMAGE_PATH,
-                  "largest_slopes_batch_a_residuals_excluded/",
-                  fts_a[1], ".png"))
-```	
-
-```{r out.width = "750px", echo = FALSE}
-knitr::include_graphics(
-           paste0(IMAGE_PATH,
-                  "largest_slopes_batch_b_residuals_excluded/",
-                  fts_b[1], ".png"))
-```	
-
 
 ```{r features-excluded-inj-range, echo = FALSE, warning = FALSE, message = FALSE}
 #' Plot data for features excluded because their data points do not span a
@@ -1304,17 +1249,33 @@ for (ft in fts) {
 #' model fits that span only a limited injection index range.
 ```
 
+Examples for linear models that were **excluded** because of a too small range
+of injection indices are shown below.
+
+```{r out.width = "750px", echo = FALSE}
+knitr::include_graphics(
+           paste0(IMAGE_PATH,
+                  "largest_slopes_batch_a_inj_range_excluded/",
+                  fts_a[1], ".png"))
+```	
+
+```{r out.width = "750px", echo = FALSE}
+knitr::include_graphics(
+           paste0(IMAGE_PATH,
+                  "largest_slopes_batch_b_inj_range_excluded/",
+                  fts_b[1], ".png"))
+```	
+
+
 Next we apply the within batch correction adjusting all feature abundances (also
-filled-in values) based on the estimated models. Adjustment resulted in 15
+filled-in values) based on the estimated models. Adjustment resulted in 18
 measurements with negative (log2) abundances. These were replaced by half of the
 minimum non negative intensity for that feature. Note however that quite some
 log2 abundances are smaller than 1, which represents negative intensities in
 natural scale.
 
 ```{r apply-within-batch-adjustment, message = FALSE, warning = FALSE}
-#' Applying the adjustment to the full (filled-in) data. Note that
-#' adjustment of the detected peak values did not result in negative
-#' log2 abundances.
+#' Applying the adjustment to the full (filled-in) data.
 fv_adj <- fv
 fv_adj[, smpls_a] <- xcms:::applyModelAdjustment(
                                 y = log2(fv[, smpls_a]), lmod = mdls_a,
@@ -1325,6 +1286,7 @@ fv_adj[, smpls_b] <- xcms:::applyModelAdjustment(
                                 data = pData(data_pos)[smpls_b, ],
                                 shiftNegative = "replaceHalfMin")
 fv_adj <- 2^fv_adj
+
 ```
 
 Next we plot the data before and after adjustment for some selected features.
@@ -1332,11 +1294,8 @@ Next we plot the data before and after adjustment for some selected features.
 ```{r feature-plots-before-after-within-adjustment, echo = FALSE, message = FALSE, warning = FALSE}
 
 #' Select sone with the best R squared in batch a, one for batch b
-#' fts <- c(names(sort(abs(adjr_a), decreasing = TRUE)[1:5]),
-#'          names(sort(abs(adjr_b), decreasing = TRUE)[1:5]))
-#' Manually specifying features... these are from the largest R squared and
-#' large slope candidates
-fts <- sort(c("FT00642", "FT05680", "FT07853", "FT00988", "FT09056"))
+fts <- c(names(sort(abs(adjr_a), decreasing = TRUE)[1:5]),
+         names(sort(abs(adjr_b), decreasing = TRUE)[1:5]))
 dr <- paste0(IMAGE_PATH, "within-batch-examples/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts) {
@@ -1351,27 +1310,28 @@ for (ft in fts) {
         res = 200, units = "cm")
     y_sub <- log2(fv_adj[ft, ])
     y_sub[!is.na(fv_onlyfill[ft, ])] <- NA
-    lmoda <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[qcs_a, ],
-                             method = "lmrob", y = y_sub[qcs_a])
-    lmodb <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[qcs_b, ],
-                             method = "lmrob", y = y_sub[qcs_b])
+    lmoda <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[smpls_a, ],
+                             method = "lmrob", y = y_sub[smpls_a])
+    lmodb <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[smpls_b, ],
+                             method = "lmrob", y = y_sub[smpls_b])
     plot_feature_slopes_batch(y = log2(fv_adj[ft, ]),
                               is_filled = is.na(fv_nofill[ft, ]),
                               data = pData(data_pos), lmoda = lmoda,
                               lmodb = lmodb, main = ft, legend = FALSE)
     dev.off()
 }
+
 ```
 
 The plots below show some examples for feature signals before and after
 within-batch correction.
 
 ```{r within-batch-before-example, out.width = "750px", echo = FALSE, fig.cap = "Feature abundances before adjustment."}
-knitr::include_graphics(paste0(dr, "FT09056_raw.png"))
+knitr::include_graphics(paste0(dr, fts[2], "_raw.png"))
 ```
 
 ```{r within-batch-after-example, out.width = "750px", echo = FALSE, fig.cap = "Feature abundances after within-batch adjustment."}
-knitr::include_graphics(paste0(dr, "FT09056_adj.png"))
+knitr::include_graphics(paste0(dr, fts[7], "_adj.png"))
 ```
 
 The performance of the within-batch normalization is estimated based on the
@@ -1389,6 +1349,7 @@ grp <- paste(data_pos$source, data_pos$sample, sep = "-")
 
 mra_raw <- mra_for_mat(fv_raw, fv_nofill, grp, "all-POOL")
 mra_adj <- mra_for_mat(fv_adj, fv_nofill, grp, "all-POOL")
+
 ```
 
 To evaluate the impact of within-batch normalization we calculate the 75%
@@ -1405,12 +1366,12 @@ mra_raw_p <- mra_summary_perc(mra_raw)
 mra_adj_q <- mra_summary_quant(mra_adj)
 mra_adj_c <- mra_summary_count(mra_adj)
 mra_adj_p <- mra_summary_perc(mra_adj)
+
 ```
 
 A comparison between the raw and adjusted 75% MRAs is shown in the plot below.
 
 ```{r mra-75-scatterplot, message = FALSE, warning = FALSE, fig.path = IMAGE_PATH, fig.cap = "Raw against adjusted 75% MRA for replicated samples in batch a (left) and batch b (right). Each point represents the 75% MRA for one replicated sample pair. Colors indicate the sample source, the solid line the identity line.", fig.width = 12, fig.height = 6, echo = FALSE}
-
 #' split the results by batch.
 smpls_btch_a <- split(grp, data_pos$batch)[[1]]
 mra_raw_q_a <- mra_raw_q[names(mra_raw_q) %in% smpls_btch_a]
@@ -1437,14 +1398,13 @@ plot(mra_raw_q_b, mra_adj_q_b, main = "batch b", col = paste0(cols_mra_a, 80),
      pch = 16, xlim = YL, ylim = YL, xlab = "raw 75% MRA", ylab = "adj 75% MRA")
 abline(0, 1)
 grid()
+
 ```
 
-The 75% MRA of replicated samples is between 1.2 and 2.5 which is actually quite
-good, meaning that most samples have a less than 2-fold difference between
-replicated measurements. Within-batch normalization had however no big impact on
-the MRA. This might be explained by the relatively moderate signal drift present
-in only few features (for most features the estimated signal drift slope was
-about 0).
+The 75% MRA of replicated samples is between 1.2 and 2.5 which is quite
+OK, meaning that most samples have a less than 2-fold difference between
+replicated measurements. Within-batch normalization could reduce the MRA for
+some replicate pairs.
 
 The boxplot below summarizes the results by comparing the distribution of raw
 and adjusted 75% MRA for both batches.
@@ -1462,6 +1422,7 @@ boxplot(mra_df, las = 2, ylab = "75% quantile MRA", ylim = c(1, 3))
 grid(nx = NA, ny = NULL)
 boxplot(mra_p_df, las = 2, ylab = "perc M > 1")
 grid(nx = NA, ny = NULL)
+
 ```
 
 The table below summarizes the results.
@@ -1475,46 +1436,14 @@ cpt <- paste0("Distribution of per-replicate 75% MRA quantile for the raw ",
               "and within-batch normalized data and mean percentage of ",
               "features with a more than 2-fold difference in abundance.")
 pandoc.table(T, style = "rmarkdown", caption = cpt)
+
 ```
 
 Within-batch adjustment did reduce the 75% MRAs slightly, especially its 75%
 quantile and the value ranges. Also the percentage of features of replicated
-samples with more than 2-fold differences is reduced. The impact of within-batch
-normalization is more pronounced if we consider only features that were actually
-adjusted:
+samples with more than 2-fold differences is reduced.
 
-```{r within-batch-mra-table-adjusted-features, echo = FALSE, results = "asis"}
-mra_raw <- mra_for_mat(fv_raw[fts_adj, ], fv_nofill[fts_adj, ], grp, "all-POOL")
-mra_adj <- mra_for_mat(fv_adj[fts_adj, ], fv_nofill[fts_adj, ], grp, "all-POOL")
-mra_raw_q <- mra_summary_quant(mra_raw)
-mra_raw_c <- mra_summary_count(mra_raw)
-mra_raw_p <- mra_summary_perc(mra_raw)
-mra_adj_q <- mra_summary_quant(mra_adj)
-mra_adj_c <- mra_summary_count(mra_adj)
-mra_adj_p <- mra_summary_perc(mra_adj)
-mra_df <- data.frame(raw = mra_raw_q,
-                     adj = mra_adj_q)
-mra_c_df <- data.frame(raw = mra_raw_c,
-                       adj = mra_adj_c)
-mra_p_df <- data.frame(raw = mra_raw_p,
-                       adj = mra_adj_p)
-##' par(mar = c(6, 4.5, 1, 0.5), mfrow = c(1, 2))
-##' boxplot(mra_df, las = 2, ylab = "75% quantile MRA", ylim = c(1, 3))
-##' grid(nx = NA, ny = NULL)
-##' boxplot(mra_p_df, las = 2, ylab = "perc M > 1")
-##' grid(nx = NA, ny = NULL)
-T <- apply(mra_df, 2, quantile, na.rm = TRUE)
-T <- rbind(T,
-           `% M > 1` = c(mean(mra_raw_p, na.rm = TRUE),
-                             mean(mra_adj_p, na.rm = TRUE)))
-cpt <- paste0("Distribution of per-replicate 75% MRA quantile for the raw ",
-              "and within-batch normalized data and mean percentage of ",
-              "features with a more than 2-fold difference in abundance. ",
-              "Only features with data normalized for injection order ",
-              "dependent signal drift in at least one of the two batches ",
-              "are considered.")
-pandoc.table(T, style = "rmarkdown", caption = cpt)
-```
+
 
 # Between-batch normalization
 
@@ -1544,6 +1473,9 @@ Features that do not fulfill the above mentioned criteria will be normalized
 with a global model.
 
 ```{r estimate-betwee-batch-effect, message = FALSE, warning = FALSE}
+qcs_a <- data_pos$sample == "POOL" & smpls_a
+qcs_b <- data_pos$sample == "POOL" & smpls_b
+
 #' Use the linear model fit on DETECTED QC samples
 tmp <- fv_adj
 tmp[is.na(fv_nofill)] <- NA
@@ -1589,6 +1521,7 @@ glbl_mdl_batch <- xcms:::fitModel(y ~ batch,
                                   data = pData(data_pos)[qcs_a | qcs_b, ],
                                   y = log2(tmp[, qcs_a | qcs_b]),
                                   method = "lm", minVals = 12)
+
 ```
 
 The plots below show examples for features being flagged because of large
@@ -1771,12 +1704,13 @@ cpt <- paste0("Summary of RSD calculations on QC samples. Shown are the ",
 pandoc.table(T, caption = cpt, style = "rmarkdown")
 ```
 
-The performance of the normalization is estimated based on the difference of
-normalized abundances for replicated samples. Each study sample is represented
-twice in the data set, with each replicate, while being from the same
-individual), representing the abundance measured on a single, separate, Mitra
-tip. We perform the quality assessment only on normalized signal from detected
-peaks.
+The performance of the normalization is also estimated based on the difference
+of normalized abundances for replicated samples. Each study sample is
+represented twice in the data set, with each replicate, while being from the
+same individual), representing the abundance measured on a single, separate,
+Mitra tip. We perform the quality assessment only on normalized signal from
+detected peaks. Note that, since replicates were measured **within** each batch,
+this will only allow to evaluate the **within** batch normalization.
 
 Below we calculate the difference in abundances between replicated measurements
 on detected peak data only.
@@ -2008,7 +1942,8 @@ pd$inj_idx <- fls[rownames(pd)]
 fd <- featureDefinitions(data_pos)
 fd <- cbind(fd[rownames(fv), colnames(fd) != "peakidx"],
             featureSummary(data_pos, data_pos$source)[rownames(fv), ],
-            QC_rsd = rowRsd(fv[, data_pos$source == "all"]))
+            QC_rsd = rowRsd(fv[, data_pos$source == "all"]),
+            QC_rsd_log2 = rowRsd(log2(fv[, data_pos$source == "all"])))
 
 #' Create and save result object.
 vams_pos <- SummarizedExperiment(
@@ -2019,6 +1954,9 @@ vams_pos <- SummarizedExperiment(
 save(vams_pos, file = paste0(RDATA_PATH, "vams_pos.RData"))
 ```
 
+*Note:* column `"QC_rsd"` contains the rsd for all abundances across all QC
+samples, while `"all_rsd"` contais the rsd for abundances of only detected peaks
+across all QC samples.
 
 # Session information
 
