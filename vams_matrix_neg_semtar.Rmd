@@ -196,7 +196,7 @@ std_features_ann <- do.call(rbind, lapply(tmp, function(z) {
 
 # Filtering of the data set
 
-We next subset the full data set consisting of abundances of `r nrow(vams_pos)`
+We next subset the full data set consisting of abundances of `r nrow(vams_neg)`
 features to the features potentially measuring the standards.
 
 ```{r filter, message = FALSE, warning = FALSE}
@@ -419,7 +419,7 @@ padj <- apply(fit$p.value, 2, p.adjust, method = "BH")
 
 sign <- abs(fit$coefficients) > foldLimit & padj < pLimit
 
-res_matrix_posl <- cbind(rowData(vams_pos_semtar),
+res_matrix_posl <- cbind(rowData(vams_neg_semtar),
                          pvalue = fit$p.value,
                          adj.pvalue = padj,
                          coef = fit$coefficients,
