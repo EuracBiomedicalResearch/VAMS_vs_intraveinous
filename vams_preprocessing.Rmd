@@ -113,7 +113,8 @@ data_pos <- filterRt(data_pos, rt = c(0, rt_cut))
 #' match the injection index
 time_stamp <- extractTimeStamps(data_pos)
 data_pos$time_stamp <- time_stamp
-stopifnot(all(data_pos$inj_idx, order(data_pos$time_stamp)))
+stopifnot(!is.unsorted(time_stamp))
+
 ```
 
 All samples of the experiment are listed below.
@@ -393,10 +394,6 @@ for (i in 1:nrow(pos_cmps)) {
     abline(v = pos_cmps$rt_expected[i], lty = 3)
     dev.off()
 }
-
-#' mzML backend: took 505 sec
-#' hdf5 backend: took 348 sec
-#' hdf5 backens, serial processing:
 
 #' Now happily jump into the folder to look at the data and:
 #' a) select known compounds to keep
