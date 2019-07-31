@@ -1,5 +1,5 @@
 ---
-title: "Matrix comparison - Pos"
+title: "Matrix comparison, positive polarity"
 author: "Søren Fjelstrup, Chiara Volani, Giuseppe Paglia and Johannes Rainer"
 graphics: yes
 output:

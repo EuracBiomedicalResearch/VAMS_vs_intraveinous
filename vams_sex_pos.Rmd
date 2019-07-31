@@ -95,11 +95,37 @@ TestedSourcenames <-  c("capillary","plasma", "RBC", "venous")
 
 ```
 
-# Data filtering
+# Data pre-filtering
 
-Optionally we could filter the data, e.g. exclude low intensity features or
-similar. At present we do not pre-filter the data prior to the differential
-abundance analysis.
+The loaded data set consists of `r nrow(assay(vams_pos))` features that have
+multiple peaks per samples in less than 10% of samples in which a peak was found
+and that are present in at least 30% of samples from one matrix. We next
+pre-filter this data set (further) by removing features with an RSD higher than
+30% across QC samples (sample pools). The only concern with such a pre-filtering
+on QC samples is that, in the present data set, the QC, which is in fact a
+sample pool, seems to not be completely representative for every matrix.
+
+Prior pre-filtering we plot the distribution of the RSD values across QC
+samples.
+
+```{r qc-rsd-distribution, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of RSD values across QC samples. The grey vertical line indicates the 30% cut-off.", fig.width = 6, fig.height = 6}
+plot(density(rowData(vams_pos)$QC_rsd, na.rm = TRUE),
+     xlab = expression(RSD[QC]))
+abline(v = 0.3, col = "grey")
+
+```
+
+This 30% RSD filtering will remove a considerable amount of samples.
+
+```{r pre-filter}
+keep <- rowData(vams_pos)$QC_rsd < 0.3
+vams_pos <- vams_pos[which(keep), ]
+```
+
+Pre-filtering reduced the data set from `r length(keep)` features to 
+`r sum(keep, na.rm = TRUE)` (`r sum(is.na(keep))` had an RSD of `NA` and were 
+also excluded.
+
 
 
 # Differential abundance analysis
@@ -149,37 +175,6 @@ explain abundance differences by the gender of the participant. We use the
 assess significance for differential abundance [@Smyth:2004to]. Estimated
 p-values are subsequently adjusted for multiple hypothesis testing using the
 method from Benjamini and Hochberg [@Benjamini:1995ws].
-
-```{r sex-fit-function, message = FALSE, warning = FALSE, echo = FALSE, eval = FALSE}
-#' Old version using standard lm
-pLimit <- 0.05
-foldLimit <- 1
-
-fitlmSexFunction <- function(x, dataMat, model = conc ~ source) {
-    dataMat <- cbind(conc = x, dataMat)
-    mdl <- lm(model, data = dataMat)
-    smry <- summary(mdl)$coefficients
-    c(coef = smry[-1, 1], pvalue =  smry[-1, 4])
-}
-
-res_sex_pos_sep <- rowData(vams_pos)
-Data <- log2(assay(vams_pos, "imputed"))
-cdata <- as.data.frame(colData(vams_pos))
-
-for (src in TestedSourcenames) {
-    datmat <- cdata[vams_pos$source == src, ]
-    fitm <- t(apply(Data[, vams_pos$source == src], 1, fitlmSexFunction, 
-                    dataMat = datmat, model = conc ~ sex))
-    colnames(fitm) <- paste0(colnames(fitm), ".sexM")
-    fitm <- cbind(fitm, adj.pvalue.sexM = p.adjust(fitm[, "pvalue.sexM"],
-                                                   method = "BH"))
-    fitm <- cbind(fitm, significant.sexM = fitm[, "adj.pvalue.sexM"] < pLimit &
-                            abs(fitm[, "coef.sexM"]) > foldLimit)
-    colnames(fitm) <- sub("sexM", paste0(src, ".sexM"), colnames(fitm))
-    res_sex_pos_sep <- cbind(res_sex_pos_sep, fitm)
-}
-
-```
 
 ```{r sex-fit-function-limma, message = FALSE, warning = FALSE}
 pLimit <- 0.05
@@ -396,7 +391,7 @@ differential abundance.
 
 ```{r sex-pos-sig-ann, echo = FALSE, eval = FALSE}
 library(CompoundDb)
-cdb <- CompDb("~/Projects/compounds/hmdb/4.1/CompDb.Hsapiens.HMDB.4.1.sqlite")
+cdb <- CompDb("local_data/CompDb.Hsapiens.HMDB.4.1.sqlite")
 
 annotateMz(T$mzmed, cdb, adduct = c("[M+H]+", "[M+Na]+"), ppm = 10)
 
