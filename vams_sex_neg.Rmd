@@ -93,17 +93,45 @@ TestedSourcenames <-  c("capillary","plasma", "RBC", "venous")
 
 ```
 
-# Data filtering
+# Data pre-filtering
 
-Optionally we could filter the data, e.g. exclude low intensity features or
-similar. At present we do not pre-filter the data prior to the differential
-abundance analysis.
+The loaded data set consists of `r nrow(assay(vams_neg))` features that have
+multiple peaks per samples in less than 10% of samples in which a peak was found
+and that are present in at least 30% of samples from one matrix. We next
+pre-filter this data set (further) by removing features with an RSD higher than
+30% across QC samples (sample pools). The only concern with such a pre-filtering
+on QC samples is that, in the present data set, the QC, which is in fact a
+sample pool, seems to not be completely representative for every matrix.
 
+Prior pre-filtering we plot the distribution of the RSD values across QC
+samples.
+
+```{r qc-rsd-distribution, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of RSD values across QC samples. The grey vertical line indicates the 30% cut-off.", fig.width = 6, fig.height = 6}
+plot(density(rowData(vams_neg)$QC_rsd, na.rm = TRUE),
+     xlab = expression(RSD[QC]))
+abline(v = 0.3, col = "grey")
+
+```
+
+This 30% RSD filtering will remove a considerable amount of samples.
+
+```{r pre-filter}
+keep <- rowData(vams_neg)$QC_rsd < 0.3
+vams_neg <- vams_neg[which(keep), ]
+```
+
+Pre-filtering reduced the data set from `r length(keep)` features to 
+`r sum(keep, na.rm = TRUE)` (`r sum(is.na(keep))` had an RSD of `NA` and were 
+also excluded.
 
 # Differential abundance analysis
 
-## Separate analysis for each matrix
+Next we aim to identify features with significant differences in their
+abundances between male and female individuals. We perform the analysis first
+separately for each matrix followed by a multiple regression approach on the
+full data set.
 
+## Separate analysis for each matrix
 
 ```{r volcanoplot-function, echo = FALSE}
 col_volcano <- brewer.pal(4, name = "Set1")
@@ -135,12 +163,18 @@ volcanoplotFunction <- function(coef, pval, pLimit, foldLimit, Title,
 
 ```
 
-We use a linear model-based approach with empirical Bayes-based p-value
-estimation (with Bioconductor's `limma` packages). 
+In this section we perform the differential abundance analysis separately for
+each of the matrices to ensure completely matrix-independent results. To this
+end we split the data first by matrix and use a linear model `conc ~ sex` to
+explain abundance differences by the gender of the participant. We use the
+`limma` package for this analysis which based on an empirical Bayes approach to
+assess significance for differential abundance [@Smyth:2004to]. Estimated
+p-values are subsequently adjusted for multiple hypothesis testing using the
+method from Benjamini and Hochberg [@Benjamini:1995ws].
 
 ```{r sex-fit-function-limma, message = FALSE, warning = FALSE}
-pLimit <- 0.05
-foldLimit <- 1
+pLimit <- 0.1
+foldLimit <- 0.7
 res_sex_neg_sep <- rowData(vams_neg)
 
 for (src in TestedSourcenames) {
@@ -176,6 +210,25 @@ only for capillary, plasma and venous samples. Given the relatively high
 variance in RBC samples (also seen e.g. in PCA plots in
 [vams_matrix_neg.html](vams_matrix_neg.html)) this is however not unexpected.
 
+The table below lists the number of features identified to be significantly
+different between male and female samples with an at least 
+`r round(2^foldLimit, digits = 2)` -fold difference in abundance at a 
+`r pLimit * 100` % FDR.
+
+```{r sex-sep-sig-count-table, results = "asis", echo = FALSE}
+T <- cbind(
+    capillary = sum(res_sex_neg_sep$significant.capillary.sexM, na.rm = TRUE),
+    plasma = sum(res_sex_neg_sep$significant.plasma.sexM, na.rm = TRUE),
+    RBC = sum(res_sex_neg_sep$significant.RBC.sexM, na.rm = TRUE),
+    venous = sum(res_sex_neg_sep$significant.venous.sexM, na.rm = TRUE)
+    )
+cap <- "Number of identified significant features per matrix."
+pandoc.table(T, style = "rmarkdown", caption = cap)
+```
+
+Only in capillary and venous samples features with significant
+differences in abundances were identified.
+
 ```{r sex-sep-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed separately for each matrix. Horizontal and vertical dotted lines indicate the cut-off criteria for significance.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
 xlim <- range(as.matrix(res_sex_neg_sep[, grep("^coef", colnames(res_sex_neg_sep))]))
@@ -190,8 +243,28 @@ for (src in TestedSourcenames) {
 
 ```
 
-Only in plasma samples we could identify features with significant differences
-in abundances.
+The table below lists all features that are found to be significant in at least
+one of the matrices.
+
+```{r sex-sep-neg-sig-table, results = "asis", echo = FALSE}
+sig_count <- rowSums(
+    as.matrix(res_sex_neg_sep[, grep("significant", colnames(res_sex_neg_sep))]))
+sig_fts <- rownames(res_sex_neg_sep)[sig_count > 0]
+sig_fts <- sig_fts[order(sig_count[sig_fts], decreasing = TRUE)]
+
+T <- res_sex_neg_sep[sig_fts, c("mzmed", "rtmed", "coef.capillary.sexM",
+                                "coef.plasma.sexM", "coef.RBC.sexM",
+                                "coef.venous.sexM", "adj.pvalue.capillary.sexM",
+                                "adj.pvalue.plasma.sexM", "adj.pvalue.RBC.sexM",
+                                "adj.pvalue.venous.sexM")]
+colnames(T) <- sub(".sexM", "", colnames(T), fixed = TRUE)
+cap <- paste0("Features with significant difference in abundances between ",
+              "male and female individuals in at least one matrix.")
+pandoc.table(as.data.frame(T), style = "rmarkdown", caption = cap)
+
+```
+
+Many of the features are shared between capillary and venous samples.
 
 At last we compare the top 50 features with the most significant differences
 between male and female for each matrix to evaluate whether they are shared
@@ -220,7 +293,43 @@ upset(data.frame(ovlp))
 
 ```
 
-The overlap is surprisingly low.
+The overlap between the top 50 most significant features is low. The largest
+overlap with 16 features is between capillary and venous samples, the only two
+matrices in which also significant features were found. Almost all of the 50
+selected features for plasma and RBC do not overlap with any other matrix.
+
+The table below lists the 16 features common to capillary and venous.
+
+```{r sex-sep-neg-common-fts, results = "asis", echo = FALSE}
+sig_fts <- rownames(ovlp)[ovlp[, 1] & ovlp[, 4]]
+
+T <- res_sex_neg_sep[sig_fts, c("mzmed", "rtmed", "coef.capillary.sexM",
+                                "coef.plasma.sexM", "coef.RBC.sexM",
+                                "coef.venous.sexM", "adj.pvalue.capillary.sexM",
+                                "adj.pvalue.plasma.sexM", "adj.pvalue.RBC.sexM",
+                                "adj.pvalue.venous.sexM")]
+colnames(T) <- sub(".sexM", "", colnames(T), fixed = TRUE)
+cap <- paste0("Top 50 features shared between capillary and venous samples.")
+pandoc.table(as.data.frame(T), style = "rmarkdown", caption = cap)
+
+```
+
+The coefficients of these features are highly similar between capillary and
+venous samples. Also, most of the features do almost reach significance levels
+in capillary and are statistically significant in venous samples, but do not
+reach the required difference in abundances. Note also that features in rows 2,
+3, 4, 5, 7, 8, 9, 10, 12, 16 and 17 have the same retention time (165 seconds)
+thus potentially representing the adduct of the same metabolite. Also rows 6, 11
+and 14 have similar retention times of about 188 seconds.
+
+```{r sex-sep-neg-sig-ann, echo = FALSE, eval = FALSE}
+library(CompoundDb)
+cdb <- CompDb("/Users/jo/Projects/compounds/hmdb/4.1/CompDb.Hsapiens.HMDB.4.1.sqlite")
+annotateMz(T$mzmed, cdb, adduct = c("[M-H]-", "[M+Cl]-", "[2M-H]-"), ppm = 10)
+
+#' it's a mess - either no annotation or multiple.
+```
+
 
 ```{r sex-sep-export, echo = FALSE}
 library(writexl)
@@ -231,17 +340,16 @@ save(res_sex_neg_sep, file = paste0(RDATA_PATH, "res_sex_neg_sep.RData"))
 
 ```
 
-Things we could do:
-- check if the plasma-specific features are very low in the other matrices and
-  *vice versa*.
-
-
 
 ## Multiple regression analysis
 
 We next use multiple linear regression to identify features with (potentially
-significant) differences between male and female participants on the full data
-set.
+significant) differences between male and female participants. We use a linear
+model that allows to identify sex-specific features within each matrix. For the
+linear model fitting we use the `limma` package that also employs the
+*moderated* t-test [@Smyth:2004to] to avoid sampling error in experiments with
+small sample sizes. Resulting raw p-values are adjusted for multiple hypothesis
+testing using the method from Benjamini and Hochberg [@Benjamini:1995ws].
 
 ```{r Linear-fit-combined, message = FALSE, warning = FALSE}
 sex <- vams_neg$sex
@@ -291,11 +399,24 @@ for (src in TestedSourcenames) {
 ```
 
 The enrichment for small p-values seems smaller than in the analysis performed
-separately for each matrix. We even see an enrichment of large p-values. By
-including the participant's age into the linear model this enrichment in large
-p-values disappears, but the results are similar (data not shown). Next we
+separately for each matrix. We even see an enrichment of large p-values. Next we
 create volcano plots representing the results for the comparison between male
 and female individuals.
+
+The table below lists the number of significant features per matrix.
+
+```{r sex-sig-count-table, results = "asis", echo = FALSE}
+T <- cbind(
+    capillary = sum(res_sex_neg$significant.capillary.sexM, na.rm = TRUE),
+    plasma = sum(res_sex_neg$significant.plasma.sexM, na.rm = TRUE),
+    RBC = sum(res_sex_neg$significant.RBC.sexM, na.rm = TRUE),
+    venous = sum(res_sex_neg$significant.venous.sexM, na.rm = TRUE)
+    )
+cap <- "Number of identified significant features per matrix."
+pandoc.table(T, style = "rmarkdown", caption = cap)
+```
+
+The largest number of significant features was found in plasma samples.
 
 ```{r sex-neg-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
@@ -374,7 +495,7 @@ upset(data.frame(ovlp))
 
 ```
 
-The overlap is again surprisingly low.
+The overlap is much lower in the combined analysis than in the matrix-separate analysis.
 
 ```{r sex-neg-export, echo = FALSE}
 write_xlsx(as.data.frame(res_sex_neg),

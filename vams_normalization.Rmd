@@ -987,14 +987,12 @@ not seem to be representative of all matrices (data not shown).
 
 ```{r fit-model-batch, message = FALSE, warning = FALSE}
 smpls_a <- data_pos$batch == 31012018
-#' qcs_a <- data_pos$sample == "POOL" & smpls_a
 mdls_a <- xcms:::rowFitModel(
                      y ~ inj_idx, data = pData(data_pos)[smpls_a, ],
                      y = log2(fv_nofill[, smpls_a]), method = "lmrob",
                      minVals = 12)
 
 smpls_b <- data_pos$batch == 1022018
-#' qcs_b <- data_pos$sample == "POOL" & smpls_b
 mdls_b <- xcms:::rowFitModel(
                      y ~ inj_idx, data = pData(data_pos)[smpls_b, ],
                      y = log2(fv_nofill[, smpls_b]), method = "lmrob",
