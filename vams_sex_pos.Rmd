@@ -177,8 +177,8 @@ p-values are subsequently adjusted for multiple hypothesis testing using the
 method from Benjamini and Hochberg [@Benjamini:1995ws].
 
 ```{r sex-fit-function-limma, message = FALSE, warning = FALSE}
-pLimit <- 0.05
-foldLimit <- 1
+pLimit <- 0.1
+foldLimit <- 0.7
 res_sex_pos_sep <- rowData(vams_pos)
 
 for (src in TestedSourcenames) {
@@ -213,6 +213,24 @@ The enrichment of small p-values is much smaller compared to the comparison
 between matrices. Also, in RBC no enrichment is visible. Next we create volcano
 plots representing the results for the comparison between male and female
 individuals.
+
+The table below lists the number of features identified to be significantly
+different between male and female samples with an at least 
+`r round(2^foldLimit, digits = 2)` -fold difference in abundance at a 
+`r pLimit * 100` % FDR.
+
+```{r sex-sep-sig-count-table, results = "asis", echo = FALSE}
+T <- cbind(
+    capillary = sum(res_sex_pos_sep$significant.capillary.sexM, na.rm = TRUE),
+    plasma = sum(res_sex_pos_sep$significant.plasma.sexM, na.rm = TRUE),
+    RBC = sum(res_sex_pos_sep$significant.RBC.sexM, na.rm = TRUE),
+    venous = sum(res_sex_pos_sep$significant.venous.sexM, na.rm = TRUE)
+    )
+cap <- "Number of identified significant features per matrix."
+pandoc.table(T, style = "rmarkdown", caption = cap)
+```
+
+Only in plasma samples significant features were identified.
 
 ```{r sex-sep-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed separately for each matrix. Horizontal and vertical dotted lines indicate the cut-off criteria for significance.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
@@ -258,7 +276,30 @@ upset(data.frame(ovlp))
 
 ```
 
-The overlap is surprisingly low.
+The overlap is surprisingly low. Especially plasma samples seem to be quite
+different while there is some overlap between capillary and venous samples and
+to some degree also RBC samples.
+
+The table below lists the 16 features common to capillary, venous and RBC.
+
+```{r sex-sep-pos-common-fts, results = "asis", echo = FALSE}
+sig_fts <- rownames(ovlp)[ovlp[, 1] & ovlp[, 4]]
+
+T <- res_sex_pos_sep[sig_fts, c("mzmed", "rtmed", "coef.capillary.sexM",
+                                "coef.plasma.sexM", "coef.RBC.sexM",
+                                "coef.venous.sexM", "adj.pvalue.capillary.sexM",
+                                "adj.pvalue.plasma.sexM", "adj.pvalue.RBC.sexM",
+                                "adj.pvalue.venous.sexM")]
+colnames(T) <- sub(".sexM", "", colnames(T), fixed = TRUE)
+cap <- paste0("Top 50 features shared between capillary, venous and RBC samples.")
+pandoc.table(as.data.frame(T), style = "rmarkdown", caption = cap)
+
+```
+
+The coefficients for these features are comparable between plasma, capillary
+and, to some degree, RBC samples. The similarity of the retention time for many
+of the features could also indicate that they represent adducts of the same
+compounds.
 
 ```{r sex-sep-export, echo = FALSE}
 library(writexl)
@@ -269,9 +310,6 @@ save(res_sex_pos_sep, file = paste0(RDATA_PATH, "res_sex_pos_sep.RData"))
 
 ```
 
-Things we could do:
-- check if the plasma-specific features are very low in the other matrices and
-  *vice versa*.
 
 
 ## Multiple regression analysis
@@ -364,6 +402,22 @@ for (src in TestedSourcenames) {
 In plasma samples, quite some features show significant differences in the
 abundances between male and female individuals. 
 
+The table below lists the number of features identified to be significantly
+different between male and female samples with an at least 
+`r round(2^foldLimit, digits = 2)` -fold difference in abundance at a 
+`r pLimit * 100` % FDR.
+
+```{r sex-sig-count-table, results = "asis", echo = FALSE}
+T <- cbind(
+    capillary = sum(res_sex_pos$significant.capillary.sexM, na.rm = TRUE),
+    plasma = sum(res_sex_pos$significant.plasma.sexM, na.rm = TRUE),
+    RBC = sum(res_sex_pos$significant.RBC.sexM, na.rm = TRUE),
+    venous = sum(res_sex_pos$significant.venous.sexM, na.rm = TRUE)
+    )
+cap <- "Number of identified significant features per matrix."
+pandoc.table(T, style = "rmarkdown", caption = cap)
+```
+
 The table below lists all features that are found to be significant in at least
 one of the matrices.
 
@@ -385,9 +439,6 @@ pandoc.table(as.data.frame(T), style = "rmarkdown", caption = cap)
 
 ```
 
-There is indeed no overlap of significant features. With the exception of some
-(rows 3, 4, 12) there is also no agreement in the extent and direction of
-differential abundance.
 
 ```{r sex-pos-sig-ann, echo = FALSE, eval = FALSE}
 library(CompoundDb)

@@ -173,8 +173,8 @@ p-values are subsequently adjusted for multiple hypothesis testing using the
 method from Benjamini and Hochberg [@Benjamini:1995ws].
 
 ```{r sex-fit-function-limma, message = FALSE, warning = FALSE}
-pLimit <- 0.05
-foldLimit <- 1
+pLimit <- 0.1
+foldLimit <- 0.7
 res_sex_neg_sep <- rowData(vams_neg)
 
 for (src in TestedSourcenames) {
@@ -210,6 +210,25 @@ only for capillary, plasma and venous samples. Given the relatively high
 variance in RBC samples (also seen e.g. in PCA plots in
 [vams_matrix_neg.html](vams_matrix_neg.html)) this is however not unexpected.
 
+The table below lists the number of features identified to be significantly
+different between male and female samples with an at least 
+`r round(2^foldLimit, digits = 2)` -fold difference in abundance at a 
+`r pLimit * 100` % FDR.
+
+```{r sex-sep-sig-count-table, results = "asis", echo = FALSE}
+T <- cbind(
+    capillary = sum(res_sex_neg_sep$significant.capillary.sexM, na.rm = TRUE),
+    plasma = sum(res_sex_neg_sep$significant.plasma.sexM, na.rm = TRUE),
+    RBC = sum(res_sex_neg_sep$significant.RBC.sexM, na.rm = TRUE),
+    venous = sum(res_sex_neg_sep$significant.venous.sexM, na.rm = TRUE)
+    )
+cap <- "Number of identified significant features per matrix."
+pandoc.table(T, style = "rmarkdown", caption = cap)
+```
+
+Only in capillary and venous samples features with significant
+differences in abundances were identified.
+
 ```{r sex-sep-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed separately for each matrix. Horizontal and vertical dotted lines indicate the cut-off criteria for significance.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
 xlim <- range(as.matrix(res_sex_neg_sep[, grep("^coef", colnames(res_sex_neg_sep))]))
@@ -223,9 +242,6 @@ for (src in TestedSourcenames) {
 }
 
 ```
-
-Only in capillary and venous samples we could identify features with significant
-differences in abundances.
 
 The table below lists all features that are found to be significant in at least
 one of the matrices.
@@ -248,7 +264,7 @@ pandoc.table(as.data.frame(T), style = "rmarkdown", caption = cap)
 
 ```
 
-One feature is shared between capillary and venous samples.
+Many of the features are shared between capillary and venous samples.
 
 At last we compare the top 50 features with the most significant differences
 between male and female for each matrix to evaluate whether they are shared
@@ -386,6 +402,21 @@ The enrichment for small p-values seems smaller than in the analysis performed
 separately for each matrix. We even see an enrichment of large p-values. Next we
 create volcano plots representing the results for the comparison between male
 and female individuals.
+
+The table below lists the number of significant features per matrix.
+
+```{r sex-sig-count-table, results = "asis", echo = FALSE}
+T <- cbind(
+    capillary = sum(res_sex_neg$significant.capillary.sexM, na.rm = TRUE),
+    plasma = sum(res_sex_neg$significant.plasma.sexM, na.rm = TRUE),
+    RBC = sum(res_sex_neg$significant.RBC.sexM, na.rm = TRUE),
+    venous = sum(res_sex_neg$significant.venous.sexM, na.rm = TRUE)
+    )
+cap <- "Number of identified significant features per matrix."
+pandoc.table(T, style = "rmarkdown", caption = cap)
+```
+
+The largest number of significant features was found in plasma samples.
 
 ```{r sex-neg-volcano, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Volcano plots representing the results for the comparison between male and female individuals. Analysis was performed on the full data.", fig.width = 12, fig.height = 4}
 par(mfrow = c(1, 4))
