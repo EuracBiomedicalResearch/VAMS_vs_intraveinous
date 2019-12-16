@@ -512,7 +512,6 @@ load(paste0(RDATA_PATH, "data_pos_refined.RData"))
 
 merged_rand <- sample(which(chromPeakData(data_pos)$merged), 100)
 
-#' 416293 (mz 714.5825, 714.5882, rt 199.7670, 210.0900) is strange...
 dr <- paste0(IMAGE_PATH, "random_merged_peaks/")
 dir.create(dr, showWarnings = FALSE)
 for (i in merged_rand) {
@@ -546,6 +545,7 @@ for (i in is_merged) {
                           rt = rtr, mz = mzr)
     png(file = paste0(dr, "Glucose_", i, ".png"), width = 12, height = 12,
         units = "cm", res = 300, pointsize = 4)
+    par(mfrow = c(2, 1))
     plot(chr_1, peakCol = paste0(sample_colors[pks[i, "sample"]], 50),
          peakBg = paste0(sample_colors[pks[i, "sample"]], 10))
     plot(chr_2, peakCol = paste0(sample_colors[pks[i, "sample"]], 50),
@@ -553,27 +553,29 @@ for (i in is_merged) {
     dev.off()    
 }
 
-
 mzr <- c(491.3193, 491.3207)
 rtr <- c(65, 100)
-chr_1 <- chromatogram(filterFile(data_pos, 74), mz = mzr, rt = rtr)
-chr_2 <- chromatogram(filterFile(data_pos_proc, 74), mz = mzr, rt = rtr)
+chr_1 <- chromatogram(filterFile(data_pos_pks, 74), mz = mzr, rt = rtr)
+chr_2 <- chromatogram(filterFile(data_pos, 74), mz = mzr, rt = rtr)
 par(mfrow = c(2, 1))
 plot(chr_1)
 plot(chr_2)
 
 mzr <- c(783.5719, 783.6157)
 rtr <- c(25, 55)
-chr_1 <- chromatogram(filterFile(data_pos, 111), mz = mzr, rt = rtr)
-chr_2 <- chromatogram(filterFile(data_pos_proc, 111), mz = mzr, rt = rtr)
+chr_1 <- chromatogram(filterFile(data_pos_pks, 111), mz = mzr, rt = rtr)
+chr_2 <- chromatogram(filterFile(data_pos, 111), mz = mzr, rt = rtr)
 par(mfrow = c(2, 1))
 plot(chr_1)
 plot(chr_2)
 
-#' weird: "CP562116": seems to have just a single peak - and the merged does
-#' not show any at all.
-
 ```
+
+Results from the peak merging were validated manually by inspecting 100 random
+merged peaks. In most cases merging resulted in better peak integration. Most
+importantly, peak merging removes any completely overlapping peaks which would
+result in the correspondence analysis to artificially inflated quantified
+feature abundances (if `method = "sum"` is used).
 
 For the in total `r nrow(std_info)` standards for which retention times have
 been determined (in water), `r sum(std_info$is_ok)` are considered *detected* in
@@ -664,7 +666,6 @@ pandoc.table(std_info_pks, style = "rmarkdown",
                              "a peak was identified. Columnn delta_rt ",
                              "contains the difference between the observed ",
                              "and the expected retention time."))
-
 ```
 
 Next we evaluate the numbers of detected peaks, m/z and retention time widths of
@@ -685,7 +686,7 @@ par(mfrow = c(3, 1), mar = c(0, 4.3, 1.5, 0.1))
 barplot(unlist(lapply(pk_list, nrow)),
         col = paste0(col_source[data_pos$source], 80),
         ylab = "peak count", main = "Peak detection summary, POS",
-        ylim = c(0, 12000), xaxt = "n")
+        ylim = c(0, 4000), xaxt = "n")
 grid()
 legend("top", horiz = TRUE, col = col_source, pch = 15,
        legend = names(col_source))
@@ -702,11 +703,11 @@ boxplot(lapply(pk_list, function(z) log2(z[, "into"])), outline = FALSE,
 
 ```
 
-The numbers of detected peaks is between 6000 and 9000 with more peaks being
+The numbers of detected peaks is between 2000 and 3000 with more peaks being
 found in venous and capillary samples, while fewer were found in plasma
 samples. RBC samples show the highest variability in the numbers of identified
-peaks with three samples yielding a very low number of peaks (between 2000 and
-4000). These are from samples 11, 20 and 22 replicates 2, 1 and 2,
+peaks with three samples yielding a very low number of peaks (between 1000 and
+1400). These are from samples 11, 20 and 22 replicates 2, 1 and 2,
 respectively. The m/z widths of identified peaks is on average below 10ppm. Most
 of the peaks are between 3 and 5 seconds wide with the retention time width
 being highly comparable between samples (not shown). Interestingly, the
@@ -736,7 +737,8 @@ tab <- tab[, -1]
 pandoc.table(t(tab), style = "rmarkdown", 
              cap = paste("Summary of peak detection results. Shown are the",
                          "per-source quantiles of the numbers of identified",
-                         "peaks, of the median m/z and rt widths per sample."))
+                         "peaks, of the median m/z (in ppm) and rt widths",
+                         " per sample."))
 ```
 
 The per-sample median m/z width of the identified peaks is on average quite
@@ -763,7 +765,7 @@ in most samples. We thus first group chromatographic peaks requiring them to be
 present in 80% of the samples within each group and use these as the *hook*
 peaks. Most of the settings for the peak grouping can then be reused for the
 correspondence analysis in the next section. Note that before alignment we
-remove potentially problematic samples. We are setting `binSize = 0.02` to
+remove potentially problematic samples. We are setting `binSize = 0.01` to
 avoid chromatographic peaks with highly similar m/z values (within the same
 file) to be grouped into the same feature. This has been defined by evaluating
 the distance in m/z between chromatographic peaks in the same file in a region
@@ -771,7 +773,7 @@ with a high peak density (see plot below).
 
 ```{r pos-mz-distance-peaks-plot, message = FALSE, warning = FALSE, fig.cap = "Position of detected chromatographic peaks within a sample. Shown are chromatographic peaks in a region with high peak density. The horizontal blue line represents the bin width if binSize = 0.02 was used."}
 plotChromPeaks(filterMz(data_pos, mz = c(756, 758)), 1)
-abline(h = c(757, 757.02), col = "#0000ff80")
+abline(h = c(757, 757.01), col = "#0000ff80")
 ```
 
 To define the `bw` parameter, the other important parameter to the peak
