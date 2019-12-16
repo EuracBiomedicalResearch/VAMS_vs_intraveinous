@@ -397,9 +397,9 @@ setup.
 ```{r pos-centWave, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_pos_pks.RData"))}
 cwp <- CentWaveParam(ppm = 50,
                      peakwidth = c(2, 20),
-                     snthresh = 5,
+                     snthresh = 10,
                      mzdiff = 0.001,
-                     prefilter = c(4, 300),
+                     prefilter = c(3, 1000),
                      noise = 100,
                      integrate = 2)
 
@@ -417,7 +417,8 @@ amount of peak detection artifacts such as largely overlapping peaks or
 artificially split peaks.
 
 ```{r pos-centWave-refine, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_pos_refined.RData"))}
-mnp <- MergeNeighboringPeaksParam(expandRt = 4, expandMz = 0.001)
+mnp <- MergeNeighboringPeaksParam(expandRt = 2.5, expandMz = 0.001,
+                                  minProp = 3/4)
 data_pos <- refineChromPeaks(data_pos, param = mnp)
 save(data_pos, file = paste0(RDATA_PATH, "data_pos_refined.RData"))
 ```
@@ -426,7 +427,7 @@ save(data_pos, file = paste0(RDATA_PATH, "data_pos_refined.RData"))
 load(paste0(RDATA_PATH, "data_pos_refined.RData"))
 ```
 
-In total xxx peaks were merged, which reduced the total number of peaks in the
+Merging neighboring peaks reduced the total number of peaks in the
 data set from `r n_peaks_before` to `nrow(chromPeaks(data_pos))`.
 
 ```{r pos-centWave-eic-plots, echo = FALSE, eval = plot_eics}
@@ -471,17 +472,16 @@ for (i in 1:nrow(std_info)) {
         res = 300, pointsize = 4)
     chr <- std_info_chr[i, ]
     pks <- chromPeaks(chr)
-    mzr <- range(pks[, c("rtmin", "rtmax")])
     plot(chr, col = "#00000040",
          main = paste0(std_info$name[i], ": ",
-                       format(mzr[1], digits = 6), "-",
-                       format(mzr[2], digits = 6)),
-         peakCol = paste0(sample_colors[pks[, "column"]], 60),
+                       format(mz(chr)[1], digits = 6), "-",
+                       format(mz(chr)[2], digits = 6)),
+         peakCol = paste0(sample_colors[pks[, "column"]], 50),
          peakBg = paste0(sample_colors[pks[, "column"]], 10))
     #' This is just to indicate identified peaks with a rectangle.
     xcms:::.add_chromatogram_peaks(
                chr, pks,
-               col = paste0(sample_colors[pks[, "column"]], 60),
+               col = paste0(sample_colors[pks[, "column"]], 40),
                bg = NA,
                type = "rectangle")
     abline(v = std_info$RT[i])
@@ -502,6 +502,77 @@ write.table(std_info, file = "data/std_info.txt", row.names = FALSE, sep = "\t")
 ```{r pos-centWave-manual-check-import, echo = FALSE}
 std_info <- read.table("data/std_info.txt", sep = "\t", as.is = TRUE,
                        header = TRUE)
+```
+
+```{r echo = FALSE, eval = FALSE}
+load(paste0(RDATA_PATH, "data_pos_pks.RData"))
+data_pos_pks <- data_pos
+load(paste0(RDATA_PATH, "data_pos_refined.RData"))
+
+
+merged_rand <- sample(which(chromPeakData(data_pos)$merged), 100)
+
+#' 416293 (mz 714.5825, 714.5882, rt 199.7670, 210.0900) is strange...
+dr <- paste0(IMAGE_PATH, "random_merged_peaks/")
+dir.create(dr, showWarnings = FALSE)
+for (i in merged_rand) {
+    pk <- chromPeaks(data_pos)[i, , drop = FALSE]
+    rtr <- pk[1, c("rtmin", "rtmax")] + c(-10, 10)
+    mzr <- pk[1, c("mzmin", "mzmax")] + c(-0.005, 0.005)
+    chr_1 <- chromatogram(filterFile(data_pos_pks, pk[1, "sample"]),
+                          rt = rtr, mz = mzr)
+    chr_2 <- chromatogram(filterFile(data_pos, pk[1, "sample"]),
+                          rt = rtr, mz = mzr)
+    png(file = paste0(dr, rownames(pk), ".png"), width = 12, height = 12,
+        units = "cm", res = 300, pointsize = 4)
+    par(mfrow = c(2, 1))
+    plot(chr_1, peakCol = paste0(sample_colors[pk[1, "sample"]], 50),
+         peakBg = paste0(sample_colors[pk[1, "sample"]], 10))
+    plot(chr_2, peakCol = paste0(sample_colors[pk[1, "sample"]], 50),
+         peakBg = paste0(sample_colors[pk[1, "sample"]], 10))
+    dev.off()
+}
+
+#' Check merged peaks for Glucose...
+idx <- which(std_info$name == "Glucose")
+rtr <- std_info$RT_obs[idx] + c(-10, 10)
+mzr <- std_info[idx, c("mz_ion")] + c(-0.01, 0.01)
+pks <- chromPeaks(data_pos, mz = mzr, rt = rtr)
+is_merged <- which(chromPeakData(data_pos)[rownames(pks), "merged"])
+for (i in is_merged) {
+    chr_1 <- chromatogram(filterFile(data_pos_pks, pks[i, "sample"]),
+                          rt = rtr, mz = mzr)
+    chr_2 <- chromatogram(filterFile(data_pos, pks[i, "sample"]),
+                          rt = rtr, mz = mzr)
+    png(file = paste0(dr, "Glucose_", i, ".png"), width = 12, height = 12,
+        units = "cm", res = 300, pointsize = 4)
+    plot(chr_1, peakCol = paste0(sample_colors[pks[i, "sample"]], 50),
+         peakBg = paste0(sample_colors[pks[i, "sample"]], 10))
+    plot(chr_2, peakCol = paste0(sample_colors[pks[i, "sample"]], 50),
+         peakBg = paste0(sample_colors[pks[i, "sample"]], 10))
+    dev.off()    
+}
+
+
+mzr <- c(491.3193, 491.3207)
+rtr <- c(65, 100)
+chr_1 <- chromatogram(filterFile(data_pos, 74), mz = mzr, rt = rtr)
+chr_2 <- chromatogram(filterFile(data_pos_proc, 74), mz = mzr, rt = rtr)
+par(mfrow = c(2, 1))
+plot(chr_1)
+plot(chr_2)
+
+mzr <- c(783.5719, 783.6157)
+rtr <- c(25, 55)
+chr_1 <- chromatogram(filterFile(data_pos, 111), mz = mzr, rt = rtr)
+chr_2 <- chromatogram(filterFile(data_pos_proc, 111), mz = mzr, rt = rtr)
+par(mfrow = c(2, 1))
+plot(chr_1)
+plot(chr_2)
+
+#' weird: "CP562116": seems to have just a single peak - and the merged does
+#' not show any at all.
+
 ```
 
 For the in total `r nrow(std_info)` standards for which retention times have
