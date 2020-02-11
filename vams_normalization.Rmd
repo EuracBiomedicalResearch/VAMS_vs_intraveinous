@@ -26,7 +26,7 @@ BiocStyle::markdown()
 ```{r settings, echo = FALSE, results = "hide", message = FALSE}
 ##' Set general options
 options(useFancyQuotes = FALSE)
-set.seed(18011977)
+set.seed(123)
 
 ##' Define paths:
 filename <- "vams_normalization"
@@ -39,7 +39,6 @@ dir.create(IMAGE_PATH, recursive = TRUE)
 RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
-use_cached <- TRUE                      # if we want to repeat peak filling in
 if (!file.exists(paste0(RDATA_PATH, "data_pos.RData")))
     use_cached <- FALSE
 
@@ -133,7 +132,7 @@ library(doParallel)
 registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
 library(DESeq2)
-library(edgeR)
+library(CompMetaboTools)
 
 #' Load utility functions for this document
 source("util-functions.R")
@@ -151,28 +150,20 @@ load("data/RData/vams_preprocessing/data_pos.RData")
 data_pos$batch <- factor(data_pos$batch)
 ```
 
-We restrict the analysis to features with multiple peaks per sample in less than
-10% of samples in which a peak was found (excluding QC samples). In addition we
-require a feature to be found in 30% of the samples of at least one group
-(excluding QC samples). An overview of features used for the analysis is given
-in the table below.
+We restrict the analysis to features found in 30% of the samples of at least one
+group (excluding QC samples). An overview of features used for the analysis is
+given in the table below.
 
 ```{r feature-summary, message = FALSE, echo = FALSE, results = "asis"}
 fsumm <- featureSummary(data_pos, data_pos$source)
 study_src <- names(col_source)[names(col_source) != "all"]
-
-#' Determine the proportion of samples with multi peaks in the study group.
-#' Have to relate that to the number of samples in which a peak was found,
-#' and not to the total number of samples.
-tmp <- rowSums(fsumm[, paste0(study_src, "_multi_count")]) /
-    rowSums(fsumm[, paste0(study_src, "_count")])
 
 #' Further require a feature to be found in more than 30% of samples in at
 #' least one group.
 tmp_perc <- apply(fsumm[, paste0(study_src, "_perc")], 1,
                   function (z) any(z > 30))
 fts_used <- rownames(
-    featureDefinitions(data_pos))[which(tmp < 0.1 & tmp_perc)]
+    featureDefinitions(data_pos))[which(tmp_perc)]
 
 #' Generate summary table
 tab <- rbind(total_features = length(fts_used),
@@ -181,13 +172,19 @@ tab <- rbind(total_features = length(fts_used),
              `capillary > 50%` = sum(fsumm[fts_used, "capillary_perc"] > 50),
              `venous > 50%` = sum(fsumm[fts_used, "venous_perc"] > 50))
 colnames(tab) <- "count"
-cptn <- paste("Summary of features used for the analysis. All features found",
-              "in more than 30% of samples of at least one sample group and",
-              "with less than 10% of samples with multiple peaks per sample (",
-              "relative to the samples in which a peak was identified).")
+cptn <- paste("Summary of features used for the analysis. All features are ",
+              "found in more than 30% of samples of at least one sample group.")
 pandoc.table(tab, style = "rmarkdown", caption = cptn)
-
 ```
+
+Next we extract the feature abundances as a `SummarizedExperiment`, subsetting
+also to the features defined above.
+
+```{r extract-as-se}
+res_pos <- quantify(data_pos, method = "sum", filled = FALSE)
+res_pos <- res_pos[fts_used, ]
+```
+
 
 Next we fill-in data for samples in which no peak was detected. While we will
 eventually exclude filled-in signals in the estimation of the normalization
@@ -198,17 +195,17 @@ performed **after** normalization.
 
 Below we fill-in missing peak data from an m/z - retention time slice defined by
 the m/z range of the feature and the retention time window of the feature
-definition that is extended by a constant value, the median retention time width
-of all identified peaks. The retention time window from which the signal is
+definition that is extended by a constant value (i.e. the median retention time
+width of all identified peaks). The retention time window from which the signal is
 integrated should be expanded, because the feature's retention time range
 represents the minimal and maximal apex position of the associated peaks in the
 time dimension, and is thus unrelated to the actual retention time width of the
 peaks. The m/z range is also extended by 20ppm.
 
-```{r fill-in, message = FALSE, warning = FALSE, eval = !use_cached}
+```{r fill-in, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_pos.RData"))}
+rtwidths <- chromPeaks(data_pos)[, "rtmax"] - chromPeaks(data_pos)[, "rtmin"]
 fcp <- FillChromPeaksParam(
-    ppm = 20, fixedRt = median(chromPeaks(data_pos)[, "rtmax"] -
-                               chromPeaks(data_pos)[, "rtmin"]) / 2)
+    ppm = 20, fixedRt = median(rtwidths) / 2)
 data_pos <- fillChromPeaks(data_pos, param = fcp)
 
 save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
@@ -216,42 +213,41 @@ save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
 
 ```{r load-again, echo = FALSE, results = "hide"}
 load(paste0(RDATA_PATH, "data_pos.RData"))
+assays(res_pos)$raw_filled <- featureValues(data_pos, method = "sum",
+                                            filled = TRUE)[fts_used, ]
+## Select only the filled-in signals
+tmp <- assay(res_pos, "raw_filled")
+tmp[!is.na(assay(res_pos, "raw"))] <- NA
+assays(res_pos)$raw_only_filled <- tmp
+
+## Impute missing values.
+assays(res_pos)$raw_filled_imputed <- imputeRowMinRand(
+                   assay(res_pos, "raw_filled"), method = "from_to")
 ```
 
 Below we compare the signal distribution of detected and filled-in peak signals.
 
-```{r compare-detected-filled-plot, fig.path = IMAGE_PATH, message = FALSE, echo = FALSE, warning = FALSE, fig.cap = "Distribution of (log2) signal intensities of detected (green) and filled-in peaks (blue). Left: all features/peaks, right: only peaks of features used in the present analysis based on the above definition.", fig.width = 8, fig.height = 4}
-##' First all features.
-tmp_pks <- chromPeaks(data_pos)
-dpks_dens <- density(log2(tmp_pks[!chromPeakData(data_pos)$is_filled, "into"]))
-fpks_dens <- density(log2(tmp_pks[chromPeakData(data_pos)$is_filled, "into"]))
+```{r compare-detected-filled-plot, fig.path = IMAGE_PATH, message = FALSE, echo = FALSE, warning = FALSE, fig.cap = "Distribution of (log2) signal intensities of detected and filled-in peaks. Left: all features/peaks, right: only peaks of features used in the present analysis based on the above definition.", fig.width = 8, fig.height = 4}
+## Distribution raw data
+ints_det <- chromPeaks(data_pos)[!chromPeakData(data_pos)$is_filled, "into"]
+ints_fil <- chromPeaks(data_pos)[chromPeakData(data_pos)$is_filled, "into"]
 yl <- c(0, max(dpks_dens$y, fpks_dens$y))
 xl <- range(dpks_dens$x, fpks_dens$x)
 
-par(mfrow = c(1, 2), mar = c(4, 4.5, 1, 0.5))
-plot(4, 4, pch = NA, xlim = xl, ylim = yl, xlab = expression(log[2]~abundance),
-     ylab = "Density", main = "All peaks")
-points(dpks_dens$x, dpks_dens$y, type = "l", lwd = 2, col = "#00ce0080")
-points(fpks_dens$x, fpks_dens$y, type = "l", lwd = 2, col = "#0000ce80")
-legend("topright", col = c("#00ce0080", "#0000ce80"), lwd = 2,
-       legend = c("detected peaks", "filled-in peaks"))
+par(mfrow = c(1, 2), mar = c(4, 4.5, 4, 0.5))
+boxplot(list(detected = log2(ints_det), filled = log2(ints_fil)),
+        varwidth = TRUE, main = "all peaks",
+        ylab = expression(log[2]~abundance))
 
-##' Features being used in the analysis: fts_used
+## Peaks assigned to features
 pk_idxs <- sort(unlist(featureDefinitions(data_pos)[fts_used, "peakidx"]))
-tmp_pks <- chromPeaks(data_pos)[pk_idxs, ]
-dpks_dens <- density(
-    log2(tmp_pks[!chromPeakData(data_pos)$is_filled[pk_idxs], "into"]))
-fpks_dens <- density(
-    log2(tmp_pks[chromPeakData(data_pos)$is_filled[pk_idxs], "into"]))
-yl <- c(0, max(dpks_dens$y, fpks_dens$y))
-xl <- range(dpks_dens$x, fpks_dens$x)
+tmp <- chromPeaks(data_pos)[pk_idxs, "into"]
+ints_det <- tmp[!chromPeakData(data_pos)$is_filled[pk_idxs]]
+ints_fil <- tmp[chromPeakData(data_pos)$is_filled[pk_idxs]]
+boxplot(list(detected = log2(ints_det), filled = log2(ints_fil)),
+        varwidth = TRUE, main = "feature peaks",
+        ylab = expression(log[2]~abundance))
 
-plot(4, 4, pch = NA, xlim = xl, ylim = yl, xlab = expression(log[2]~abundance),
-     ylab = "Density", main = "Peaks of selected features")
-points(dpks_dens$x, dpks_dens$y, type = "l", lwd = 2, col = "#00ce0080")
-points(fpks_dens$x, fpks_dens$y, type = "l", lwd = 2, col = "#0000ce80")
-legend("topright", col = c("#00ce0080", "#0000ce80"), lwd = 2,
-       legend = c("detected peaks", "filled-in peaks"))
 ```
 
 As expected, abundances from filled-in peaks have on average lower intensities
@@ -259,24 +255,26 @@ than truly detected peaks. Abundances are however relatively similar suggesting
 that for many missing peaks a signal from an ion was recorded, but peak
 detection failed.
 
-Next we extract the matrix of feature abundances with the integrated peak area
-(column `"into"`) used as estimate. For multi-peak features, the integrated peak
-area of all peaks of a sample assigned to a feature are summed to create the
-final abundance estimate. We might however change this in future updates with
-alternative approaches being `method = "maxint"` and `intensity = "maxo"`
-(select the aggregated intensity of the peak with the highest intensity at the
-apex) or `method = "maxint"` and `intensity = "into"` (select the largest
-integrated intensity). For comparison reasons we also extract the feature data
-without any filled-in information.
+Next we compare the filled-in with the detected signal for QC samples. To this
+end we calculate per feature the mean intensity of detected signal and of filled
+in signal across QC samples. We then compare these per-feature averages against
+each other. Ideally, the filled-in signal should be correlated to the detected
+signal.
 
-```{r extract-featureValues, message = FALSE}
-##' Use method = "sum"... for now.
-fv <- featureValues(data_pos, method = "sum", value = "into")[fts_used, ]
-fv_raw <- fv
-fv_nofill <- featureValues(data_pos, method = "sum",
-                           value = "into", filled = FALSE)[fts_used, ]
-
+```{r correlation-filled-detected, fig.path = IMAGE_PATH, fig.cap = "Correlation of per-feature averaged detected and filled-in signal in QC samples.", echo = FALSE}
+avg_det <- rowMeans(assay(res_pos, "raw")[, res_pos$sample == "POOL"], na.rm = TRUE)
+avg_fil <- rowMeans(assay(res_pos, "raw_only_filled")[, res_pos$sample == "POOL"],
+                    na.rm = TRUE)
+plot(log2(avg_det), log2(avg_fil), xlab = "detected", ylab = "filled-in",
+     main = "Feature abundances, QC samples", pch = 16, col = "#00000080")
+abline(0, 1, col = "grey")
+cor(log2(avg_det), log2(avg_fil), use = "pairwise.complete.obs")
 ```
+
+We can see a relatively high correlation between the detected and filled-in
+signal, especially for features with higher abundances. For low abundant
+features (below ~ 1000) detected abundances are systematically higher than
+filled-in.
 
 Next we calculate and compare for each feature in QC samples the difference
 between the detected and filled-in peak data. Evaluation in QC samples avoids
@@ -284,16 +282,13 @@ any potential differences being caused by biological differences of the compared
 samples.
 
 ```{r per-feature-difference-filled-detected, message = FALSE, fig.cap = "Difference (log2 scale) of detected against filled-in signal.", fig.path = IMAGE_PATH, fig.height = 5, fig.width = 5, echo = FALSE}
-##' Get only the filled-in signals.
-fv_onlyfill <- fv
-fv_onlyfill[!is.na(fv_nofill)] <- NA
 
-is_QC <- data_pos$sample == "POOL"
-M_QC <- numeric(nrow(fv_onlyfill))
-names(M_QC) <- rownames(fv_onlyfill)
+is_QC <- res_pos$sample == "POOL"
+M_QC <- numeric(nrow(assay(res_pos, "raw_only_filled")))
+names(M_QC) <- rownames(res_pos)
 for (i in seq_along(M_QC))
-    M_QC[i] <- log2(mean(fv_nofill[i, is_QC], na.rm = TRUE)) -
-        log2(mean(fv_onlyfill[i, is_QC], na.rm = TRUE))
+    M_QC[i] <- log2(mean(assay(res_pos, "raw")[i, is_QC], na.rm = TRUE)) -
+        log2(mean(assay(res_pos, "raw_only_filled")[i, is_QC], na.rm = TRUE))
 boxplot(M_QC, ylab = expression(log[2](detected/filled)))
 grid(nx = NA, ny = NULL)
 ```
@@ -310,11 +305,11 @@ intensities first for the data without and then with filled-in data.
 ```{r raw-nofill-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution. The black line indicates the mean abundance across all features per sample.", fig.width = 10, fig.height = 5}
 layout(mat = matrix(1:2, ncol = 1), height = c(0.2, 0.8))
 par(mar = c(0.2, 4.5, 0.2, 0.5))
-barplot(apply(fv_nofill, MARGIN = 2, function(x) sum(!is.na(x))),
+barplot(apply(assay(res_pos, "raw"), MARGIN = 2, function(x) sum(!is.na(x))),
         col = paste0(col_source[data_pos$source], 80), ylab = "features",
         xaxt = "n")
-dobox(log2(fv_nofill), xaxt = "n")
-points(colMeans(log2(fv_nofill), na.rm = TRUE), type = "l")
+dobox(log2(assay(res_pos, "raw")), xaxt = "n")
+points(colMeans(log2(assay(res_pos, "raw")), na.rm = TRUE), type = "l")
 grid(nx = NA, ny = NULL)
 ```
 
@@ -330,11 +325,12 @@ also reflects the fact that some features are simply not present in the data.
 ```{r raw-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution for the filled-in data. Black points indicate the mean abundance across all features per sample.", fig.width = 10, fig.height = 5}
 layout(mat = matrix(1:2, ncol = 1), height = c(0.2, 0.8))
 par(mar = c(0.2, 4.5, 0.2, 0.5))
-barplot(apply(fv, MARGIN = 2, function(x) sum(!is.na(x))),
+barplot(apply(assay(res_pos, "raw_filled"), MARGIN = 2,
+              function(x) sum(!is.na(x))),
         col = paste0(col_source[data_pos$source], 80), ylab = "features",
         xaxt = "n")
-dobox(log2(fv), xaxt = "n")
-points(colMeans(log2(fv), na.rm = TRUE), type = "l")
+dobox(log2(assay(res_pos, "raw_filled")), xaxt = "n")
+points(colMeans(log2(assay(res_pos, "raw_filled")), na.rm = TRUE), type = "l")
 grid(nx = NA, ny = NULL)
 ```
 
@@ -349,7 +345,7 @@ Next we create relative log abundance plots that represent the difference of the
 that feature in samples from the same sample group (source).
 
 ```{r raw-nofill-rla-plot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "RLA plot for the raw data. Note: outliers are not drawn.", fig.width = 10, fig.height = 5}
-boxplot(rowRla(fv_nofill, group = data_pos$source), cex = 0.5, pch = 16, 
+boxplot(rowRla(assay(res_pos, "raw"), data_pos$source), cex = 0.5, pch = 16, 
         col = col_source[data_pos$source], ylab = "RLA",
         border = paste0(col_source[data_pos$source], 40), notch = TRUE,
         outline = FALSE, xaxt = "n", main = "raw data")
@@ -364,8 +360,8 @@ last samples from the second batch. Next we plot the RLA plots after filling-in
 missing peak data. 
 
 ```{r raw-rla-plot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "RLA plot for the raw data after filling-in missing peak data. Note: outliers are not drawn.", fig.width = 10, fig.height = 5}
-boxplot(rowRla(fv, group = data_pos$source), cex = 0.5, pch = 16, 
-        col = col_source[data_pos$source], ylab = "RLA",
+boxplot(rowRla(assay(res_pos, "raw_filled"), data_pos$source),
+        cex = 0.5, pch = 16, col = col_source[data_pos$source], ylab = "RLA",
         border = paste0(col_source[data_pos$source], 40), notch = TRUE,
         outline = FALSE, xaxt = "n", main = "raw data, filled-in")
 grid(nx = NA, ny = NULL)
@@ -381,7 +377,8 @@ At last we plot the average abundances per sample separately for the 4 sources
 to see whether the drift is independent of the sample source.
 
 ```{r rla-split-source-plot, message = FALSE, echo = FALSE, fig.cap = "Plot of per-source average (mean) RLA values per sample.", fig.path = IMAGE_PATH, fig.width = 10, fig.height = 6}
-crlas <- colMeans(rowRla(fv, group = data_pos$source), na.rm = TRUE)
+crlas <- colMeans(rowRla(assay(res_pos, "raw_filled"), data_pos$source),
+                  na.rm = TRUE)
 injidx <- data_pos$inj_idx
 injidx[data_pos$batch == 1022018] <- injidx[data_pos$batch == 1022018] + 100
 
@@ -428,120 +425,98 @@ have slightly higher abundances.
 
 Internal standards have been added to the sample mix before sample
 processing. Below we load the table with the internal standards and their
-expected mass to charge ration m/z. Features detected at these m/z are then
+expected mass to charge ratio m/z. Features detected at these m/z are then
 identified.
 
 ```{r internal-standards-read, message = FALSE, warning = FALSE}
-int_std <- read.table("data/txt/_input_Internal_Standards.txt", sep = "\t",
-                      as.is = TRUE, header = TRUE, check.names = FALSE)
-#' int_std$mz <- int_std[, "[M+H]+"]
-mass_h <- 1.007276455
-mass_na <- 22.989218
-int_std$mz <- int_std$molecular_weight + mass_h
-int_std$mz[grep("^Glucose", int_std$name)] <-
-    int_std$molecular_weight[grep("^Glucose", int_std$name)] + mass_na
-int_std <- int_std[!is.na(int_std$mz), ]
-
-#' Identify features at the expected m/z
-fts_int_std <- lapply(int_std$mz, function(mz) {
-    featureDefinitions(data_pos, mz = mz, ppm = 10, type = "apex_within")
-})
-
+library(Rdisop)
+library(CompoundDb)
+is_info <- read.table(
+    "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/data/internal_standards.txt",
+    sep = "\t", header = TRUE, as.is = TRUE)
+is_info$class <- "IS"
+is_info$mzneut = NA
+is_info$mz_ion = NA
+for (i in seq(nrow(is_info))) {
+  if (grepl("C", is_info$formula[i])){
+    is_info$mzneut[i] <- getMolecule(
+      as.character(is_info$formula[i]))$exactmass
+  } else {
+    is_info$mzneut[i] = as.numeric(is_info$formula[i])
+  }
+  #' Calculate also the m/z
+  is_info$mz_ion[i] <- unlist(
+    mass2mz(is_info$mzneut[i],
+            adduct = as.character(
+              is_info[i, grep("POS", colnames(is_info))])))
+}
+is_info <- is_info[!is.na(is_info$mz_ion), ]
 ```
 
 ```{r internal-standards-plot, echo = FALSE, message = FALSE, warning = FALSE}
+#' For each internal standard, try to find features that overlap the m/z
+#' and are close to the expected retention time.
+rt_tol <- 30
+is_info$feature_id <- NA_character_
+for (i in seq_len(nrow(is_info))) {
+    fts <- featureDefinitions(data_pos, mz = is_info$mz_ion[i], ppm = 50)
+    if (nrow(fts)) {
+        rtdiff <- abs(fts$rtmed - is_info$RT[i])
+        keep <- rtdiff < rt_tol
+        if (sum(keep) == 1)
+            is_info$feature_id[i] <- rownames(fts)[keep]
+    }
+}
+is_info <- is_info[!is.na(is_info$feature_id), ]
+
+is_info_features <- featureChromatograms(
+    data_pos, features = is_info$feature_id, expandRt = 5)
+
 #' Plot the features for the internal standards.
 col <- col_source[data_pos$source]
-#' col <- c("#ce000080", "#0000ce80")[as.integer(data_pos$batch)]
 
 dr <- paste0(IMAGE_PATH, "internal-standards/")
 dir.create(dr, showWarnings = FALSE)
-for (i in 1:length(fts_int_std)) {
-    if (nrow(fts_int_std[[i]]) == 0)
-        next
-    fn <- gsub("%", "", paste0(dr, "int_std_", i, "_",
-                               int_std[i, "name"], ".png"))
-    fts <- fts_int_std[[i]]
-    chrs <- featureChromatograms(data_pos, features = rownames(fts),
-                                 expandRt = 5)
-    cls <- col[chromPeaks(chrs)[, "sample"]]
-    png(fn, width = 10, height = 5, units = "cm", res = 200, pointsize = 4)
-    plot(chrs, peakBg = paste0(cls, 20), peakCol = paste0(cls, 60))
-    abline(v = fts$rtmed)
+for (i in seq_len(nrow(is_info))) {
+    fn <- gsub("%", "", paste0(dr, "IS_", i, "_",
+                               is_info[i, "name"], ".png"))
+    chr <- is_info_features[i, ]
+    cls <- col[chromPeaks(chr)[, "sample"]]
+    png(fn, width = 16, height = 8, units = "cm", res = 200, pointsize = 4)
+    plot(chr, peakBg = paste0(cls, 20), peakCol = paste0(cls, 60))
+    abline(v = is_info$RT[i], lty = 2)
     dev.off()
 }
 
-##' Plot peaks of a certain feature.
-##' pks <- chromPeaks(data_pos)[fts$peakidx[[1]], ]
-##' rect(xleft = pks[, "rtmin"], xright = pks[, "rtmax"], ybottom = 0,
-##'      ytop = pks[, "maxo"], border = "#ff000080")
-##' pks <- chromPeaks(data_pos)[fts$peakidx[[2]], ]
-##' rect(xleft = pks[, "rtmin"], xright = pks[, "rtmax"], ybottom = 0,
-##'      ytop = pks[, "maxo"], border = "#0000ff80")
-
-##' Manually select features/internal standards.
-int_std$feature <- rep(NA_character_, nrow(int_std))
-int_std[3, "feature"] <- rownames(fts_int_std[[3]])
-int_std[5, "feature"] <- rownames(fts_int_std[[5]])
-int_std[6, "feature"] <- rownames(fts_int_std[[6]])[2] #' the one at 192sec
-int_std[7, "feature"] <- rownames(fts_int_std[[7]])
-int_std[8, "feature"] <- rownames(fts_int_std[[8]]) #' only in plasma???
-int_std[9, "feature"] <- rownames(fts_int_std[[9]])
-int_std[10, "feature"] <- rownames(fts_int_std[[10]])
-int_std[11, "feature"] <- rownames(fts_int_std[[11]])[1] #' the one at rt 193
-##' 12 and 13 L-IsoLeucine and L-Leucine each have 3 peaks - don't know which
-##' one might be the best/correct one.
-int_std[14, "feature"] <- rownames(fts_int_std[[14]])
-##' 15 L-Methionine, 16 L-Phenylalanine and 17 L-Proline each have two peaks,
-##' seems that in some samples two and in some a single peak is present.
-##' Thus we're not using them.
-int_std[18, "feature"] <- rownames(fts_int_std[[18]])
-int_std[19, "feature"] <- rownames(fts_int_std[[19]])
-##' int_std[20, "feature"] <- rownames(fts_int_std[[20]]) #' check: large diffs
-##' 21 L-Valine has several peaks over a large rt window. Unclear which signal
-##' belongs to valine.
-
-fts_int_std <- int_std$feature
-names(fts_int_std) <- int_std$name
-fts_int_std <- fts_int_std[!is.na(fts_int_std)]
-fts_int_std <- fts_int_std[!(fts_int_std %in% c("FT01143", "FT00827"))]
+is_info$feature_id[4] <- NA_character_
+is_info$feature_id[9] <- NA_character_
+is_info$feature_id[10] <- NA_character_
+is_info$feature_id[11] <- NA_character_
+is_info$feature_id[14] <- NA_character_
+is_info$feature_id[15] <- NA_character_
+is_info <- is_info[!is.na(is_info$feature_id), ]
 
 ```
 
-All features possibly related to internal standards have been manually evaluated
-and only features have been assigned to internal standards if the signal was
-unambiguous. For L-Leucine and L-Isoleucine several chromatographic peaks (3)
-were present at the expected m/z and it was unclear which one was the *right*
-one for the standard. Similarly, the extracted chromatogram for the m/z of
-L-Methionine, L-Phenylalanine and L-Proline each featured two chromatographic
-peaks close in retention time. Also for L-Valine several peaks were present over
-a larger retention time window and thus no feature was assigned because it was
-unclear which of the signal/peaks belong to Valine. Similarly, no feature was
-assigned to L-Tyrosine. The table below lists the internal standards and their
-assigned feature with mean abundance and its standard deviation.
+All features possibly related to internal standards (i.e. with a matching m/z
+and a retention time within 30 seconds to the expected one) have been manually
+evaluated and only features have been assigned to internal standards if the
+signal was unambiguous. Some features for internal standards have been removed
+if a very strong matrix dependent intensity difference was apparent.
 
-Note that the internal standard *L-Cystine (13C6, 99%; 15N2, 99%)* was manually
-removed as it showed consistently much larger signal in plasma samples compared
-to all other samples. Also *Glucose (6,6-D2)* was removed as it had higher
-concentrations in capillary compared to other samples while it was mostly absent
-in plasma samples.
+The table below lists the internal standards and their assigned feature with
+mean abundance and its standard deviation.
 
 ```{r internal-standard-table, echo = FALSE, results = "asis", message = FALSE, warning = FALSE}
 #' table of internal standards with mean and sd of abundances (in log2 scale)
-tmp_fv <- fv_nofill[int_std$feature[!is.na(int_std$feature)], ]
-idx <- match(rownames(tmp_fv), int_std$feature)
-int_std$mean_abd <- rep(NA_real_, nrow(int_std))
-int_std$mean_abd[idx] <- rowMeans(log2(tmp_fv), na.rm = TRUE)
-int_std$sd_abd <- rep(NA_real_, nrow(int_std))
-int_std$sd_abd[idx] <- rowSds(log2(tmp_fv), na.rm = TRUE)
-int_std$RSD <- rep(NA_real_, nrow(int_std))
-int_std$RSD[idx] <- rowRsd(tmp_fv, na.rm = TRUE)
-int_std$diff_weight <- int_std[, 3] - int_std[, 2]
+tmp_fv <- assay(res_pos, "raw")[is_info$feature_id, ]
+is_info$mean_abd <- rowMeans(log2(tmp_fv), na.rm = TRUE)
+is_info$sd_abd <- rowSds(log2(tmp_fv), na.rm = TRUE)
+is_info$RSD <- rowRsd(tmp_fv, na.rm = TRUE)
 
 cpt <- paste("Internal standards with detected and assigned features, mean and",
              "standard deviation of (log2) abundance and RSD.")
-pandoc.table(int_std[int_std$feature %in% fts_int_std,
-                     c("name", "mean_abd", "sd_abd", "RSD")],
+pandoc.table(is_info[, c("name", "mean_abd", "sd_abd", "RSD")],
              style = "rmarkdown", caption = cpt)
 ```
 
@@ -549,30 +524,22 @@ At last we evaluate the separation of samples bases on the raw metabolite
 profiles and on the raw abundances of internal standards.
 
 ```{r internal-standard-pca, echo = FALSE, fig.width = 10, fig.height = 10, fig.cap = "PCA grouping samples based on raw abundances. Upper row: all features, lower row: internal standards."}
-fts_sub <- fts_int_std
-
-col_2 <- col
-## col_2 <- c("#ff000080", "#0000ff80")[as.numeric(data_pos$batch)]
-
-fv_imp <- imputeRowMinRand(fv)
-pc_all <- prcomp(t(log2(fv_imp)), scale = FALSE, center = TRUE)
-pc_int <- prcomp(t(log2(fv_imp[fts_sub, ])), scale = FALSE, center = TRUE)
+tmp_imp <- assay(res_pos, "raw_filled_imputed")
+pc_all <- prcomp(t(log2(tmp_imp)), scale = FALSE, center = TRUE)
+pc_int <- prcomp(t(log2(tmp_imp[is_info$feature_id, ])), scale = FALSE,
+                 center = TRUE)
 
 par(mfrow = c(2, 2), mar = c(4.5, 4.5, 1, 1))
-plot_pca(pc_all, pc_x = 1, pc_y = 2, col = col_2)
+plot_pca(pc_all, pc_x = 1, pc_y = 2, col = paste0(col, 80))
 legend("topright", col = col_source, legend = names(col_source), pch = 16)
-plot_pca(pc_all, pc_x = 3, pc_y = 4, col = col_2)
-plot_pca(pc_int, pc_x = 1, pc_y = 2, col = col_2)
-plot_pca(pc_int, pc_x = 3, pc_y = 4, col = col_2)
+plot_pca(pc_all, pc_x = 3, pc_y = 4, col = paste0(col, 80))
+plot_pca(pc_int, pc_x = 1, pc_y = 2, col = paste0(col, 80))
+plot_pca(pc_int, pc_x = 3, pc_y = 4, col = paste0(col, 80))
 ```
 
-For all samples a clear grouping by source is visible. Also some source-related
-separation is visible for the internal standards, for which this is rather
-unexpected and could indicate that some internal standards might be
-problematic. Also, the presence of blood cells in some, but not in all samples
-might also have an influence on the abundance levels of internal standards (as
-well as endogenous metabolites). This might in part also explain the differences
-for internal standards L-Cystine and Glucose.
+Based on abundances of all features, samples separate mostly between plasma and
+all other sample types on PC1. On PC3 samples appear to separate by matrix. A
+similar separation is visible for the analysis on internal standards on PC1. 
 
 
 # Between-sample normalization
@@ -605,53 +572,22 @@ calculations are based on abundances of detected peaks (i.e. excluding filled-in
 peak data). Subsequently we normalize the feature abundance (also of filled-in
 signal) based on the estimated sample-wise normalization factors.
 
-```{r, eval = FALSE, echo = FALSE}
-#' compare: median abundance
-#' - only detected signal
-#' - filled in signal
-#' - filled in and imputed
-conc_median_nofill <- apply(fv_nofill, MARGIN = 2, median, na.rm = TRUE)
-conc_median <- apply(fv, MARGIN = 2, median, na.rm = TRUE)
-conc_median_imp <- apply(fv_imp, MARGIN = 2, median, na.rm = TRUE)
-
-nf_median_nofill <- conc_median_nofill / median(conc_median_nofill)
-nf_median <- conc_median / median(conc_median)
-nf_median_imp <- conc_median_imp / mean(conc_median_imp)
-
-par(mfrow = c(1, 3))
-plot(nf_median_nofill, nf_median)
-abline(0, 1)
-plot(nf_median_nofill, nf_median_imp)
-abline(0, 1)
-plot(nf_median, nf_median_imp)
-abline(0, 1)
-
-#' Conclusion:
-#' - difference between detected and filled-in or imputed is considerable.
-#' - almost no difference between imputed and filled-in.
-```
-
 ```{r estimate-norm-factors, message = FALSE, warning = FALSE}
-fv_imp <- imputeRowMinRand(fv, min_fraction = 0.5)
-
-tmp <- fv
-tmp[is.na(fv_nofill)] <- NA
-
 #' sum of signal.
-sms <- colSums(tmp, na.rm = TRUE)
+sms <- colSums(assay(res_pos, "raw"), na.rm = TRUE)
 nf_sm <- sms / median(sms)
 
 #' median signal
-mdns <- apply(tmp, MARGIN = 2, median, na.rm = TRUE)
+mdns <- colMedians(assay(res_pos, "raw"), na.rm = TRUE)
 nf_mdn <- mdns / median(mdns)
 
 #' MRM
-nf_mrm <- estimateSizeFactorsForMatrix(tmp)
+nf_mrm <- estimateSizeFactorsForMatrix(assay(res_pos, "raw"))
 
 #' Normalize
-fv_sm <- sweep(fv, MARGIN = 2, nf_sm, `/`)
-fv_mdn <- sweep(fv, MARGIN = 2, nf_mdn, `/`)
-fv_mrm <- sweep(fv, MARGIN = 2, nf_mrm, `/`)
+fv_sm <- sweep(assay(res_pos, "raw"), MARGIN = 2, nf_sm, `/`)
+fv_mdn <- sweep(assay(res_pos, "raw"), MARGIN = 2, nf_mdn, `/`)
+fv_mrm <- sweep(assay(res_pos, "raw"), MARGIN = 2, nf_mrm, `/`)
 
 ```
 
@@ -664,11 +600,14 @@ missing values.
 #' Use the NormalizeMets package
 library(NormalizeMets)
 fv_nms <- 2^t(NormQcmets(
-                t(log2(fv_imp)), method = "nomis",
-                qcmets = which(rownames(fv) %in% fts_int_std))$featuredata)
+                t(log2(assay(res_pos, "raw_filled_imputed"))), method = "nomis",
+                qcmets = which(rownames(res_pos) %in% is_info$feature_id)
+            )$featuredata)
 #' re-add the internal standards!
-fv_nms <- rbind(fv_nms, fv_imp[!(rownames(fv_imp) %in% rownames(fv_nms)), ])
-fv_nms <- fv_nms[rownames(fv_imp), ]
+fv_nms <- rbind(
+    fv_nms,
+    assay(res_pos, "raw_filled_imputed")[is_info$feature_id, ])
+fv_nms <- fv_nms[rownames(res_pos), ]
 
 ```
 
@@ -686,12 +625,14 @@ compounds. Specifically, they used all metabolites with a correlation
 coefficient > 0.6 to the average of internal control compounds.
 
 ```{r ruv-norm-define-ctrls, message = FALSE, warning = FALSE}
-fts_int_std_mean <- colMeans(fv[fts_int_std, ], na.rm = TRUE)
+fts_int_std_mean <- colMeans(assay(res_pos, "raw")[is_info$feature_id, ],
+                             na.rm = TRUE)
 
-cor_int_std <- apply(log2(fv), MARGIN = 1, cor, y = log2(fts_int_std_mean))
+cor_int_std <- apply(log2(assay(res_pos, "raw")),
+                     MARGIN = 1, cor, y = log2(fts_int_std_mean))
 
 neg_ctrls <- which(cor_int_std > 0.6)
-neg_ctrls_int <- which(rownames(fv) %in% fts_int_std)
+neg_ctrls_int <- which(rownames(res_pos) %in% is_info$feature_id)
 
 ```
 
@@ -706,13 +647,15 @@ imputed data set.
 ```{r ruvs, message = FALSE, results = "hide"}
 library(MetNorm)
 
-ruv_rand <- NormalizeRUVRand(t(log2(fv_imp)), ctl = neg_ctrls_int, k = 6,
+ruv_rand <- NormalizeRUVRand(t(log2(assay(res_pos, "raw_filled_imputed"))),
+                             ctl = neg_ctrls_int, k = 6,
                              plotk = FALSE)
 fv_ruvr <- 2^t(ruv_rand$newY)
 
 library(ruv)
-ruv_3 <- RUVIII(t(log2(fv_imp)), ctl = neg_ctrls_int, k = 6,
-                M = design.matrix(data_pos$sample))
+ruv_3 <- RUVIII(t(log2(assay(res_pos, "raw_filled_imputed"))),
+                ctl = neg_ctrls_int, k = 6,
+                M = design.matrix(res_pos$sample))
 fv_ruv3 <- 2^t(ruv_3)
 
 ```
