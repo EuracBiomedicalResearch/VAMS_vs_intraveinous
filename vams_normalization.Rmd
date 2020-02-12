@@ -282,7 +282,6 @@ any potential differences being caused by biological differences of the compared
 samples.
 
 ```{r per-feature-difference-filled-detected, message = FALSE, fig.cap = "Difference (log2 scale) of detected against filled-in signal.", fig.path = IMAGE_PATH, fig.height = 5, fig.width = 5, echo = FALSE}
-
 is_QC <- res_pos$sample == "POOL"
 M_QC <- numeric(nrow(assay(res_pos, "raw_only_filled")))
 names(M_QC) <- rownames(res_pos)
@@ -438,17 +437,17 @@ is_info$class <- "IS"
 is_info$mzneut = NA
 is_info$mz_ion = NA
 for (i in seq(nrow(is_info))) {
-  if (grepl("C", is_info$formula[i])){
-    is_info$mzneut[i] <- getMolecule(
-      as.character(is_info$formula[i]))$exactmass
-  } else {
-    is_info$mzneut[i] = as.numeric(is_info$formula[i])
-  }
-  #' Calculate also the m/z
-  is_info$mz_ion[i] <- unlist(
-    mass2mz(is_info$mzneut[i],
-            adduct = as.character(
-              is_info[i, grep("POS", colnames(is_info))])))
+    if (grepl("C", is_info$formula[i])){
+        is_info$mzneut[i] <- getMolecule(
+            as.character(is_info$formula[i]))$exactmass
+    } else {
+        is_info$mzneut[i] = as.numeric(is_info$formula[i])
+    }
+    #' Calculate also the m/z
+    is_info$mz_ion[i] <- unlist(
+        mass2mz(is_info$mzneut[i],
+                adduct = as.character(
+                    is_info[i, grep("POS", colnames(is_info))])))
 }
 is_info <- is_info[!is.na(is_info$mz_ion), ]
 ```
@@ -570,7 +569,7 @@ Below we calculate normalization factors based on the total sum of the signal,
 the median abundance per sample and using the MRM and TMM methods. The
 calculations are based on abundances of detected peaks (i.e. excluding filled-in
 peak data). Subsequently we normalize the feature abundance (also of filled-in
-signal) based on the estimated sample-wise normalization factors.
+and imputed signal) based on the estimated sample-wise normalization factors.
 
 ```{r estimate-norm-factors, message = FALSE, warning = FALSE}
 #' sum of signal.
@@ -585,9 +584,9 @@ nf_mdn <- mdns / median(mdns)
 nf_mrm <- estimateSizeFactorsForMatrix(assay(res_pos, "raw"))
 
 #' Normalize
-fv_sm <- sweep(assay(res_pos, "raw"), MARGIN = 2, nf_sm, `/`)
-fv_mdn <- sweep(assay(res_pos, "raw"), MARGIN = 2, nf_mdn, `/`)
-fv_mrm <- sweep(assay(res_pos, "raw"), MARGIN = 2, nf_mrm, `/`)
+fv_sm <- sweep(assay(res_pos, "raw_filled_imputed"), MARGIN = 2, nf_sm, `/`)
+fv_mdn <- sweep(assay(res_pos, "raw_filled_imputed"), MARGIN = 2, nf_mdn, `/`)
+fv_mrm <- sweep(assay(res_pos, "raw_filled_imputed"), MARGIN = 2, nf_mrm, `/`)
 
 ```
 
@@ -648,13 +647,13 @@ imputed data set.
 library(MetNorm)
 
 ruv_rand <- NormalizeRUVRand(t(log2(assay(res_pos, "raw_filled_imputed"))),
-                             ctl = neg_ctrls_int, k = 6,
+                             ctl = neg_ctrls_int, k = 5,
                              plotk = FALSE)
 fv_ruvr <- 2^t(ruv_rand$newY)
 
 library(ruv)
 ruv_3 <- RUVIII(t(log2(assay(res_pos, "raw_filled_imputed"))),
-                ctl = neg_ctrls_int, k = 6,
+                ctl = neg_ctrls_int, k = 5,
                 M = design.matrix(res_pos$sample))
 fv_ruv3 <- 2^t(ruv_3)
 
@@ -681,14 +680,14 @@ difference between replicated measurement that is smaller than this value.
 ```{r per-sample-mra-calculation, message = FALSE, warning = FALSE}
 grp <- paste(data_pos$source, data_pos$sample, sep = "-")
 
-mra_raw <- mra_for_mat(fv_raw, fv_nofill, grp, "all-POOL")
-mra_sm <- mra_for_mat(fv_sm, fv_nofill, grp, "all-POOL")
-mra_mdn <- mra_for_mat(fv_mdn, fv_nofill, grp, "all-POOL")
-mra_mrm <- mra_for_mat(fv_mrm, fv_nofill, grp, "all-POOL")
-mra_ruvr <- mra_for_mat(fv_ruvr, fv_nofill, grp, "all-POOL")
-mra_ruv3 <- mra_for_mat(fv_ruv3, fv_nofill, grp, "all-POOL")
-mra_nms <- mra_for_mat(fv_nms, fv_nofill, grp, "all-POOL")
-
+mra_raw <- mra_for_mat(assay(res_pos, "raw_filled"),
+                       assay(res_pos, "raw"), grp, "all-POOL")
+mra_sm <- mra_for_mat(fv_sm, assay(res_pos, "raw"), grp, "all-POOL")
+mra_mdn <- mra_for_mat(fv_mdn, assay(res_pos, "raw"), grp, "all-POOL")
+mra_mrm <- mra_for_mat(fv_mrm, assay(res_pos, "raw"), grp, "all-POOL")
+mra_ruvr <- mra_for_mat(fv_ruvr, assay(res_pos, "raw"), grp, "all-POOL")
+mra_ruv3 <- mra_for_mat(fv_ruv3, assay(res_pos, "raw"), grp, "all-POOL")
+mra_nms <- mra_for_mat(fv_nms, assay(res_pos, "raw"), grp, "all-POOL")
 ```
 
 The distribution of these 75% MRAs per method (across samples) as well as the
@@ -783,68 +782,13 @@ abundance, being the median scaling and the MRM. Methods using the internal
 standards for normalization (RUV and NOMIS) result in larger differences between
 replicates.
 
-```{r lm_replicates, eval = FALSE, echo = FALSE}
-lm_for_mat <- function(x, nofill, grp) {
-    lm_fun <- function(z) {
-        if (ncol(z) == 2) {
-            X <- z[, 1]
-            Y <- z[, 2]
-            summary(lm(Y ~ X))
-        } else NA
-    }
-    if (!missing(nofill))
-        x[is.na(nofill)] <- NA
-    lms <- apply_colgroup(x, grp, lm_fun, simplify = FALSE)
-    lms[!is.na(lms)]
-}
-
-lm_raw <- lm_for_mat(fv_raw, fv_nofill, grp)
-lm_sm <- lm_for_mat(fv_sm, fv_nofill, grp)
-lm_mdn <- lm_for_mat(fv_mdn, fv_nofill, grp)
-lm_mrm <- lm_for_mat(fv_mrm, fv_nofill, grp)
-## lm_tmm <- lm_for_mat(fv_tmm, fv_nofill, grp)
-lm_ruvr <- lm_for_mat(fv_ruvr, fv_nofill, grp)
-lm_ruv3 <- lm_for_mat(fv_ruv3, fv_nofill, grp)
-lm_nms <- lm_for_mat(fv_nms, fv_nofill, grp)
-
-lm_slope_df <- data.frame(
-    raw = vapply(lm_raw, function(z) z$coefficients[2], numeric(1)),
-    sum = vapply(lm_sm, function(z) z$coefficients[2], numeric(1)),
-    median = vapply(lm_mdn, function(z) z$coefficients[2], numeric(1)),
-    MRM = vapply(lm_mrm, function(z) z$coefficients[2], numeric(1)),
-    ## TMM = vapply(lm_tmm, function(z) z$coefficients[2], numeric(1)),
-    `RUV rand` = vapply(lm_ruvr, function(z) z$coefficients[2], numeric(1)),
-    RUVIII = vapply(lm_ruv3, function(z) z$coefficients[2], numeric(1)),
-    NOMIS = vapply(lm_nms, function(z) z$coefficients[2], numeric(1))
-)
-
-par(mar = c(6, 4.5, 1, 0.5))
-boxplot(lm_slope_df, las = 2, ylab = "slope", ylim = c(0, 2))
-grid(nx = NA, ny = NULL)
-
-lm_r2_df <- data.frame(
-    raw = vapply(lm_raw, function(z) z$r.squared, numeric(1)),
-    sum = vapply(lm_sm, function(z) z$r.squared, numeric(1)),
-    median = vapply(lm_mdn, function(z) z$r.squared, numeric(1)),
-    MRM = vapply(lm_mrm, function(z) z$r.squared, numeric(1)),
-    ## TMM = vapply(lm_tmm, function(z) z$r.squared, numeric(1)),
-    `RUV rand` = vapply(lm_ruvr, function(z) z$r.squared, numeric(1)),
-    RUVIII = vapply(lm_ruv3, function(z) z$r.squared, numeric(1)),
-    NOMIS = vapply(lm_nms, function(z) z$r.squared, numeric(1))
-)
-
-par(mar = c(6, 4.5, 1, 0.5))
-boxplot(lm_r2_df, las = 2, ylab = "R squared", ylim = c(0.5, 1))
-grid(nx = NA, ny = NULL)
-```
-
 The impact of the per-sample normalization approaches on the abundances is shown
 below.
 
 ```{r per-sample-norm-boxplot, message = FALSE, warning = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Distribution of abundances before and after per-sample normalization. Detected and filled-in signals are plotted.", fig.width = 8, fig.height = 16}
-par(mfrow = c(7, 1), mar = c(0.5, 4.5, 1, 0.1))
-dobox(log2(fv_raw), main = "raw data", ylim = c(5, 20))
-points(colMeans(log2(fv_raw), na.rm = TRUE), type = "l")
+par(mfrow = c(7, 1), mar = c(.5, 4.5, 1, 0.1))
+dobox(log2(assay(res_pos, "raw_filled_imputed")), main = "raw data", ylim = c(5, 20))
+points(colMeans(log2(assay(res_pos, "raw_filled_imputed")), na.rm = TRUE), type = "l")
 dobox(log2(fv_sm), main = "sum normalized", ylim = c(5, 20))
 points(colMeans(log2(fv_sm), na.rm = TRUE), type = "l")
 dobox(log2(fv_mdn), main = "median normalized", ylim = c(5, 20))
@@ -861,17 +805,45 @@ points(colMeans(log2(fv_nms), na.rm = TRUE), type = "l")
 
 No big improvements/changes can be observed between the raw and normalized
 abundance distributions. The boxplots represent however the abundances of the
-full (detected and filled-in) data.
+full (detected, filled-in and imputed) data.
 
-Be also aware that the methods using internal standards
-for the normalization drastically changed the abundance levels while the scale
-for the methods using global, per sample, abundance levels remained the same.
+At last we calculate also relative standard deviations (RSD, or coefficient of
+variation) for each feature across all QC samples.
+
+```{r between-sample-rsd, results = "asis"}
+rsd_raw <- rowRsd(assay(res_pos, "raw_filled_imputed")[, res_pos$sample == "POOL"])
+rsd_sm <- rowRsd(fv_sm[, res_pos$sample == "POOL"])
+rsd_mdn <- rowRsd(fv_mdn[, res_pos$sample == "POOL"])
+rsd_mrm <- rowRsd(fv_mrm[, res_pos$sample == "POOL"])
+rsd_ruvr <- rowRsd(fv_ruvr[, res_pos$sample == "POOL"])
+rsd_ruv3 <- rowRsd(fv_ruv3[, res_pos$sample == "POOL"])
+rsd_nms <- rowRsd(fv_nms[, res_pos$sample == "POOL"])
+
+rsd_df <- data.frame(raw = quantile(rsd_raw),
+                     sum = quantile(rsd_sm),
+                     median = quantile(rsd_mdn),
+                     MRM = quantile(rsd_mrm),
+                     `RUV rand` = quantile(rsd_ruvr),
+                     RUVIII = quantile(rsd_ruv3),
+                     NOMIS = quantile(rsd_nms)
+                     )
+cpt <- paste0("Distribution of RSD values across QC samples for the raw ",
+              "and between-sample normalized data.")
+pandoc.table(rsd_df, style = "rmarkdown", caption = cpt)
+```
+
+Also concerning the RSD across QC samples, between sample normalization with MRM
+yields the best results reducing the RSD on average by 2%.
+
+Be also aware that the methods using internal standards for the normalization
+drastically changed the abundance levels while the scale for the methods using
+global, per sample, abundance levels remained the same.
 
 ```{r between-sample-choose-best}
-fv <- fv_mdn
-tmp <- fv
-tmp[is.na(fv_nofill)] <- NA
-fv_nofill <- tmp
+assays(res_pos)$norm <- fv_mrm
+tmp <- fv_mrm
+tmp[is.na(assay(res_pos, "raw"))] <- NA
+assays(res_pos)$norm_nofill <- tmp
 rm(tmp)
 ```
 
@@ -890,16 +862,18 @@ drift is estimated on the detected peak data, i.e. prior to filling-in missing
 peak data.
 
 ```{r estimate-slopes-per-batch, message = FALSE, warning = FALSE, fig.path = IMAGE_PATH, fig.cap = "Plot of per-feataure estimates for the injection order dependent signal drift from the two batches.", fig.width = 6, fig.height = 6, echo = FALSE}
-smps <- data_pos$batch == 31012018 & data_pos$source == "all"
+smps <- res_pos$batch == "31012018" & res_pos$source == "all"
 lm_btch1 <- xcms:::rowFitModel(
-                       y ~ inj_idx, y = log2(fv_nofill[, smps]),
+                       y ~ inj_idx,
+                       y = log2(assay(res_pos, "norm_nofill")[, smps]),
                        method = "lmrob",
-                       data = data.frame(inj_idx = data_pos$inj_idx[smps]))
-smps <- data_pos$batch == 1022018 & data_pos$source == "all"
+                       data = data.frame(inj_idx = res_pos$inj_idx[smps]))
+smps <- res_pos$batch == "01022018" & res_pos$source == "all"
 lm_btch2 <- xcms:::rowFitModel(
-                       y ~ inj_idx, y = log2(fv_nofill[, smps]),
+                       y ~ inj_idx,
+                       y = log2(assay(res_pos, "norm_nofill")[, smps]),
                        method = "lmrob",
-                       data = data.frame(inj_idx = data_pos$inj_idx[smps]))
+                       data = data.frame(inj_idx = res_pos$inj_idx[smps]))
 
 slps_btch1 <- vapply(lm_btch1, function(z)
     ifelse(any(!is.na(z)), z$coefficients[2], NA_real_), numeric(1))
@@ -921,25 +895,28 @@ can however be observed (data not shown).
 Next we fit the linear models describing an (log scale) injection index
 dependent signal drift to abundances **separately** for the two batches. The
 advantage of the separate analysis is that the analysis in one batch is not
-dependent also on the number of valid measurements of the feature also in the
+dependent on the number of valid measurements of the feature also in the
 other batch. Below we fit linear models `y ~ inj_idx` to the log2 transformed 
 abundances (only of detected peaks) using robust regression [@Koller:2017jsa]. 
 Model fitting is skipped for features with less than 12 valid signals. We fit 
 the linear models to the full data instead of only the QC samples as they do 
-not seem to be representative of all matrices (data not shown).
+not seem to be representative of all matrices (data not shown). This obviously
+requires properly randomized samples.
 
 ```{r fit-model-batch, message = FALSE, warning = FALSE}
-smpls_a <- data_pos$batch == 31012018
+smpls_a <- res_pos$batch == "31012018"
 mdls_a <- xcms:::rowFitModel(
-                     y ~ inj_idx, data = pData(data_pos)[smpls_a, ],
-                     y = log2(fv_nofill[, smpls_a]), method = "lmrob",
-                     minVals = 12)
+                     y ~ inj_idx,
+                     data = as.data.frame(colData(res_pos))[smpls_a, ],
+                     y = log2(assay(res_pos, "norm_nofill")[, smpls_a]),
+                     method = "lmrob", minVals = 12)
 
-smpls_b <- data_pos$batch == 1022018
+smpls_b <- data_pos$batch == "01022018"
 mdls_b <- xcms:::rowFitModel(
-                     y ~ inj_idx, data = pData(data_pos)[smpls_b, ],
-                     y = log2(fv_nofill[, smpls_b]), method = "lmrob",
-                     minVals = 12)
+                     y ~ inj_idx,
+                     data = as.data.frame(colData(res_pos))[smpls_b, ],
+                     y = log2(assay(res_pos, "norm_nofill")[, smpls_b]),
+                     method = "lmrob", minVals = 12)
 
 ```
 
@@ -952,7 +929,7 @@ similar across samples/matrices.
 ```{r fit-model-table-batch, message = FALSE, echo = FALSE, fig.cap = "Distribution of slopes of the fitted models for batch a and b. Blue represents slopes for models flagged because of too low span of injection index, respectively.", fig.width = 8, fig.height = 4, fig.path = IMAGE_PATH}
 #' Calculating flags for batch a
 flgs_inj_range_a <- vapply(mdls_a, flag_model_inj_range, logical(1),
-                           min_range = diff(range(data_pos$inj_idx)) * 3/4)
+                           min_range = diff(range(res_pos$inj_idx)) * 3/4)
 
 ##' Calculate slopes for batch a
 slps_a <- vapply(mdls_a, function(z) {
@@ -963,7 +940,7 @@ slps_a <- vapply(mdls_a, function(z) {
 
 ##' Calculate flags for batch b
 flgs_inj_range_b <- vapply(mdls_b, flag_model_inj_range, logical(1),
-                           min_range = diff(range(data_pos$inj_idx)) * 2/3)
+                           min_range = diff(range(res_pos$inj_idx)) * 2/3)
 
 ##' Calculate slopes for batch b
 slps_b <- vapply(mdls_b, function(z) {
@@ -1001,8 +978,8 @@ fts_adj <- sort(unique(c(
 
 Most of the slopes, that represent the estimated injection order-dependent
 signal drift, are close to 0 suggesting most features not being affected by this
-bias. Note that specifically the *injection index range filter* removed most of
-the linear models with the largest estimated slopes/effects.
+bias. Note that the *injection index range filter* removed more models/fits in
+batch a than in batch b.
 
 The table below lists the number of features for which the model was fitted and
 the number of features for which model fitting was skipped or discarded.
@@ -1027,7 +1004,7 @@ For almost all features a model describing the injection dependent signal drift
 was defined.
 
 Most of the slopes from the models describing the injection dependent signal
-drift are close to 0 suggesting only a relatively low influence. Only about 70
+drift are close to 0 suggesting only a relatively low influence. Only about 50
 have a absolute slope larger than 0.025.
 
 ```{r features-large-slopes-plots, echo = FALSE, message = FALSE, warning = FALSE}
@@ -1039,11 +1016,12 @@ dr <- paste0(IMAGE_PATH, "largest_slopes_batch_a/")
 dir.create(dr, showWarnings = FALSE)
 fts <- names(mdls_a)[which(abs(slps_a) > 0.025)]
 for (ft in fts) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, ".png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
+                              lmoda = mdls_a[[ft]],
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
@@ -1052,11 +1030,12 @@ dr <- paste0(IMAGE_PATH, "largest_slopes_batch_b/")
 dir.create(dr, showWarnings = FALSE)
 fts <- names(mdls_b)[which(abs(slps_b) > 0.025)]
 for (ft in fts) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, ".png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
+                              lmoda = mdls_a[[ft]],
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
@@ -1086,11 +1065,12 @@ fts <- names(sort(abs(adjr_a)))[1:20]
 dr <- paste0(IMAGE_PATH, "lowest_R_batch_a/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, ".png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
+                              lmoda = mdls_a[[ft]],
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
@@ -1098,11 +1078,12 @@ fts <- names(sort(abs(adjr_b)))[1:20]
 dr <- paste0(IMAGE_PATH, "lowest_R_batch_b/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, ".png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
+                              lmoda = mdls_a[[ft]],
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
@@ -1113,11 +1094,12 @@ fts_a <- names(sort(abs(adjr_a), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_a/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts_a) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, ".png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
+                              lmoda = mdls_a[[ft]],
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
@@ -1125,11 +1107,12 @@ fts_b <- names(sort(abs(adjr_b), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_b/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts_b) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, ".png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
+                              lmoda = mdls_a[[ft]],
                               lmodb = mdls_b[[ft]], main = ft)
     dev.off()
 }
@@ -1160,11 +1143,11 @@ fts_a <- names(sort(abs(tmp_slps), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "largest_slopes_batch_a_inj_range_excluded/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts_a) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, ".png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos),
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
                               lmoda = mdls_inj_range_a[[ft]],
                               lmodb = mdls_inj_range_b[[ft]], main = ft)
     dev.off()
@@ -1176,11 +1159,11 @@ fts_b <- names(sort(abs(tmp_slps), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "largest_slopes_batch_b_inj_range_excluded/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts_b) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, ".png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos),
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
                               lmoda = mdls_inj_range_a[[ft]],
                               lmodb = mdls_inj_range_b[[ft]], main = ft)
     dev.off()
@@ -1207,27 +1190,30 @@ knitr::include_graphics(
                   fts_b[1], ".png"))
 ```	
 
-
 Next we apply the within batch correction adjusting all feature abundances (also
-filled-in values) based on the estimated models. Adjustment resulted in 18
-measurements with negative (log2) abundances. These were replaced by half of the
-minimum non negative intensity for that feature. Note however that quite some
-log2 abundances are smaller than 1, which represents negative intensities in
-natural scale.
+filled-in and imputed values) based on the estimated models. Adjustment resulted
+in measurements with negative (log2) abundances. These were replaced by half
+of the minimum non negative intensity for that feature. Note however that quite
+some log2 abundances are smaller than 1, which represents negative intensities
+in natural scale.
 
 ```{r apply-within-batch-adjustment, message = FALSE, warning = FALSE}
 #' Applying the adjustment to the full (filled-in) data.
-fv_adj <- fv
-fv_adj[, smpls_a] <- xcms:::applyModelAdjustment(
-                                y = log2(fv[, smpls_a]), lmod = mdls_a,
-                                data = pData(data_pos)[smpls_a, ],
-                                shiftNegative = "replaceHalfMin")
-fv_adj[, smpls_b] <- xcms:::applyModelAdjustment(
-                                y = log2(fv[, smpls_b]), lmod = mdls_b,
-                                data = pData(data_pos)[smpls_b, ],
-                                shiftNegative = "replaceHalfMin")
-fv_adj <- 2^fv_adj
+tmp <- assay(res_pos, "norm")
+norm_before <- tmp
+tmp[, smpls_a] <- xcms:::applyModelAdjustment(
+                             y = log2(tmp[, smpls_a]), lmod = mdls_a,
+                             data = as.data.frame(colData(res_pos))[smpls_a, ],
+                             shiftNegative = "replaceHalfMin")
+tmp[, smpls_b] <- xcms:::applyModelAdjustment(
+                               y = log2(tmp[, smpls_b]), lmod = mdls_b,
+                               data = as.data.frame(colData(res_pos))[smpls_b, ],
+                               shiftNegative = "replaceHalfMin")
+assays(res_pos)$norm <- 2^tmp
+tmp[is.na(assay(res_pos, "raw"))] <- NA
+assays(res_pos)$norm_nofill <- 2^tmp
 
+rm(tmp)
 ```
 
 Next we plot the data before and after adjustment for some selected features.
@@ -1240,25 +1226,28 @@ fts <- c(names(sort(abs(adjr_a), decreasing = TRUE)[1:5]),
 dr <- paste0(IMAGE_PATH, "within-batch-examples/")
 dir.create(dr, showWarnings = FALSE)
 for (ft in fts) {
-    png(paste0(dr, ft, "_raw.png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, "_raw.png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    plot_feature_slopes_batch(y = log2(fv[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = mdls_a[[ft]],
+    plot_feature_slopes_batch(y = log2(norm_before[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
+                              lmoda = mdls_a[[ft]],
                               lmodb = mdls_b[[ft]], main = ft, legend = FALSE)
     dev.off()
-    png(paste0(dr, ft, "_adj.png"), width = 10, height = 5, pointsize = 6,
+    png(paste0(dr, ft, "_adj.png"), width = 14, height = 7, pointsize = 6,
         res = 200, units = "cm")
-    y_sub <- log2(fv_adj[ft, ])
-    y_sub[!is.na(fv_onlyfill[ft, ])] <- NA
-    lmoda <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[smpls_a, ],
+    y_sub <- log2(assay(res_pos, "norm_nofill")[ft, ])
+    lmoda <- xcms:::fitModel(y ~ inj_idx,
+                             data = as.data.frame(colData(res_pos))[smpls_a, ],
                              method = "lmrob", y = y_sub[smpls_a])
-    lmodb <- xcms:::fitModel(y ~ inj_idx, data = pData(data_pos)[smpls_b, ],
+    lmodb <- xcms:::fitModel(y ~ inj_idx,
+                             data = as.data.frame(colData(res_pos))[smpls_b, ],
                              method = "lmrob", y = y_sub[smpls_b])
-    plot_feature_slopes_batch(y = log2(fv_adj[ft, ]),
-                              is_filled = is.na(fv_nofill[ft, ]),
-                              data = pData(data_pos), lmoda = lmoda,
-                              lmodb = lmodb, main = ft, legend = FALSE)
+    plot_feature_slopes_batch(y = log2(assay(res_pos, "norm")[ft, ]),
+                              is_filled = is.na(assay(res_pos, "raw")[ft, ]),
+                              data = as.data.frame(colData(res_pos)),
+                              lmoda = lmoda, lmodb = lmodb, main = ft,
+                              legend = FALSE)
     dev.off()
 }
 
@@ -1286,10 +1275,12 @@ Below we calculate the difference in abundances between replicated measurements
 on detected peak data only.
 
 ```{r within-batch-mra, message = FALSE, warning = FALSE}
-grp <- paste(data_pos$source, data_pos$sample, sep = "-")
+grp <- paste(res_pos$source, res_pos$sample, sep = "-")
 
-mra_raw <- mra_for_mat(fv_raw, fv_nofill, grp, "all-POOL")
-mra_adj <- mra_for_mat(fv_adj, fv_nofill, grp, "all-POOL")
+mra_raw <- mra_for_mat(assay(res_pos, "raw_filled_imputed"),
+                       assay(res_pos, "raw"), grp, "all-POOL")
+mra_adj <- mra_for_mat(assay(res_pos, "norm"),
+                       assay(res_pos, "raw"), grp, "all-POOL")
 
 ```
 
@@ -1342,10 +1333,10 @@ grid()
 
 ```
 
-The 75% MRA of replicated samples is between 1.2 and 2.5 which is quite
-OK, meaning that most samples have a less than 2-fold difference between
-replicated measurements. Within-batch normalization could reduce the MRA for
-some replicate pairs.
+The raw 75% MRA of replicated samples is between 1.2 and 3 which is quite OK,
+meaning that most samples have a less than 2-fold difference between replicated
+measurements. Within-batch normalization could reduce the MRA for some most
+replicate pairs.
 
 The boxplot below summarizes the results by comparing the distribution of raw
 and adjusted 75% MRA for both batches.
@@ -1384,6 +1375,24 @@ Within-batch adjustment did reduce the 75% MRAs slightly, especially its 75%
 quantile and the value ranges. Also the percentage of features of replicated
 samples with more than 2-fold differences is reduced.
 
+At last we evaluate also the impact of within-batch normalization on the RSD
+across QC samples. Note that evaluating normalization performance on the RSD of
+QC samples might to some extend be biased, since they are also included in the
+estimation of the injection index-dependent signal drift.
+
+```{r within-batch-rsd, results = "asis"}
+rsd_raw <- rowRsd(assay(res_pos, "raw_filled_imputed")[, res_pos$sample == "POOL"])
+rsd_norm <- rowRsd(assay(res_pos, "norm")[, res_pos$sample == "POOL"])
+
+rsd_df <- data.frame(raw = quantile(rsd_raw),
+                     norm = quantile(rsd_norm)
+                     )
+cpt <- paste0("Distribution of RSD values across QC samples for the raw ",
+              "and within-sample normalized data.")
+pandoc.table(rsd_df, style = "rmarkdown", caption = cpt)
+```
+
+Within-batch normalization only slightly improved the (average) RSD values.
 
 
 # Between-batch normalization

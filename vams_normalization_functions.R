@@ -211,6 +211,8 @@ plot_feature_slopes_batch <- function(y, is_filled, data, lmoda,
     }
 }
 
+#' @title Apply a function to sets of columns of a matrix
+#'
 #' @description
 #'
 #' Apply a function to sets of columns, i.e. to sub-matrices of selected
@@ -228,6 +230,8 @@ plot_feature_slopes_batch <- function(y, is_filled, data, lmoda,
 #'     number of unique groups/sets defined by `colgroup`. Number of rows is
 #'     either one (for `FUN` being e.g. `mean`, `sum` etc) or equal to the
 #'     number of rows of `x` (for `FUN` being e.g. `rowSums`).
+#'
+#' @author Johannes Rainer
 apply_colgroup <- function(x, colgroup, FUN, simplify = TRUE, ...) {
     if (missing(FUN)) stop("'FUN' is missing")
     if (length(colgroup) != ncol(x))
