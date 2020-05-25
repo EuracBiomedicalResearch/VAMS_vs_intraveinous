@@ -1,3 +1,7 @@
+This is version 3:
+- use new adduct information and retention times for *standards* defined by Mar.
+- use `integrate = 2` and `peakwidth = c(2, 20)` for the peak detection.)
+
 # VAMS vs intraveinous
 
 Comparison of capillary whole blood Volumetric Absorbtive Microsampling to
