@@ -1,6 +1,6 @@
 ---
 title: "Preprocessing (positive) of the vams vs intraveneous untargeted metabolomics data"
-author: "Chiara Volani, Beatrice Giaier, Mar Garcia-Aloy, Vinicius Veri Hernandes and Johannes Rainer"
+author: "Christa Malfertheiner, Chiara Volani, Beatrice Giaier, Mar Garcia-Aloy, Vinicius Veri, Hernandes and Johannes Rainer"
 graphics: yes
 output:
   BiocStyle::html_document:
@@ -16,6 +16,9 @@ references:
 ---
 
 ```{r biocstyle, echo = FALSE, results = "asis" }
+BiocManager::install("BiocStyle")
+install.packages('knitr', dependencies = TRUE)
+library('knitr')
 library(BiocStyle)
 BiocStyle::markdown() 
 ```
@@ -23,22 +26,29 @@ BiocStyle::markdown()
 **Modified**: `r file.info("vams_preprocessing.Rmd")$mtime`<br />
 **Compiled**: `r date()`
 
+
 ```{r settings, echo = FALSE, results = "hide", message = FALSE}
 #' Set general options
 options(useFancyQuotes = FALSE)
 set.seed(123)
 
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
+
+
 #' Define paths:
 filename <- "vams_preprocessing_pos"
 #' Path to save the images; remove all old images.
-IMAGE_PATH <- paste0("C:/Users/bgiaier/Documents/Eurac/VAMS_vs_intraveinous/images/", filename, "/")
+IMAGE_PATH <- paste0("C:/Users/User/Documents/Masterarbeit/R/images/", filename, "/")
+if (file.exists(IMAGE_PATH))
+    unlink(IMAGE_PATH, recursive = TRUE)
 dir.create(IMAGE_PATH, recursive = TRUE, showWarnings = FALSE)
 #' Path to store RData files
 RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 #' Define the path where we can find the mzML files:
-MZML_PATH <- "C:/Users/bgiaier/Documents/Eurac/vams/VAMS"
+MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -86,11 +96,21 @@ experiment and finally read the raw data.
 ```{r pos-libraries-data, message = FALSE}
 library(xcms)
 library(RColorBrewer)
+library(devtools)
 library(pander)
 library(pheatmap)
 library(MsCoreUtils)
 library(Rdisop)
 library(CompMetaboTools)
+library(doParallel)
+library(magrittr)
+library(readxl)
+library(MsCoreUtils)
+
+
+## Define some general settings
+da <- 0.01
+RTd <- 30
 
 ## Use socket based parallel processing on Windows systems
 if (.Platform$OS.type == "unix") {
@@ -113,6 +133,7 @@ names(col_source) <- c("RBC",           # red
 
 ```{r pos-data_pos, message = FALSE}
 #' Read the data
+
 data_pos <- readMSData(paste0(MZML_PATH, "/", pd_pos$mzML_file),
                        pdata = as(AnnotatedDataFrame(pd_pos),
                                   "NAnnotatedDataFrame"), mode = "onDisk")
@@ -123,6 +144,9 @@ data_pos <- filterRt(data_pos, rt = c(0, rt_cut))
 time_stamp <- extract_time_stamp(fileNames(data_pos))
 data_pos$time_stamp <- time_stamp
 stopifnot(!is.unsorted(time_stamp))
+```
+```{r}
+save(data_pos, file = paste0(RDATA_PATH, "data_pos_read_raws.RData"))
 ```
 
 All samples of the experiment are listed below.
@@ -186,6 +210,7 @@ Next we perform an initial quality assessment by comparing the distribution of
 TIC and BPC values from the spectra between all samples.
 
 ```{r pos-calc-tic, message = FALSE}
+#chrs_tic <- chromatogram(data_pos, aggregationFun = "sum")
 chrs_bpc <- chromatogram(data_pos, aggregationFun = "max")
 ```
 
@@ -194,6 +219,13 @@ The base peak chromatogram for the full experiment is shown below.
 ```{r pos-bpc-plot, message = FALSE, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 5, fig.cap = "Base peak chromatograms for all samples of the experiment (positive polarity)."}
 plot(chrs_bpc, col = paste0(col_source[chrs_bpc$source], "60"))
 legend("topright", col = col_source, legend = names(col_source), lwd = 2)
+```
+```{r}
+pdf(file = paste0(IMAGE_PATH, "chrs_bpc.pdf"), height = 5, width = 5*phi)
+  plot(chrs_bpc, col = paste0(col_source[as.character(chrs_bpc$source)], 60))
+  abline(v = rt_cut)
+  legend("topright", col = col_source, legend = names(col_source), lwd = 2)
+dev.off()
 ```
 
 The base peak chromatograms are quite different between the different sample
@@ -217,6 +249,16 @@ ann$batch <- factor(ann$batch, levels = c("31012018", "01022018"))
 res <- pheatmap(cormat, annotation_col = ann, cutree_cols = 3,
                 annotation_color = list(source = col_source))
 
+```
+```{r}
+pdf(file = paste0(IMAGE_PATH, "bpc2_cluster.pdf"), height = 20, width = 10*phi)
+cormat <- cor(log2(do.call(cbind, lapply(chrs_bin, intensity))))
+colnames(cormat) <- rownames(cormat) <- sampleNames(data_pos)
+ann <- pData(data_pos)[, c("batch", "source")]
+ann$batch <- factor(ann$batch, levels = c("31012018", "01022018"))
+res <- pheatmap(cormat, annotation_col = ann, cutree_cols = 3,
+                annotation_color = list(source = col_source))
+dev.off()
 ```
 
 The base peak chromatograms cluster mainly by the sample source, separating
@@ -308,6 +350,15 @@ plot(bpcs_rla, xlab = "", ylab = "average RLA", xlim = xl,
 grid(nx = NULL)
 
 ```
+```{r}
+pdf(file = paste0(IMAGE_PATH, "boxplots.pdf"), height = 5, width = 10*phi)
+boxplot(lapply(bpcs, log2), col = paste0(col_source[chrs_bpc$source], 60),
+        pch = NA, xaxt = "n", ylab = expression(log[2]~base~peak~intensity),
+        xlim = xl)
+plot(bpcs_rla, xlab = "", ylab = "average RLA", xlim = xl,
+     col = paste0(col_source[chrs_bpc$source], 80), pch = pch)
+dev.off()
+```
 
 Overall seen, the signal in the second batch is higher than in the first,
 specifically if the QC samples from both batches are compared (green colored
@@ -343,6 +394,29 @@ capillary blood samples with a higher average intensity are most likely those
 that showed also higher signal in the base peak chromatogram plot above. The
 results on the total ion signal (i.e. the sum of signal per spectrum) is
 comparable, but less pronounced (data not shown).
+```{r}
+pc <- prcomp(t(log2(do.call(cbind, lapply(chrs_bin, intensity)))),
+             scale = FALSE, center = TRUE)
+par(mfrow = c(2, 2))
+plot_pca(pc, col = col_source[as.character(data_pos$source)], pc_x = 1, pc_y = 2)
+legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
+plot_pca(pc, col = col_source[as.character(data_pos$source)], pc_x = 3, pc_y = 4)
+legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
+plot_pca(pc, col = col_source[as.character(data_pos$source)], pc_x = 2, pc_y = 3)
+legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
+```
+```{r}
+pdf(file = paste0(IMAGE_PATH, "pca.pdf"), height = 7, width = 5*phi)
+plot_pca(pc, col = col_source[as.character(data_pos$source)], pc_x = 1, pc_y = 2)
+legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
+plot_pca(pc, col = col_source[as.character(data_pos$source)], pc_x = 3, pc_y = 4)
+legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
+plot_pca(pc, col = col_source[as.character(data_pos$source)], pc_x = 2, pc_y = 3)
+legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
+dev.off()
+
+```
+
 
 ### Summary
 
@@ -368,11 +442,12 @@ defined in [this
 repository](http://github.com/EuracBiomedicalResearch/lcms-standards).
 
 ```{r known-cmps, warning = FALSE}
-library(CompoundDb)
+library(Rdisop)
+library("MetaboCoreUtils")
 std_info <- read.table(
 "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/data/standards_dilution.txt",
     sep = "\t", header = TRUE, as.is = TRUE)
-std_info <- std_info[!is.na(std_info[, grep("POS", colnames(std_info))]), ]
+std_info <- std_info[!is.na(std_info[, "POS"]), ]
 rownames(std_info) <- 1:nrow(std_info)
 std_info$mzneut = NA
 std_info$mz_ion = NA
@@ -383,11 +458,9 @@ for (i in seq(nrow(std_info))) {
     } else {
         std_info$mzneut[i] = as.numeric(std_info$formula[i])
     }
-    #' Calculate also the m/z
-    std_info$mz_ion[i] <- unlist(
-        mass2mz(std_info$mzneut[i],
-                adduct = as.character(
-                    std_info[i, grep("POS", colnames(std_info))])))
+    ## Calculate also the m/z
+    std_info$mz_ion[i] <- mass2mz(std_info$mzneut[i],
+                                  adduct = std_info[i, "POS"])[1, 1]
 }
 ```
 
@@ -410,15 +483,65 @@ cwp <- CentWaveParam(ppm = 50,
 data_pos <- findChromPeaks(data_pos, param = cwp)
 save(data_pos, file = paste0(RDATA_PATH, "data_pos_pks.RData"))
 ```
+We start the process by applying the `centWave` algorithm, which first identifies
+Regions Of Interest (ROI) in the m/z domain, then applies a Continuous Wavelet
+Transform to detect chromatographic peaks [@Tautenhahn:2008fx]. This algorithm
+allows us to change many parameters to optimize the analysis. The parameters
+are: \
+- `ppm`, which describes the tolerance in m/z deviation to consider a peak
+  to belong to the same ion \
+- `peakwidth`, a parameter that limits the width of a peak, calculated in
+  seconds \
+- `snthresh`, which defines a signal-to-noise value under which no peaks are
+  detected \
+- `prefilter`, used to remove peaks with a lower intensity than a set threshold
+- `mzCenterFun`, which is a function that calculates the m/z center of the
+  chromatographic peak \
+- `integrate`, which defines the method used to define the boundaries of the
+  chromatographic peak \
+- `mzdiff`, a value that indicates the m/z difference that two peaks must have to
+  be considered different, even though they have the same retention time \
+- `fitgauss`, which allows fitting a Gaussian curve on the detected peaks \
+- `noise`, an absolute amount below which no peaks will be considered \
+- `verboseColumns`, which allows for additional peak metadata columns to be
+  returned \
+- `roiList`, a list of ROIs containing detected mass traces, which allows to
+  skip the first part of the analysis, thus using the submitted list to carry
+  out the peak detection step \
+- `firstBaselineCheck`, permits a check that data in the ROIs are above the first
+  baseline \
+- `roiScales`, numeric vector of equal length to roiList, to be used to define the
+  scale for each region of interest
+
+The centWave parameters for the current LC-MS setup have been evaluated and
+defined in another analysis employing the same setup. They are the following: \
+- *ppm* = 50 \
+- *peakwidth* = 2, 20 \
+- *snthresh* = 10 \
+- *prefilter* = 3, 800 \
+- *mzCenterFun* = "wMean" \
+- *integrate* = 2 \
+- *mzdiff* = 0.001 \
+- *fitgauss* = FALSE \
+- *noise* = 100 \
+- *verboseColumns* = FALSE \
+- *roiList* = Listlength 0 \
+- *firstBaselineCheck* = TRUE \
+- *roiScales* = 0
+
+We apply then the `findChromPeaks` function to detect chromatographic peaks.
 
 ```{r pos-centWave-cached, echo = FALSE, eval = file.exists(paste0(RDATA_PATH, "data_pos_pks.RData"))}
 load(paste0(RDATA_PATH, "data_pos_pks.RData"))
 n_peaks_before <- nrow(chromPeaks(data_pos))
 ```
 
-Next we are post-processing the identified chromatographic peaks to reduce the
-amount of peak detection artifacts such as largely overlapping peaks or
-artificially split peaks.
+After finding peaks, we must perform some post-processing in order to remove so
+called *peak detection artifacts* which arise during peak detection and comprise
+artificially split chromatographic peaks or largely overlapping peaks. The
+`refineChromPeaks` function in combination with `MergeNeighboringPeaksParam`
+enables to reduce the number of such artifacts by merging peaks that have
+similar retention time and mass-to-charge ratio.
 
 ```{r pos-centWave-refine, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_pos_refined.RData"))}
 mnp <- MergeNeighboringPeaksParam(expandRt = 2.5, expandMz = 0.001,
@@ -433,6 +556,20 @@ load(paste0(RDATA_PATH, "data_pos_refined.RData"))
 
 Merging neighboring peaks reduced the total number of peaks in the
 data set from `r n_peaks_before` to `nrow(chromPeaks(data_pos))`.
+
+The result of the chromatographic peak detection is an `XCMSnExp` object which
+contains all preprocessing results. For each identified peak, the m/z (`"mz"`),
+retention time (`"rt"`), the range of RT and m/z (`"rtmin"`, `"rtmax"`,
+`"mzmin"`, `"mzmax"`), the integrated signal of the peak (`"into"`), the maximal
+signal of the peak (`"maxo"`), the signal to noise ratio (`"sn"`) and the index
+of the sample in which the peak was identified (`"sample"`) are reported.
+
+In the following loop, we evaluate the peak detection performance on the
+Extracted Ion Chromatograms (EICs) of ions from our lab-internal set of
+standards, which consists of molecules that are supposed to be present in human
+serum samples. First we define the respective m/z and RT ranges and subsequently
+extract the chromatograms. A solid black vertical line is drawn to indicate the
+theoretical retention time.
 
 ```{r pos-centWave-eic-plots, echo = FALSE, eval = plot_eics}
 #' Two-step approach: define first the rt/mz region for each standard and
@@ -464,14 +601,14 @@ std_info_chr <- chromatogram(
     data_pos, mz = std_info_mz_rt[, c("mzmin", "mzmax")],
     rt = rtr, aggregationFun = "max")
 
-#' Plot the extracted ion chromatograms
-dr <- paste0(IMAGE_PATH, "peakdetection/")
+## Plot the extracted ion chromatograms
+dr <- paste0(IMAGE_PATH, "peakdetection_3/")
 dir.create(dr, recursive = TRUE, showWarnings = FALSE)
-sample_colors <- col_source[data_pos$source]
+sample_colors <- col_source[as.character(data_pos$source)]
 for (i in 1:nrow(std_info)) {
-    cmpname <- gsub("L-", "", std_info$name[i])
-    cmpname <- tolower(gsub(" .*", "", cmpname))
-    filename <- paste0(dr, i, "-", cmpname, "_", "POS", ".png")
+    cmpname <- std_info$name[i]
+    filename <- paste0(dr, gsub("%", "p", cmpname, fixed = TRUE),
+                       "_POS.png")
     png(file = filename, width = 16, height = 8, units = "cm",
         res = 300, pointsize = 4)
     chr <- std_info_chr[i, ]
@@ -482,7 +619,7 @@ for (i in 1:nrow(std_info)) {
                        format(mz(chr)[2], digits = 6)),
          peakCol = paste0(sample_colors[pks[, "column"]], 50),
          peakBg = paste0(sample_colors[pks[, "column"]], 10))
-    #' This is just to indicate identified peaks with a rectangle.
+    ## This is just to indicate identified peaks with a rectangle.
     xcms:::.add_chromatogram_peaks(
                chr, pks,
                col = paste0(sample_colors[pks[, "column"]], 40),
@@ -499,7 +636,7 @@ for (i in 1:nrow(std_info)) {
 std_info$RT_obs <- NA_real_
 std_info$is_ok <- FALSE
 std_info$peak_note <- NA_character_
-write.table(std_info, file = "data/std_info.txt", row.names = FALSE, sep = "\t")
+write.table(std_info, file = "data/std_info_2.txt", row.names = FALSE, sep = "\t")
 ```
 
 ```{r pos-centWave-manual-check-import, echo = FALSE}
