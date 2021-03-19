@@ -1033,17 +1033,6 @@ plot(chr_adj, col = paste0(col_source[chr_raw$source], 40),
      peakType = "none", main = "BPC, adjusted")
 plotAdjustedRtime(data_pos, col = paste0(col_source[data_pos$source], 80),
                   peakGroupsPch = 1, peakGroupsCol = "#00000040")
-#```{r export alignment-plot, echo = FALSE, results = "hide"}
-pdf(file = paste0(IMAGE_PATH, "alignment_gg.pdf"), height = 7, width = 9)
-par(mfrow = c(3, 1), mar = c(0, 4.3, 2, 0.1))
-plot(chr_raw, col = paste0(col_source[chr_raw$source], 40),
-     peakType = "none", main = "BPC, raw")
-plot(chr_adj, col = paste0(col_source[chr_raw$source], 40),
-     peakType = "none", main = "BPC, adjusted")
-plotAdjustedRtime(data_pos, col = paste0(col_source[data_pos$source], 80),
-                  peakGroupsPch = 1, peakGroupsCol = "#00000040")
-  dev.off()
-
 
 ```
 
@@ -1100,18 +1089,7 @@ for (i in 1:nrow(std_info)) {
 }
 ```
 
-
-For most known compounds alignment worked nicely, see e.g. the plot for Serine
-or 3-Methylhistidine below, others could not be aligned perfectly, such
-as C4 Carnitine (see last image below).
-
-![](images/vams_preprocessing_pos/alignment/48-serine_POS.png)
-
-![](images/vams_preprocessing_pos/alignment/49-3-methylhistidine_POS.png)
-
-![](images/vams_preprocessing_pos/alignment/5-c4_POS.png)
-
-### Summary
+Plots can be found in the folder "alignment".
 
 ```{r, echo = FALSE}
 save(data_pos, file = paste0(RDATA_PATH, "data_pos_aligned.RData"))
