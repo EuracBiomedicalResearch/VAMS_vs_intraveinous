@@ -1,100 +1,100 @@
 mix	name	HMDB.code	formula	POS	NEG	RT	mzneut	mz_ion	RT_obs	is_ok	peak_note	name.1
-1	Betaine	HMDB0000043	C5H11NO2	[M+H]+	NA	157	117.0789786	118.0862551	157	TRUE	multiple peaks detected	Betaine
-1	Uric acid	HMDB0000289	C5H4N4O3	[M+H]+	[M-H]-	166	168.02834	169.0356165	166	TRUE	nice peak	Uric acid
-1	Acetylhistidine	HMDB0032055	C8H11N3O3	[M+H]+	[M-H]-	168	197.0800413	198.0873177	167	TRUE	multiple peaks detected	Acetylhistidine
-1	L-Glutamic Acid	HMDB0000148	C5H9NO4	[M+H]+	[M-H]-	171	147.0531578	148.0604343	173	TRUE	nice peak	L-Glutamic Acid
-2	C4 Carnitine	HMDB0000736	C11H21NO4	[M+H]+	NA	36	231.1470583	232.1543347	34	TRUE	same as C5	C4 Carnitine
-2	Hypoxanthine	HMDB0000157	C5H4N4O	[M+H]+	[M-H]-	117	136.0385108	137.0457872	117	TRUE	signal over 30sec detected	Hypoxanthine
-2	Valine	HMDB0000883	C5H11NO2	[M+H]+	[M-H]-	145	117.0789786	118.0862551	150	TRUE	two peaks detected	Valine
-2	Fructose	HMDB0000660	C6H12O6	[M+Na]+	[M-H]-	154	180.0633882	203.0526062	154	TRUE	multiple peaks detected	Fructose
-2	Glycine	HMDB0000123	C2H5NO2	[M+H]+	[M-H+HCOONa]-	167	75.03202844	76.03930489	170	TRUE	NA	Glycine
-2	Hydroxyproline	HMDB0000725	C5H9NO3	[M+H]+	[M-H]-	171	131.0582432	132.0655197	173	TRUE	multiple peaks detected	Hydroxyproline
-2	Histidine	HMDB0000177	C6H9N3O2	[M+H]+	[M-H]-	187	155.0694766	156.076753	195	TRUE	multiple peaks detected	Histidine
-2	Phosphocreatine 	HMDB0001511	C4H10N3O5P	[M+H]+	[M-H]-	190	211.0358075	212.043084	186	TRUE	nice peak	Phosphocreatine 
-3	Palmitoylcarnitine	HMDB0000222	C23H45NO4	[M+H]+	[M-H+HCOOH]-	33	399.3348591	400.3421356	32	TRUE	multiple peaks detected	Palmitoylcarnitine
-3	Niacinamide	HMDB0001406	C6H6N2O	[M+H]+	NA	42	122.0480128	123.0552893	37	TRUE	two peaks detected	Niacinamide
-3	5-Oxoproline 	HMDB0000267	C5H7NO3	[M+H]+	[M-H]-	59	129.0425931	130.0498696	55	TRUE	signal over 30sec detected	5-Oxoproline 
-3	Isoleucine	HMDB0000172	C6H13NO2	[M+H]+	[M-H]-	139	131.0946287	132.1019052	148	TRUE	multiple peaks detected	Isoleucine
-3	Alanine	HMDB0000161	C3H7NO2	[M+H]+	[M-H+HCOONa]-	158	89.04767851	90.05495496	163	TRUE	nice peak	Alanine
-3	Glucose	HMDB0000122	C6H12O6	[M+Na]+	[M-H+HCOOH]-	164	180.0633882	203.0526062	163	TRUE	multiple peaks detected	Glucose
-3	Citrulline	HMDB0000904	C6H13N3O3	[M+H]+	[M-H]-	179	175.0956914	176.1029678	183	TRUE	nice peak	Citrulline
-3	Adenylosuccinic Acid	HMDB0000536	C14H18N5O11P	[M+H]+	[M-H]-	207	463.0740436	464.08132	200	TRUE	two peaks detected	Adenylosuccinic Acid
-3	Glutathione Oxidized 	HMDB0003337	C20H32N6O12S2	[M+H]+	[M-H]-	208	612.1519621	613.1592385	209	TRUE	nice peak	Glutathione Oxidized 
-4	Phenylethylamine	HMDB0012275	C8H11N	[M+H]+	NA	36	121.0891494	122.0964258	34	TRUE	multiple peaks detected	Phenylethylamine
-4	Leucine	HMDB0000687	C6H13NO2	[M+H]+	[M-H]-	137	131.0946287	132.1019052	144	TRUE	multiple peaks detected	Leucine
-4	Putrescine	HMDB0001414	C4H12N2	[M+H-NH3]+	NA	166	88.10004842	72.08077577	160	TRUE	multiple peaks detected	Putrescine
-4	Glutamine	HMDB0000641	C5H10N2O3	[M+H]+	[M-H]-	176	146.0691422	147.0764187	179	TRUE	nice peak	Glutamine
-4	SAMe	HMDB0001185	C15H23N6O5S	[M+H]+	NA	192	399.1450637	400.1523401	202	TRUE	peak shifted	SAMe
-4	AMP	HMDB0000045	C10H14N5O7P	[M+H]+	[2M-H]-	205	347.0630849	348.0703614	203	TRUE	nice peak	AMP
-5	Corticosterone	HMDB0001547	C21H30O4	[M+H]+	NA	31	346.2144096	347.221686	28	TRUE	multiple peaks detected	Corticosterone
-5	Mannose	HMDB0000169	C6H12O6	[M+Na]+	[M-H+HCOOH]-	157	180.0633882	203.0526062	158	TRUE	multiple peaks detected	Mannose
-5	Threonine	HMDB0000167	C4H9NO3	[M+H]+	[M-H]-	170	119.0582432	120.0655197	172	TRUE	nice peak	Threonine
-5	Glycerophospho-inositol	HMDB0011649	C9H19O11P	[M+H]+	[M-H]-	225	334.0664986	335.0737751	NA	FALSE	peak too far from exp	Glycerophospho-inositol
-5	NADP	HMDB0000217	C21H28N7O17P3	[M+H]+	[M-H]-	238	743.0754537	744.0827302	232	TRUE	nice peak	NADP
-6	Choline	HMDB0000097	C5H13NO	[M+H]+	NA	41	103.0997141	104.1069905	40	TRUE	signal over 40sec detected	Choline
-6	Tryptophan	HMDB0000929	C11H12N2O2	[M+H]+	[M-H]-	150	204.0898777	205.0971541	149	TRUE	multiple peaks detected	Tryptophan
-6	Histamine	HMDB0000870	C5H9N3	[M+H]+	NA	166	111.0796473	112.0869238	180	TRUE	peak shifted	Histamine
-6	Methioninesulfoxide	HMDB0002005	C5H11NO3S	[M+H]+	[M-H]-	180	165.045964	166.0532404	181	TRUE	multiple peaks detected	Methioninesulfoxide
-6	Asparagine	HMDB0000168	C4H8N2O3	[M+H]+	[M-H]-	182	132.0534922	133.0607686	182	TRUE	nice peak	Asparagine
-6	Sucrose	HMDB0000258	C12H22O11	[M+Na]+	[M-H+HCOOH]-	184	342.1162117	365.1054297	184	TRUE	nice peak	Sucrose
-6	Arginine	HMDB0000517	C6H14N4O2	[M+H]+	[M-H]-	185	174.1116758	175.1189522	192	TRUE	multiple peaks detected	Arginine
-6	Cystine	HMDB0000192	C6H12N2O4S2	[M+H]+	[M-H]-	210	240.0238483	241.0311248	209	TRUE	nice peak	Cystine
-6	Sphingosine-1-phosphate	HMDB0000277	C18H38NO5P	[M+H]+	[M-H]-	148	379.2487605	380.2560369	148	TRUE	two peaks detected	Sphingosine-1-phosphate
-7	Caffeine	HMDB0001847	C8H10N4O2	[M+H]+	NA	33	194.0803756	195.0876521	32	TRUE	nice peak	Caffeine
-7	Sphingosine	HMDB0000252	C18H37NO2	[M+H]+	NA	37	299.2824296	300.289706	29	TRUE	peak shifted	Sphingosine
+13	1-Methylhistidine	HMDB0000001	C7H11N3O2	[M+H]+	[M-H]-	179	169.0851267	170.0924031	188	TRUE	two peaks detected	1-Methylhistidine
 7	1-Methyluric acid	HMDB0003099	C6H6N4O3	[M+H]+	[M-H]-	143	182.0439901	183.0512666	147	TRUE	nice peak	1-Methyluric acid
-7	Methionine	HMDB0000696	C5H11NO2S	[M+H]+	[M-H]-	150	149.0510493	150.0583258	158	TRUE	"peak shifted, multiple peaks detected"	Methionine
-7	Taurine	HMDB0000251	C2H7NO3S	[M+H]+	[M-H]-	169	125.0146638	126.0219403	169	TRUE	two peaks detected	Taurine
-7	ADMA	HMDB0001539	C8H18N4O2	[M+H]+	[M-H]-	173	202.1429759	203.1502524	180	TRUE	nice peak	ADMA
-7	Serine	HMDB0000187	C3H7NO3	[M+H]+	[M-H]-	179	105.0425931	106.0498696	180	TRUE	nice peak	Serine
-7	3-Methylhistidine	HMDB0000479	C7H11N3O2	[M+H]+	[M-H]-	185	169.0851267	170.0924031	192	TRUE	two peaks detected	3-Methylhistidine
-7	Glycero-phosphocholine	HMDB0000086	C8H20NO6P	[M+H]+	[M-H+HCOOH]-	188	257.1028245	258.1101009	187	TRUE	nice peak	Glycero-phosphocholine
-7	dAMP	HMDB0000905	C10H14N5O6P	[M+H]+	[M-H]-	201	331.0681703	332.0754467	NA	FALSE	peak too far from exp	dAMP
-8	C5 Carnitine	HMDB0000688	C12H23NO4	[M+H]+	NA	36	245.1627083	246.1699848	34	TRUE	same as C4	C5 Carnitine
-8	Tyrosine	HMDB0000158	C9H11NO3	[M+H]+	[M-H]-	158	181.0738933	182.0811697	160	TRUE	signal over 20sec detected	Tyrosine
-8	Ornithine	HMDB0000214	C5H12N2O2	[M+H]+	[M-H]-	190	132.0898777	133.0971541	191	TRUE	two peaks detected	Ornithine
-9	Diethyl malonate	HMDB0029573	C7H12O4	[M+H]+	NA	27	160.0735589	161.0808354	26	TRUE	nice peak	Diethyl malonate
-9	Eplerone	HMDB0014838	C24H30O6	[M+H]+	NA	29	414.2042388	415.2115153	30	TRUE	two peaks detected	Eplerone
-9	Pipecolic acid	HMDB0000070	C6H11NO2	[M+H]+	[M-H]-	153	129.0789786	130.0862551	158	TRUE	multiple peaks detected	Pipecolic acid
-9	Proline	HMDB0000162	C5H9NO2	[M+H]+	[M-H]-	157	115.0633286	116.070605	160	TRUE	nice peak	Proline
-9	Guanosine	HMDB0000133	C10H13N5O5	[M+H]+	[M-H]-	161	283.0916686	284.0989451	160	TRUE	nice peak	Guanosine
-9	L-Cysteine	HMDB0000574	C3H7NO2S	[M+H]+	[M-H]-	165	121.0197492	122.0270257	166	TRUE	nice peak	L-Cysteine
-9	IMP	HMDB0000175	C10H13N4O8P	[M+H]+	[M-H]-	211	348.0471005	349.054377	201	TRUE	multiple peaks detected	IMP
-9	ADP-Ribose	HMDB0001178	C15H23N5O14P2	[M+H]+	[M-H]-	236	559.0716746	560.0789511	224	TRUE	peak shifted	ADP-Ribose
-10	N-Acetylornithine	HMDB0003357	C7H14N2O3	[M+H]+	[M-H]-	149	174.1004424	175.1077188	149	TRUE	multiple peaks detected	N-Acetylornithine
-10	Cytidine	HMDB0000089	C9H13N3O5	[M+H]+	[M-H+HCOOH]-	155	243.0855206	244.0927971	155	TRUE	multiple peaks detected	Cytidine
-10	L-Aspartic Acid	HMDB0000191	C4H7NO4	[M+H]+	[M-H]-	178	133.0375078	134.0447842	178	TRUE	nice peak	L-Aspartic Acid
-10	SAH	HMDB0000939	C14H20N6O5S	[M+H]+	[M-H]-	183	384.1215886	385.128865	187	TRUE	multiple peaks detected	SAH
-10	Phosphorylethanolamine	HMDB0000224	C2H8NO4P	[M+H]+	[M-H]-	198	141.0190948	142.0263713	195	TRUE	nice peak	Phosphorylethanolamine
-10	GDP	HMDB0001201	C10H15N5O11P2	[M+H]+	NA	253	443.0243305	444.0316069	237	TRUE	peak shifted	GDP
-11	SDMA	HMDB0003334	C8H18N4O2	[M+H]+	[M-H]-	171	202.1429759	203.1502524	180	TRUE	peak shifted	SDMA
-11	Lysine	HMDB0000182	C6H14N2O2	[M+H]+	[M-H]-	186	146.1055278	147.1128042	195	TRUE	"peak shifted, multiple peaks detected"	Lysine
 11	2-Phosphoglyceric Acid	HMDB0000362	C3H7O7P	[M+H]+	[M-H]-	202	185.9929397	187.0002161	196	TRUE	two peaks detected	2-Phosphoglyceric Acid
-11	Glutathione Reduced	HMDB0000125	C20H32N6O12S2	[M+H]+	[M-H]-	208	612.1519621	613.1592385	NA	FALSE	NA	Glutathione Reduced
+7	3-Methylhistidine	HMDB0000479	C7H11N3O2	[M+H]+	[M-H]-	185	169.0851267	170.0924031	192	TRUE	two peaks detected	3-Methylhistidine
+3	5-Oxoproline 	HMDB0000267	C5H7NO3	[M+H]+	[M-H]-	59	129.0425931	130.0498696	55	TRUE	signal over 30sec detected	5-Oxoproline 
+13	8-Oxo-2-Deoxyguanosine	HMDB0003333	C10H13N5O5	[M+H]+	[M-H]-	158	283.0916686	284.0989451	160	TRUE	nice peak	8-Oxo-2-Deoxyguanosine
+14	Acetylcarnitine	HMDB0000201	C9H17NO4	[M+H]+	NA	37	203.1157581	204.1230346	33	TRUE	multiple peaks detected	Acetylcarnitine
+16	Acetyl-Glucosamine	HMDB0000215	C8H15NO6	[M+Na]+	[M-H+HCOOH]-	153	221.0899373	244.0791553	155	TRUE	NA	Acetyl-Glucosamine
+1	Acetylhistidine	HMDB0032055	C8H11N3O3	[M+H]+	[M-H]-	168	197.0800413	198.0873177	167	TRUE	multiple peaks detected	Acetylhistidine
+13	Acetylneuraminic Acid	HMDB0000230	C11H19NO9	[M+Na]+	[M-H]-	172	309.1059813	332.0951993	172	TRUE	multiple peaks detected	Acetylneuraminic Acid
+3	Adenylosuccinic Acid	HMDB0000536	C14H18N5O11P	[M+H]+	[M-H]-	207	463.0740436	464.08132	200	TRUE	two peaks detected	Adenylosuccinic Acid
+7	ADMA	HMDB0001539	C8H18N4O2	[M+H]+	[M-H]-	173	202.1429759	203.1502524	180	TRUE	nice peak	ADMA
 11	ADP	HMDB0001341	C10H15N5O10P2	[M+H]+	[M-H]-	244	427.0294158	428.0366923	NA	FALSE	peak too far from exp	ADP
-12	Homocysteine	HMDB0000742	C4H9NO2S	[M+H]+	[M-H]-	155	135.0353993	136.0426757	160	TRUE	signal over 20sec detected	Homocysteine
-12	Folic acid	HMDB0000121	C19H19N7O6	[M+H]+	[M-H]-	156	441.1396815	442.1469579	165	TRUE	"peak shifted, multiple peaks detected"	Folic acid
-12	Galactitol	HMDB0000107	C6H14O6	[M+Na]+	[M-H]-	163	182.0790383	205.0682563	160	TRUE	multiple peaks detected	Galactitol
+14	ADP-Glucose	HMDB0006557	C16H25N5O15P2	[M+H-Hexose-H2O]+	[M-H]-	235	589.0822393	428.0366858	225	TRUE	signal over 20sec detected	ADP-Glucose
+9	ADP-Ribose	HMDB0001178	C15H23N5O14P2	[M+H]+	[M-H]-	236	559.0716746	560.0789511	224	TRUE	peak shifted	ADP-Ribose
+3	Alanine	HMDB0000161	C3H7NO2	[M+H]+	[M-H+HCOONa]-	158	89.04767851	90.05495496	163	TRUE	nice peak	Alanine
+15	alpha-Aminoadipic acid	HMDB0000510	C6H11NO4	[M+H]+	[M-H]-	165	161.0688079	162.0760844	167	TRUE	nice peak	alpha-Aminoadipic acid
+17	alpha-Lactose	HMDB0000186	C12H22O11	[M+Na]+	[M-H+HCOOH]-	192	342.1162117	365.1054297	190	TRUE	two peaks detected	alpha-Lactose
+4	AMP	HMDB0000045	C10H14N5O7P	[M+H]+	[2M-H]-	205	347.0630849	348.0703614	203	TRUE	nice peak	AMP
+6	Arginine	HMDB0000517	C6H14N4O2	[M+H]+	[M-H]-	185	174.1116758	175.1189522	192	TRUE	multiple peaks detected	Arginine
+6	Asparagine	HMDB0000168	C4H8N2O3	[M+H]+	[M-H]-	182	132.0534922	133.0607686	182	TRUE	nice peak	Asparagine
+1	Betaine	HMDB0000043	C5H11NO2	[M+H]+	NA	157	117.0789786	118.0862551	157	TRUE	multiple peaks detected	Betaine
+2	C4 Carnitine	HMDB0000736	C11H21NO4	[M+H]+	NA	36	231.1470583	232.1543347	34	TRUE	same as C5	C4 Carnitine
+8	C5 Carnitine	HMDB0000688	C12H23NO4	[M+H]+	NA	36	245.1627083	246.1699848	34	TRUE	same as C4	C5 Carnitine
+7	Caffeine	HMDB0001847	C8H10N4O2	[M+H]+	NA	33	194.0803756	195.0876521	32	TRUE	nice peak	Caffeine
 12	Carnosine	HMDB0000033	C9H14N4O3	[M+H]+	[M-H]-	183	226.1065904	227.1138668	190	TRUE	two peaks detected	Carnosine
+6	Choline	HMDB0000097	C5H13NO	[M+H]+	NA	41	103.0997141	104.1069905	40	TRUE	signal over 40sec detected	Choline
+3	Citrulline	HMDB0000904	C6H13N3O3	[M+H]+	[M-H]-	179	175.0956914	176.1029678	183	TRUE	nice peak	Citrulline
+5	Corticosterone	HMDB0001547	C21H30O4	[M+H]+	NA	31	346.2144096	347.221686	28	TRUE	multiple peaks detected	Corticosterone
+6	Cystine	HMDB0000192	C6H12N2O4S2	[M+H]+	[M-H]-	210	240.0238483	241.0311248	209	TRUE	nice peak	Cystine
+10	Cytidine	HMDB0000089	C9H13N3O5	[M+H]+	[M-H+HCOOH]-	155	243.0855206	244.0927971	155	TRUE	multiple peaks detected	Cytidine
+7	dAMP	HMDB0000905	C10H14N5O6P	[M+H]+	[M-H]-	201	331.0681703	332.0754467	NA	FALSE	peak too far from exp	dAMP
 12	dCMP	HMDB0001202	C9H14N3O7P	[M+H]+	[M-H]-	202	307.0569369	308.0642134	NA	FALSE	peak too far from exp	dCMP
 12	dGMP	HMDB0001044	C10H14N5O7P	[M+H]+	[M-H]-	210	347.0630849	348.0703614	202	TRUE	nice peak	dGMP
-13	8-Oxo-2-Deoxyguanosine	HMDB0003333	C10H13N5O5	[M+H]+	[M-H]-	158	283.0916686	284.0989451	160	TRUE	nice peak	8-Oxo-2-Deoxyguanosine
-13	Sorbitol	HMDB0000247	C6H14O6	[M+Na]+	[M-H]-	159	182.0790383	205.0682563	159	TRUE	multiple peaks detected	Sorbitol
-13	Acetylneuraminic Acid	HMDB0000230	C11H19NO9	[M+Na]+	[M-H]-	172	309.1059813	332.0951993	172	TRUE	multiple peaks detected	Acetylneuraminic Acid
-13	1-Methylhistidine	HMDB0000001	C7H11N3O2	[M+H]+	[M-H]-	179	169.0851267	170.0924031	188	TRUE	two peaks detected	1-Methylhistidine
-13	Phosphorylcholine	HMDB0001565	C5H14NO4P	[M+H]+	[M-H+HCOOH]-	194	183.066045	184.0733215	194	TRUE	nice peak	Phosphorylcholine
-13	"Fructose-1,6-Diphosphate"	HMDB0001058	C6H14O12P2	[M+H]+	[M-H]-	258	339.9960501	341.0033265	NA	FALSE	peak too far from exp	"Fructose-1,6-Diphosphate"
-14	Acetylcarnitine	HMDB0000201	C9H17NO4	[M+H]+	NA	37	203.1157581	204.1230346	33	TRUE	multiple peaks detected	Acetylcarnitine
-14	Levodopa	HMDB0000181	C9H11NO4	[M+H]+	[M-H]-	166	197.0688079	198.0760844	182	TRUE	peak shifted	Levodopa
-14	Glyceraldehyde 2-phosphate	HMDB0001112	C3H7O6P	[M+H]+	[M-H]-	210	169.998025	171.0053015	190	TRUE	peak shifted	Glyceraldehyde 2-phosphate
-14	NAD	HMDB0000902	C21H27N7O14P2	[M+H]+	[M-H]-	222	663.1091228	664.1163992	216	TRUE	NA	NAD
-14	ADP-Glucose	HMDB0006557	C16H25N5O15P2	[M+H-Hexose-H2O]+	[M-H]-	235	589.0822393	428.0366858	225	TRUE	signal over 20sec detected	ADP-Glucose
-15	Phenylalanine	HMDB0000159	C9H11NO2	[M+H]+	[M-H]-	143	165.0789786	166.0862551	148	TRUE	multiple peaks detected	Phenylalanine
-15	alpha-Aminoadipic acid	HMDB0000510	C6H11NO4	[M+H]+	[M-H]-	165	161.0688079	162.0760844	167	TRUE	nice peak	alpha-Aminoadipic acid
-15	FAD	HMDB0001248	C27H33N9O15P2	[M+H]+	[M-H]-	237	785.1571356	786.1644121	NA	FALSE	peak too far from exp	FAD
-16	Acetyl-Glucosamine	HMDB0000215	C8H15NO6	[M+Na]+	[M-H+HCOOH]-	153	221.0899373	244.0791553	155	TRUE	NA	Acetyl-Glucosamine
+9	Diethyl malonate	HMDB0029573	C7H12O4	[M+H]+	NA	27	160.0735589	161.0808354	26	TRUE	nice peak	Diethyl malonate
 16	Dihydroxyacetone phosphate	HMDB0001473	C3H7O6P	[M+H]+	[M-H]-	208	169.998025	171.0053015	NA	FALSE	peak too far from exp	Dihydroxyacetone phosphate
-17	Succinylacetone	HMDB0000635	C7H10O4	[M+H]+	[M-H]-	32	158.0579089	159.0651853	27	TRUE	NA	Succinylacetone
-17	Xanthosine	HMDB0000299	C10H12N4O6	[M+Na]+	[M-H]-	151	284.0756842	307.0649022	141	TRUE	peak shifted	Xanthosine
+9	Eplerone	HMDB0014838	C24H30O6	[M+H]+	NA	29	414.2042388	415.2115153	30	TRUE	two peaks detected	Eplerone
+15	FAD	HMDB0001248	C27H33N9O15P2	[M+H]+	[M-H]-	237	785.1571356	786.1644121	NA	FALSE	peak too far from exp	FAD
+12	Folic acid	HMDB0000121	C19H19N7O6	[M+H]+	[M-H]-	156	441.1396815	442.1469579	165	TRUE	"peak shifted, multiple peaks detected"	Folic acid
+2	Fructose	HMDB0000660	C6H12O6	[M+Na]+	[M-H]-	154	180.0633882	203.0526062	154	TRUE	multiple peaks detected	Fructose
+13	"Fructose-1,6-Diphosphate"	HMDB0001058	C6H14O12P2	[M+H]+	[M-H]-	258	339.9960501	341.0033265	NA	FALSE	peak too far from exp	"Fructose-1,6-Diphosphate"
+12	Galactitol	HMDB0000107	C6H14O6	[M+Na]+	[M-H]-	163	182.0790383	205.0682563	160	TRUE	multiple peaks detected	Galactitol
+10	GDP	HMDB0001201	C10H15N5O11P2	[M+H]+	NA	253	443.0243305	444.0316069	237	TRUE	peak shifted	GDP
 17	Gluconic Acid	HMDB0000625	C6H12O7	[M+Na]+	[M-H]-	164	196.0583028	219.0475208	160	TRUE	nice peak	Gluconic Acid
-17	alpha-Lactose	HMDB0000186	C12H22O11	[M+Na]+	[M-H+HCOOH]-	192	342.1162117	365.1054297	190	TRUE	two peaks detected	alpha-Lactose
+3	Glucose	HMDB0000122	C6H12O6	[M+Na]+	[M-H+HCOOH]-	164	180.0633882	203.0526062	163	TRUE	multiple peaks detected	Glucose
+4	Glutamine	HMDB0000641	C5H10N2O3	[M+H]+	[M-H]-	176	146.0691422	147.0764187	179	TRUE	nice peak	Glutamine
+3	Glutathione Oxidized 	HMDB0003337	C20H32N6O12S2	[M+H]+	[M-H]-	208	612.1519621	613.1592385	209	TRUE	nice peak	Glutathione Oxidized 
+11	Glutathione Reduced	HMDB0000125	C20H32N6O12S2	[M+H]+	[M-H]-	208	612.1519621	613.1592385	NA	FALSE	NA	Glutathione Reduced
+14	Glyceraldehyde 2-phosphate	HMDB0001112	C3H7O6P	[M+H]+	[M-H]-	210	169.998025	171.0053015	190	TRUE	peak shifted	Glyceraldehyde 2-phosphate
+7	Glycero-phosphocholine	HMDB0000086	C8H20NO6P	[M+H]+	[M-H+HCOOH]-	188	257.1028245	258.1101009	187	TRUE	nice peak	Glycero-phosphocholine
+5	Glycerophospho-inositol	HMDB0011649	C9H19O11P	[M+H]+	[M-H]-	225	334.0664986	335.0737751	NA	FALSE	peak too far from exp	Glycerophospho-inositol
+2	Glycine	HMDB0000123	C2H5NO2	[M+H]+	[M-H+HCOONa]-	167	75.03202844	76.03930489	170	TRUE	NA	Glycine
+9	Guanosine	HMDB0000133	C10H13N5O5	[M+H]+	[M-H]-	161	283.0916686	284.0989451	160	TRUE	nice peak	Guanosine
+6	Histamine	HMDB0000870	C5H9N3	[M+H]+	NA	166	111.0796473	112.0869238	180	TRUE	peak shifted	Histamine
+2	Histidine	HMDB0000177	C6H9N3O2	[M+H]+	[M-H]-	187	155.0694766	156.076753	195	TRUE	multiple peaks detected	Histidine
+12	Homocysteine	HMDB0000742	C4H9NO2S	[M+H]+	[M-H]-	155	135.0353993	136.0426757	160	TRUE	signal over 20sec detected	Homocysteine
+2	Hydroxyproline	HMDB0000725	C5H9NO3	[M+H]+	[M-H]-	171	131.0582432	132.0655197	173	TRUE	multiple peaks detected	Hydroxyproline
+2	Hypoxanthine	HMDB0000157	C5H4N4O	[M+H]+	[M-H]-	117	136.0385108	137.0457872	117	TRUE	signal over 30sec detected	Hypoxanthine
+9	IMP	HMDB0000175	C10H13N4O8P	[M+H]+	[M-H]-	211	348.0471005	349.054377	201	TRUE	multiple peaks detected	IMP
+3	Isoleucine	HMDB0000172	C6H13NO2	[M+H]+	[M-H]-	139	131.0946287	132.1019052	148	TRUE	multiple peaks detected	Isoleucine
+10	L-Aspartic Acid	HMDB0000191	C4H7NO4	[M+H]+	[M-H]-	178	133.0375078	134.0447842	178	TRUE	nice peak	L-Aspartic Acid
+9	L-Cysteine	HMDB0000574	C3H7NO2S	[M+H]+	[M-H]-	165	121.0197492	122.0270257	166	TRUE	nice peak	L-Cysteine
+4	Leucine	HMDB0000687	C6H13NO2	[M+H]+	[M-H]-	137	131.0946287	132.1019052	144	TRUE	multiple peaks detected	Leucine
+14	Levodopa	HMDB0000181	C9H11NO4	[M+H]+	[M-H]-	166	197.0688079	198.0760844	182	TRUE	peak shifted	Levodopa
+1	L-Glutamic Acid	HMDB0000148	C5H9NO4	[M+H]+	[M-H]-	171	147.0531578	148.0604343	173	TRUE	nice peak	L-Glutamic Acid
+11	Lysine	HMDB0000182	C6H14N2O2	[M+H]+	[M-H]-	186	146.1055278	147.1128042	195	TRUE	"peak shifted, multiple peaks detected"	Lysine
+5	Mannose	HMDB0000169	C6H12O6	[M+Na]+	[M-H+HCOOH]-	157	180.0633882	203.0526062	158	TRUE	multiple peaks detected	Mannose
+7	Methionine	HMDB0000696	C5H11NO2S	[M+H]+	[M-H]-	150	149.0510493	150.0583258	158	TRUE	"peak shifted, multiple peaks detected"	Methionine
+6	Methioninesulfoxide	HMDB0002005	C5H11NO3S	[M+H]+	[M-H]-	180	165.045964	166.0532404	181	TRUE	multiple peaks detected	Methioninesulfoxide
+10	N-Acetylornithine	HMDB0003357	C7H14N2O3	[M+H]+	[M-H]-	149	174.1004424	175.1077188	149	TRUE	multiple peaks detected	N-Acetylornithine
+14	NAD	HMDB0000902	C21H27N7O14P2	[M+H]+	[M-H]-	222	663.1091228	664.1163992	216	TRUE	NA	NAD
+5	NADP	HMDB0000217	C21H28N7O17P3	[M+H]+	[M-H]-	238	743.0754537	744.0827302	232	TRUE	nice peak	NADP
+3	Niacinamide	HMDB0001406	C6H6N2O	[M+H]+	NA	42	122.0480128	123.0552893	37	TRUE	two peaks detected	Niacinamide
+8	Ornithine	HMDB0000214	C5H12N2O2	[M+H]+	[M-H]-	190	132.0898777	133.0971541	191	TRUE	two peaks detected	Ornithine
+3	Palmitoylcarnitine	HMDB0000222	C23H45NO4	[M+H]+	[M-H+HCOOH]-	33	399.3348591	400.3421356	32	TRUE	multiple peaks detected	Palmitoylcarnitine
+15	Phenylalanine	HMDB0000159	C9H11NO2	[M+H]+	[M-H]-	143	165.0789786	166.0862551	148	TRUE	multiple peaks detected	Phenylalanine
+4	Phenylethylamine	HMDB0012275	C8H11N	[M+H]+	NA	36	121.0891494	122.0964258	34	TRUE	multiple peaks detected	Phenylethylamine
+2	Phosphocreatine 	HMDB0001511	C4H10N3O5P	[M+H]+	[M-H]-	190	211.0358075	212.043084	186	TRUE	nice peak	Phosphocreatine 
+13	Phosphorylcholine	HMDB0001565	C5H14NO4P	[M+H]+	[M-H+HCOOH]-	194	183.066045	184.0733215	194	TRUE	nice peak	Phosphorylcholine
+10	Phosphorylethanolamine	HMDB0000224	C2H8NO4P	[M+H]+	[M-H]-	198	141.0190948	142.0263713	195	TRUE	nice peak	Phosphorylethanolamine
+9	Pipecolic acid	HMDB0000070	C6H11NO2	[M+H]+	[M-H]-	153	129.0789786	130.0862551	158	TRUE	multiple peaks detected	Pipecolic acid
+9	Proline	HMDB0000162	C5H9NO2	[M+H]+	[M-H]-	157	115.0633286	116.070605	160	TRUE	nice peak	Proline
+4	Putrescine	HMDB0001414	C4H12N2	[M+H-NH3]+	NA	166	88.10004842	72.08077577	160	TRUE	multiple peaks detected	Putrescine
+10	SAH	HMDB0000939	C14H20N6O5S	[M+H]+	[M-H]-	183	384.1215886	385.128865	187	TRUE	multiple peaks detected	SAH
+4	SAMe	HMDB0001185	C15H23N6O5S	[M+H]+	NA	192	399.1450637	400.1523401	202	TRUE	peak shifted	SAMe
+11	SDMA	HMDB0003334	C8H18N4O2	[M+H]+	[M-H]-	171	202.1429759	203.1502524	180	TRUE	peak shifted	SDMA
+7	Serine	HMDB0000187	C3H7NO3	[M+H]+	[M-H]-	179	105.0425931	106.0498696	180	TRUE	nice peak	Serine
+13	Sorbitol	HMDB0000247	C6H14O6	[M+Na]+	[M-H]-	159	182.0790383	205.0682563	159	TRUE	multiple peaks detected	Sorbitol
+7	Sphingosine	HMDB0000252	C18H37NO2	[M+H]+	NA	37	299.2824296	300.289706	29	TRUE	peak shifted	Sphingosine
+6	Sphingosine-1-phosphate	HMDB0000277	C18H38NO5P	[M+H]+	[M-H]-	148	379.2487605	380.2560369	148	TRUE	two peaks detected	Sphingosine-1-phosphate
+17	Succinylacetone	HMDB0000635	C7H10O4	[M+H]+	[M-H]-	32	158.0579089	159.0651853	27	TRUE	NA	Succinylacetone
+6	Sucrose	HMDB0000258	C12H22O11	[M+Na]+	[M-H+HCOOH]-	184	342.1162117	365.1054297	184	TRUE	nice peak	Sucrose
+7	Taurine	HMDB0000251	C2H7NO3S	[M+H]+	[M-H]-	169	125.0146638	126.0219403	169	TRUE	two peaks detected	Taurine
+5	Threonine	HMDB0000167	C4H9NO3	[M+H]+	[M-H]-	170	119.0582432	120.0655197	172	TRUE	nice peak	Threonine
+6	Tryptophan	HMDB0000929	C11H12N2O2	[M+H]+	[M-H]-	150	204.0898777	205.0971541	149	TRUE	multiple peaks detected	Tryptophan
+8	Tyrosine	HMDB0000158	C9H11NO3	[M+H]+	[M-H]-	158	181.0738933	182.0811697	160	TRUE	signal over 20sec detected	Tyrosine
+1	Uric acid	HMDB0000289	C5H4N4O3	[M+H]+	[M-H]-	166	168.02834	169.0356165	166	TRUE	nice peak	Uric acid
+2	Valine	HMDB0000883	C5H11NO2	[M+H]+	[M-H]-	145	117.0789786	118.0862551	150	TRUE	two peaks detected	Valine
+17	Xanthosine	HMDB0000299	C10H12N4O6	[M+Na]+	[M-H]-	151	284.0756842	307.0649022	141	TRUE	peak shifted	Xanthosine
