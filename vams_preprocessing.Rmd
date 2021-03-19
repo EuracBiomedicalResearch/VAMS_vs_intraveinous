@@ -550,10 +550,7 @@ std_info$is_ok <- FALSE
 std_info$peak_note <- NA_character_
 <<<<<<< HEAD
 write.table(std_info, file = "data/std_info_3.txt", row.names = FALSE, sep = "\t")
-=======
-write.table(std_info, file = "data/std_info_2.txt", row.names = FALSE,
-            sep = "\t", dec = ".")
->>>>>>> 8cb399a68431236d7f5dca0a4b47bf3a1fed50c0
+>>>>>>> 
 ```
 
 The observations made for each compound are written in the
@@ -568,14 +565,9 @@ rt_max; also, the observed retention time is depicted with a black vertical
 dashed line.
 
 ```{r pos-centWave-manual-check-import, echo = FALSE}
-<<<<<<< HEAD
 std_info <- read.table("data/std_info_3_checked.txt", sep = "\t", as.is = TRUE,
                        header = TRUE)
-=======
-std_info <- read.table("data/std_info_checked.txt", sep = "\t",
-                       header = TRUE, dec = ".")
 std_info$mz_ion <- as.numeric(std_info$mz_ion)
->>>>>>> 8cb399a68431236d7f5dca0a4b47bf3a1fed50c0
 std_info <- std_info[std_info$is_ok, ]
 std_info_mz_rt <- chromPeakArea(data_pos, mz = std_info$mz_ion,
                                 rt = std_info$RT_obs, diffRt = 0, ppm = 50,
