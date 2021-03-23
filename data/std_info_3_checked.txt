@@ -1,0 +1,113 @@
+mix	name	abbreviation	HMDB.code	formula	POS	NEG	RT	data_set	sample	operator	version	quality_POS	quality_NEG	mzneut	mz_ion	RT_obs	is_ok	peak_note	
+13	1-Methylhistidine	methylhistidine_1	HMDB0000001	C7H11N3O2	[M+H]+	[M-H]-	182	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	169.0851267	170.0924027	188	TRUE	two peaks detected	
+7	1-Methyluric acid	methyluric	HMDB0003099	C6H6N4O3	[M+H]+	[M-H]-	145	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	1_good	182.0439901	183.0512661	147	TRUE	nice peak	
+7	3-Methylhistidine	methylhistidine_3	HMDB0000479	C7H11N3O2	[M+H]+	[M-H]-	186	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	169.0851267	170.0924027	192	TRUE	two peaks detected	
+2	3-Nitrotyrosine	nitrotyrosine	HMDB0001904	C9H10N2O5	[M+H]+	[M-H]-	157	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	226.0589715	227.0662475	170	TRUE	two peaks detected	
+3	5-Oxoproline	oxoproline	HMDB0000267	C5H7NO3	[M+H]+	[M-H]-	71	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	1_good	129.0425931	130.0498691	55	TRUE	signal over 30sec detected	
+13	8-Oxo-2-Deoxyguanosine	oxodeoxyguanosine	HMDB0003333	C10H13N5O5	[M+H]+	[M-H]-	159	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	0_perfect	283.0916686	284.0989446	160	TRUE	nice peak	
+14	Acetylcarnitine	acetylcarnitine	HMDB0000201	C9H17NO4	[M+H]+	NA	37	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	203.1157581	204.1230341	33	TRUE	multiple peaks detected	
+16	Acetyl-Glucosamine	acetylglucosamine	HMDB0000215	C8H15NO6	[M+Na]+	[M+CHO2]-	156	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	221.0899373	244.0791573	155	TRUE	NA	
+1	Acetylhistidine	acetylhistidine	HMDB0032055	C8H11N3O3	[M+H]+	[M-H]-	180	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	197.0800413	198.0873173	167	TRUE	multiple peaks detected	
+13	Acetylneuraminic Acid	acetylneuraminic	HMDB0000230	C11H19NO9	[M+H-H4O2]+	[M-H]-	180	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	2_medium	309.1059813	274.0921284	172	TRUE	multiple peaks detected	
+19	Adenine	adenine	HMDB0000034	C5H5N5	[M+H]+	[M-H]-	133	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	135.0544952	136.0617712	NA	FALSE	peak too far from exp	
+7	ADMA	ADMA	HMDB0001539	C8H18N4O2	[M+H]+	[M-H]-	176	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	202.1429759	203.1502519	180	TRUE	nice peak	
+11	ADP	ADP	HMDB0001341	C10H15N5O10P2	[M+H]+	[M-H]-	256	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	3_bad	2_medium	427.0294158	428.0366918	NA	FALSE	peak too far from exp	
+14	ADP-Glucose	ADP_glucose	HMDB0006557	C16H25N5O15P2	[M+H-Hexose-H2O]+	[M-H]-	275	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	1_good	589.0822393	428.0366858	225	TRUE	signal over 20sec detected	
+3	Alanine	alanine	HMDB0000161	C3H7NO2	[M+H]+	[M-H+HCOONa]-	170	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	89.04767851	90.05495451	163	TRUE	nice peak	
+15	alpha-Aminoadipic acid	aminoadipic	HMDB0000510	C6H11NO4	[M+H]+	[M-H]-	170	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	161.0688079	162.0760839	167	TRUE	nice peak	
+17	alpha-Lactose	lactose	HMDB0000186	C12H22O11	[M+Na]+	[M+CHO2]-	194	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	0_perfect	342.1162117	365.1054317	190	TRUE	two peaks detected	
+4	AMP	AMP	HMDB0000045	C10H14N5O7P	[M+H]+	[2M-H]-	212	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	1_good	347.0630849	348.0703609	203	TRUE	nice peak	
+6	Arginine	arginine	HMDB0000517	C6H14N4O2	[M+H]+	[M-H]-	187	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	1_good	174.1116758	175.1189518	192	TRUE	multiple peaks detected	
+12	Argininosuccinic acid	argininosuccinic	HMDB0000052	C10H18N4O6	[M+H]+	[M-H]-	199	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	290.1226344	291.1299104	196	TRUE	multiple peaks detected	
+6	Asparagine	asparagine	HMDB0000168	C4H8N2O3	[M+H]+	[M-H]-	183	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	132.0534922	133.0607682	182	TRUE	nice peak	
+1	Betaine	betaine	HMDB0000043	C5H11NO2	[M+H]+	[M+CHO2]-	166	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	117.0789786	118.0862546	157	TRUE	multiple peaks detected	
+8	Biotin	biotin	HMDB0000030	C10H16N2O3S	[M+H]+	[M-H]-	72	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	244.0881632	245.0954392	NA	FALSE	peak too far from exp	
+2	C4 Carnitine	carnitine_c4	HMDB0000736	C11H21NO4	[M+H]+	NA	37	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	231.1470583	232.1543343	34	TRUE	"same as C5, more likely C4"	
+8	C5 Carnitine	carnitine_c5	HMDB0000688	C12H23NO4	[M+H]+	NA	47	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	245.1627083	246.1699843	34	TRUE	"same as C4, more likely C4"	
+7	Caffeine	caffeine	HMDB0001847	C8H10N4O2	[M+H]+	NA	35	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	3_bad	194.0803756	195.0876516	32	TRUE	nice peak	
+12	Carnosine	carnosine	HMDB0000033	C9H14N4O3	[M+H]+	[M-H]-	184	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	226.1065904	227.1138664	190	TRUE	two peaks detected	
+7	CDP-choline	CDP_choline	HMDB0001413	C14H26N4O11P2	[M+H]+	[M+CHO2]-	217	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	488.1073318	489.1146078	180	FALSE	peak too far from exp	
+6	Choline	choline	HMDB0000097	C5H13NO	[M+H]+	NA	37	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	103.0997141	104.1069901	40	TRUE	signal over 40sec detected	
+3	Citrulline	citrulline	HMDB0000904	C6H13N3O3	[M+H]+	[M-H]-	182	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	175.0956914	176.1029674	183	TRUE	nice peak	
+5	Corticosterone	corticosterone	HMDB0001547	C21H30O4	[M+H]+	[M+CHO2]-	35	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	3_bad	346.2144096	347.2216856	28	TRUE	multiple peaks detected	
+1	Creatine	creatine	HMDB0000064	C4H9N3O2	[M+H]+	[M-H]-	173	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	131.0694766	132.0767526	173	TRUE	multiple peaks detected	
+7	Creatinine	creatinine	HMDB0000562	C4H7N3O	[M+H]+	[M-H]-	87	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	113.0589119	114.0661879	82	TRUE	signal over 40sec detected	
+6	Cystine	cystine	HMDB0000192	C6H12N2O4S2	[M+H]+	[M-H]-	211	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	0_perfect	240.0238483	241.0311243	209	TRUE	nice peak	
+10	Cytidine	cytidine	HMDB0000089	C9H13N3O5	[M+H]+	[M+CHO2]-	162	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	243.0855206	244.0927966	155	TRUE	multiple peaks detected	
+7	dAMP	AMP_d	HMDB0000905	C10H14N5O6P	[M+H]+	[M-H]-	208	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	331.0681703	332.0754463	NA	FALSE	peak too far from exp	
+12	dCMP	CMP_d	HMDB0001202	C9H14N3O7P	[M+H]+	[2M-H]-	203	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	0_perfect	307.0569369	308.0642129	NA	FALSE	peak too far from exp	
+8	dGDP	GDP_d	HMDB0000960	C10H15N5O10P2	[M+H]+	[M-H]-	260	2020_01_matrix_effect	water	Mar Garcia-Aloy	2	3_bad	3_bad	427.0294158	428.0366918	230	TRUE	peak shifted 	
+12	dGMP	GMP_d	HMDB0001044	C10H14N5O7P	[M+H]+	[M-H]-	223	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	347.0630849	348.0703609	202	TRUE	nice peak	
+9	Diethyl malonate	diethylmalonate	HMDB0029573	C7H12O4	[M+H]+	NA	29	2020_01_matrix_effect	water	Mar Garcia-Aloy	2	3_bad	3_bad	160.0735589	161.0808349	26	TRUE	nice peak	
+16	Dihydroxyacetone phosphate	dihydroxyacetone_phosphate	HMDB0001473	C3H7O6P	[M+H]+	[2M-H]-	220	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	1_good	169.998025	171.005301	NA	FALSE	peak too far from exp	
+1	Dimethylglycine	dimethylglycine	HMDB0000092	C4H9NO2	[M+H]+	[M-H]-	177	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	1_good	103.0633286	104.0706046	162	TRUE	peak shifted	
+17	Epinephrine	epinephrine	HMDB0000068	C9H13NO3	[M+H]+	[M-H]-	144	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	183.0895433	184.0968193	155	TRUE	"peak shifted, low intensity"	
+12	Folic acid	folic	HMDB0000121	C19H19N7O6	[M+Na]+	[M-H]-	160	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	2_medium	441.1396815	464.1289015	165	TRUE	"peak shifted, multiple peaks detected"	
+2	Fructose	fructose	HMDB0000660	C6H12O6	[M+Na]+	[M-H]-	150	2020_01_matrix_effect	serum	Vinicius	2	2_medium	2_medium	180.0633882	203.0526082	158	TRUE	multiple peaks detected	
+12	Galactitol	galactitol	HMDB0000107	C6H14O6	[M+Na]+	[M-H]-	167	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	0_perfect	182.0790383	205.0682583	160	TRUE	multiple peaks detected	
+4	Gamma-Aminobutyric acid	aminobutyric	HMDB0000112	C4H9NO2	[M+H]+	NA	144	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	103.0633286	104.0706046	160	TRUE	"peak shifted, low intensity"	
+17	Gluconic Acid	gluconic	HMDB0000625	C6H12O7	[M+Na]+	[M-H]-	171	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	196.0583028	219.0475228	160	TRUE	nice peak	
+3	Glucose	glucose	HMDB0000122	C6H12O6	[M+Na]+	[M+CHO2]-	167	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	180.0633882	203.0526082	167	TRUE	multiple peaks detected	
+15	Glucuronic Acid	glucuronic	HMDB0000127	C6H10O7	[M+Na]+	[M-H]-	171	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	3_bad	0_perfect	194.0426528	217.0318728	145	FALSE	peak too far from exp	
+4	Glutamine	glutamine	HMDB0000641	C5H10N2O3	[M+H]+	[M-H]-	178	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	146.0691422	147.0764182	179	TRUE	nice peak	
+3	Glutathione Oxidized	glutathione_oxidized	HMDB0003337	C20H32N6O12S2	[M+H]+	[M-H]-	212	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	612.1519621	613.1592381	209	TRUE	nice peak	
+11	Glutathione Reduced	glutathione_reduced	HMDB0000125	C20H32N6O12S2	[M+H]+	[M-H]-	211	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	612.1519621	613.1592381	NA	FALSE	NA	
+14	Glyceraldehyde 2-phosphate	glyceraldehyde_phosphate	HMDB0001112	C3H7O6P	[M+H]+	[M-H]-	213	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	169.998025	171.005301	190	TRUE	peak shifted	Glyceraldehyde 2-phosphate
+7	Glycero-phosphocholine	glycero_phosphocholine	HMDB0000086	C8H20NO6P	[M+H]+	[M+Cl]-	189	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	257.1028245	258.1101005	187	TRUE	nice peak	Glycero-phosphocholine
+2	Glycine	glycine	HMDB0000123	C2H5NO2	[M+H]+	[M-H]-	172	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	2_medium	75.03202844	76.03930444	170	TRUE	NA	
+12	Guanidoacetic acid	guanidoacetic	HMDB0000128	C3H7N3O2	[M+H]+	[M-H]-	170	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	117.0538265	118.0611025	157	FALSE	peak too far from exp	
+9	Guanosine	guanosine	HMDB0000133	C10H13N5O5	[M+H]+	[M-H]-	163	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	0_perfect	283.0916686	284.0989446	160	TRUE	nice peak	
+6	Histamine	histamine	HMDB0000870	C5H9N3	[M+H]+	[M-H]-	172	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	2_medium	111.0796473	112.0869233	180	TRUE	peak shifted	
+2	Histidine	histidine	HMDB0000177	C6H9N3O2	[M+H]+	[M-H]-	188	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	0_perfect	155.0694766	156.0767526	195	TRUE	multiple peaks detected	
+12	Homocysteine	homocysteine	HMDB0000742	C4H9NO2S	[M+H]+	[M-H]-	168	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	135.0353993	136.0426753	160	TRUE	signal over 20sec detected	
+2	Hydroxyproline	hydroxyproline	HMDB0000725	C5H9NO3	[M+H]+	[M-H]-	175	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	131.0582432	132.0655192	173	TRUE	multiple peaks detected	
+2	Hypoxanthine	hypoxanthine	HMDB0000157	C5H4N4O	[M+H]+	[M-H]-	126	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	136.0385108	137.0457868	117	TRUE	signal over 30sec detected	
+9	IMP	IMP	HMDB0000175	C10H13N4O8P	[M+H]+	[M-H]-	226	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	348.0471005	349.0543765	201	TRUE	multiple peaks detected	
+8	Inosine	inosine	HMDB0000195	C10H12N4O5	[M+Na]+	[M-H]-	146	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	0_perfect	268.0807696	291.0699896	165	TRUE	peak shifted	
+3	Isoleucine	isoleucine	HMDB0000172	C6H13NO2	[M+H]+	[M-H]-	155	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	131.0946287	132.1019047	148	TRUE	multiple peaks detected	
+10	L-Aspartic Acid	aspartic	HMDB0000191	C4H7NO4	[M+H]+	[M-H]-	181	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	133.0375078	134.0447838	178	TRUE	nice peak	
+11	L-Carnitine	carnitine	HMDB0000062	C7H15NO3	[M+H]+	NA	130	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	161.1051934	162.1124694	132	TRUE	multiple peaks detected	
+9	L-Cysteine	cysteine	HMDB0000574	C3H7NO2S	[M+H]+	[M-H]-	170	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	121.0197492	122.0270252	166	TRUE	nice peak	
+4	Leucine	leucine	HMDB0000687	C6H13NO2	[M+H]+	[M-H]-	152	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	131.0946287	132.1019047	144	TRUE	multiple peaks detected	
+14	Levodopa	levodopa	HMDB0000181	C9H11NO4	[M+H]+	[M-H]-	170	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	197.0688079	198.0760839	182	TRUE	peak shifted	
+1	L-Glutamic Acid	glutamic	HMDB0000148	C5H9NO4	[M+H]+	[M-H]-	176	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	147.0531578	148.0604338	173	TRUE	nice peak	
+11	Lysine	lysine	HMDB0000182	C6H14N2O2	[M+H]+	[M-H]-	188	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	146.1055278	147.1128038	195	TRUE	"peak shifted, multiple peaks detected"	
+5	Mannose	mannose	HMDB0000169	C6H12O6	[M+Na]+	[M+CHO2]-	163	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	180.0633882	203.0526082	162	TRUE	multiple peaks detected	
+7	Methionine	methionine	HMDB0000696	C5H11NO2S	[M+H]+	[M-H]-	163	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	149.0510493	150.0583253	158	TRUE	"peak shifted, multiple peaks detected"	
+6	Methioninesulfoxide	methionine_sulfoxide	HMDB0002005	C5H11NO3S	[M+H]+	[M-H]-	182	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	165.045964	166.05324	181	TRUE	multiple peaks detected	
+1	Myo-Inositol	myoinositol	HMDB0000211	C6H12O6	[M+Na]+	[M+CHO2]-	193	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	0_perfect	180.0633882	203.0526082	167	FALSE	peak too far from exp	
+10	N-Acetylornithine	acetylornithine	HMDB0003357	C7H14N2O3	[M+H]+	[M-H]-	170	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	174.1004424	175.1077184	149	TRUE	multiple peaks detected	
+14	NAD	NAD	HMDB0000902	C21H27N7O14P2	[M+H]+	[M-H]-	225	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	663.1091228	664.1163988	216	TRUE	NA	
+3	Niacinamide	niacinamide	HMDB0001406	C6H6N2O	[M+H]+	NA	50	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	122.0480128	123.0552888	37	TRUE	two peaks detected	
+17	Nicotine	nicotine	HMDB0001934	C10H14N2	[M+H]+	NA	37	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	162.1156985	163.1229745	30	TRUE	multiple peaks detected	
+8	Ornithine	ornithine	HMDB0000214	C5H12N2O2	[M+H]+	[M-H]-	190	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	132.0898777	133.0971537	191	TRUE	two peaks detected	
+5	PABA	PABA	HMDB0001392	C7H7NO2	[M+H]+	[M-H]-	36	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	2_medium	137.0476785	138.0549545	NA	FALSE	too much noise/signal	
+3	Palmitoylcarnitine	palmitoylcarnitine	HMDB0000222	C23H45NO4	[M+H]+	[M+CHO2]-	34	2020_01_matrix_effect	water	Mar Garcia-Aloy	2	2_medium	3_bad	399.3348591	400.3421351	32	TRUE	multiple peaks detected	
+6	Paracetamol	paracetamol	HMDB0001859	C8H9NO2	[M+H]+	[M-H]-	36	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	151.0633286	152.0706046	33	TRUE		
+15	Phenylalanine	phenylalanine	HMDB0000159	C9H11NO2	[M+H]+	[M-H]-	154	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	165.0789786	166.0862546	148	TRUE	multiple peaks detected	
+4	Phenylethylamine	phenylethylamine	HMDB0012275	C8H11N	[M+H]+	NA	37	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	121.0891494	122.0964254	34	TRUE	multiple peaks detected	
+2	Phosphocreatine	phosphocreatine	HMDB0001511	C4H10N3O5P	[M+H]+	[M-H]-	198	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	211.0358075	212.0430835	186	TRUE	nice peak	
+13	Phosphorylcholine	phosphorylcholine	HMDB0001565	C5H14NO4P	[M+H]+	[M+Cl]-	195	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	183.066045	184.073321	194	TRUE	nice peak	
+10	Phosphorylethanolamine	phosphorylethanolamine	HMDB0000224	C2H8NO4P	[M+H]+	[2M-H]-	198	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	1_good	141.0190948	142.0263708	195	TRUE	nice peak	
+9	Pipecolic acid	pipecolic	HMDB0000070	C6H11NO2	[M+H]+	[M-H]-	169	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	129.0789786	130.0862546	158	TRUE	multiple peaks detected	
+9	Proline	proline	HMDB0000162	C5H9NO2	[M+H]+	[M-H]-	169	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	115.0633286	116.0706046	160	TRUE	nice peak	
+4	Putrescine	putrescine	HMDB0001414	C4H12N2	[M+H-NH3]+	NA	173	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	88.10004842	72.08077577	160	TRUE	multiple peaks detected	
+14	Pyridoxic Acid	pyridoxic	HMDB0000017	C8H9NO4	[M+H]+	[M-H]-	85	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	2_medium	183.0531578	184.0604338	125	FALSE	peak too far from exp	
+10	SAH	SAH	HMDB0000939	C14H20N6O5S	[M+H]+	[M-H]-	186	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	0_perfect	384.1215886	385.1288646	187	TRUE	multiple peaks detected	
+4	SAMe	SAMe	HMDB0001185	C15H23N6O5S	[M+H]+	NA	193	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	3_bad	399.1450637	400.1523397	202	TRUE	peak shifted	
+11	SDMA	SDMA	HMDB0003334	C8H18N4O2	[M+H]+	[M-H]-	174	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	202.1429759	203.1502519	180	TRUE	peak shifted	
+7	Serine	serine	HMDB0000187	C3H7NO3	[M+H]+	[M-H]-	181	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	105.0425931	106.0498691	180	TRUE	nice peak	
+13	Sorbitol	sorbitol	HMDB0000247	C6H14O6	[M+Na]+	[M-H]-	165	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	0_perfect	182.0790383	205.0682583	159	TRUE	multiple peaks detected	
+13	Spermine	spermine	HMDB0001256	C10H26N4	[M+H]+	NA	204	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	3_bad	202.2157469	203.2230229	220	TRUE	peak shifted	
+7	Sphingosine	sphingosine	HMDB0000252	C18H37NO2	[M+H]+	[M+CHO2]-	37	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	3_bad	299.2824296	300.2897056	29	TRUE	peak shifted	
+6	Sphingosine-1-phosphate	sphingosine_phosphate	HMDB0000277	C18H38NO5P	[M+H]+	[M-H]-	145	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	2_medium	379.2487605	380.2560365	148	TRUE	two peaks detected	
+17	Succinylacetone	succinylacetone	HMDB0000635	C7H10O4	[M+Na]+	[M-H]-	35	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	158.0579089	181.0471289	27	TRUE	NA	
+6	Sucrose	sucrose	HMDB0000258	C12H22O11	[M+Na]+	[M+CHO2]-	187	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	0_perfect	342.1162117	365.1054317	184	TRUE	nice peak	
+7	Taurine	taurine	HMDB0000251	C2H7NO3S	[M+H]+	[M-H]-	172	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	125.0146638	126.0219398	169	TRUE	two peaks detected	
+11	Tetrahydrobiopterin	tetrahydrobiopterin	HMDB0000027	C9H15N5O3	[M+Na]+	NA	141	2020_01_matrix_effect	serum	Vinicius	2	3_bad	3_bad	241.1174894	264.1067094	167	FALSE	peak too far from exp	
+5	Threonine	threonine	HMDB0000167	C4H9NO3	[M+H]+	[M-H]-	173	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	0_perfect	0_perfect	119.0582432	120.0655192	172	TRUE	nice peak	
+6	Tryptophan	tryptophan	HMDB0000929	C11H12N2O2	[M+H]+	[M-H]-	155	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	204.0898777	205.0971537	149	TRUE	multiple peaks detected	
+8	Tyrosine	tyrosine	HMDB0000158	C9H11NO3	[M+H]+	[M-H]-	168	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	181.0738933	182.0811693	160	TRUE	signal over 20sec detected	
+13	Uridine	uridine	HMDB0000296	C9H12N2O6	[M+H]+	[M+CHO2]-	124	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	2_medium	1_good	244.0695362	245.0768122	165	FALSE	peak too far from exp	
+2	Valine	valine	HMDB0000883	C5H11NO2	[M+H]+	[M-H]-	166	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	1_good	117.0789786	118.0862546	150	TRUE	two peaks detected	Valine
+17	Xanthosine	xanthosine	HMDB0000299	C10H12N4O6	[M+Na]+	[M-H]-	153	2020_01_matrix_effect	serum	Mar Garcia-Aloy	2	1_good	0_perfect	284.0756842	307.0649042	141	TRUE	peak shifted	Xanthosine
