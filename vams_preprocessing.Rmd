@@ -61,6 +61,13 @@ ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 plot_eics <- TRUE
 
 ```
+# Abstract
+
+In this document we perform analysis on VAMS data, using the `MSnbase` package
+for MS data import and handling and the `xcms` package to perform
+quality assessment, peak detection, alignment and correspondence on said data.
+The following code allows preprocessing of data registered in positive ion mode.
+
 
 # Introduction
  
@@ -85,7 +92,8 @@ We first focus on the data in positive polarity.
 ## Raw data import and initial quality assessment
 
 Below we load all required libraries for the analysis as well as the *phenodata*
-file defining the experiment's layout. Also, we set up the parallel processing,
+file defining the experiment's layout and we define some general settings, such as `da`, which describes the tolerance for the m/z ratio, and `RTd`, which describes the tolerance for the retention
+time; both these parameters will be used later in the analysis. Also, we set up the parallel processing,
 define colors to be used for the various experimental groups throughout the
 experiment and finally read the raw data.
 
@@ -183,6 +191,22 @@ order.
 Next we perform an initial quality assessment by comparing the distribution of
 BPC values from the spectra between all samples.
 
+## Base peak chromatogram
+
+Data coming from LC-MS experiments are usually analyzed along the retention time
+axis. MS data is organized by spectrum and hence orthogonally to the retention
+time axis. The `chromatogram` allows to extract intensities along retention time
+by *aggregating* the signal within each spectrum. When the `aggregationFun`
+parameter of this function is set to `"sum"`, we create a Total Ion Chromatogram
+(TIC), which shows the sum of all signal intensities per spectrum *vs.*
+retention time, whereas if we set the `aggregationFun` to `"max"`, we generate a
+Base Peak Chromatogram, which is a chromatogram obtained by plotting the
+intensity of the base peak (i.e. the maximal signal in a spectrum) detected in
+each of a series of mass spectra recorded as a function of retention time
+[@Gross:2017ms]. The same function can also be used to generate Extracted Ion
+Chromatograms (EIC), which contain the signal from a specific m/z range and RT
+window.
+
 ```{r pos-calc-tic, message = FALSE, eval = file.exists(paste0(RDATA_PATH, "chrs_bpc_raw.RData"))}
 #chrs_tic <- chromatogram(data_pos, aggregationFun = "sum")
 chrs_bpc <- chromatogram(data_pos, aggregationFun = "max")
@@ -207,6 +231,23 @@ similar signal suggesting that similar compounds are detected. Individual
 capillary blood samples show a distinct BPC potentially indicating problems in
 sample preparation and/or measurement.  We next cluster samples based on
 pair-wise correlations of their (log2) base peak intensities.
+
+## Heatmap
+
+Another tool that lets us evaluate the behaviour of our datasets is the heatmap.
+Heatmaps are a graphical representation of the data where the individual values
+contained in a matrix are represented by colours; in this case,the intensity of
+the signal is coupled with hierarchical clustering.
+The first step of the analysis requires the use of the `bin` function: this
+aggregates intensity values belonging to the same bin (m/z range) and sums
+them all together. The clustering was performed using complete linkage
+hierarchical clustering on the pairwise correlations of the binned BPC, such
+that there is maximal intercluster dissimilarity.
+The `cor` function is then used to calculate the correlation of the log2
+transformed base peak signals and names are assigned to each row.
+Finally, the `cutree` function identifies the number of clusters in which
+columns are divided. In the resulting heatmap, the darker is the colour, the
+more similar the base peak chromatogram of two samples is.
 
 ```{r pos-bin-chr, echo = FALSE, message = FALSE, warning = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 12, fig.cap = "Samples clustered by base peak chromatogram. Clustering bases on complete linkage hierarchical clustering of pairwise correlations of log2 base peak signals."}
 #' First we have to bin the chromatograms to force them having the same
@@ -260,10 +301,15 @@ plot(chrs_bpc, col = col_clust[clust_one])
 #' plot(chrs_bpc, col = cols)
 
 ```
+## Boxplots and RLA-values
 
-Next we evaluate the distribution of base peak and total ion values per sample
-to identify potentially problematic samples/injections. In addition we calculate
-per-sample RLA (relative log abundance) [@DeLivera:2012bw] values representing
+The next assessment is based on boxplots where we evaluate the distribution of base peak and total ion values per sample and it aims at identifying problematicsamples, due to many reasons, such as a failed injection or problems that occurred during sample preparation. Boxplots are created starting from the
+distribution of TICs divided per files. Log2 transform is then applied to the
+signal intensities in order to better see the differences and to have a more
+similar variance across the range (which doesn't happen in the case of natural
+scale).
+
+ In addition we calculate per-sample RLA (relative log abundance) [@DeLivera:2012bw] values representing
 average log2 signal (either base peak or total ion) of each sample relative to
 the median log2 signal of all samples within the same group. The per sample RLA
 values help to spot samples with an overall different average signal compared to
@@ -323,6 +369,15 @@ that showed also higher signal in the base peak chromatogram plot above. The
 results on the total ion signal (i.e. the sum of signal per spectrum) is
 comparable, but less pronounced (data not shown).
 
+## Principal component analysis
+
+Principal Component Analysis (PCA) is a data visualization method that allows us
+to simplify the dataset by reducing the number of characteristics inside the
+dataset itself; PCA identifies a small set of informative dimensions that
+capture most variability of the dataset. PCA aims to best describe the dataset
+with the least number of features, without losing any information.  This
+analysis should confirm the results obtained in the heatmap.
+
 ```{r pos-bpc-pca-injection-idx, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of the base peak signal. Numbers indicate the injection index."}
 pc <- prcomp(t(log2(do.call(cbind, lapply(chrs_bin, intensity)))),
              scale = FALSE, center = TRUE)
@@ -338,6 +393,7 @@ plot_pca(pc, col = col_source[as.character(data_pos$source)],
 legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
 ```
 
+Looking at the PCA plots we can see that capillary and red blood samples are clustered together, whereas plasma samples and venous blood samples differ.
 
 ### Summary
 
@@ -514,7 +570,7 @@ std_info_chr <- chromatogram(
     rt = rtr, aggregationFun = "max")
 
 ## Plot the extracted ion chromatograms
-dr <- paste0(IMAGE_PATH, "peakdetection_3/")
+dr <- paste0(IMAGE_PATH, "peakdetection_4/")
 dir.create(dr, recursive = TRUE, showWarnings = FALSE)
 sample_colors <- col_source[as.character(data_pos$source)]
 for (i in 1:nrow(std_info)) {
@@ -541,6 +597,13 @@ for (i in 1:nrow(std_info)) {
     dev.off()
 }
 ```
+All the plotted EICs have been visually inspected in order to find the most
+interesting peaks that could indicate which compounds might be the most
+interesting for our analysis. During this process, we annotated the observed RT,
+whether the peak was ok or not and some additional notes about the shape of the
+peak: these observations have been manually inserted in a table, where each line
+represents each of the peaks discovered through the preliminary peak detection
+run.  112 compounds have been detected at this stage.
 
 ```{r pos-centWave-manual-check, echo = FALSE, eval = FALSE}
 #' Go manually through all generated plots above and determine which peaks
@@ -570,8 +633,7 @@ std_info <- read.table("data/std_info_3_checked.txt", sep = "\t", as.is = TRUE,
 std_info$mz_ion <- as.numeric(std_info$mz_ion)
 std_info <- std_info[std_info$is_ok, ]
 std_info_mz_rt <- chromPeakArea(data_pos, mz = std_info$mz_ion,
-                                rt = std_info$RT_obs, diffRt = 0, ppm = 50,
-                                type = "any")
+                                rt = std_info$RT_obs, diffRt = 0, ppm = 50, type="any")
 std_info <- std_info[!is.na(std_info_mz_rt[, "mzmin"]), ]
 std_info_mz_rt <- std_info_mz_rt[!is.na(std_info_mz_rt[, "mzmin"]), ]
 ```
@@ -585,7 +647,6 @@ rtr[, 2] <- rtr[, 2] + 10
 std_info_chr <- chromatogram(
     data_pos, mz = std_info_mz_rt[, c("mzmin", "mzmax")],
     rt = rtr, aggregationFun = "max")
-
 #' Plot the extracted ion chromatograms
 dr <- paste0(IMAGE_PATH, "peakdetection-standards/")
 dir.create(dr, recursive = TRUE, showWarnings = FALSE)
@@ -884,18 +945,36 @@ median m/z width of these peaks being quite small.
 
 ## Alignment
 
-After detection, chromatographic peaks have to be aligned to adjust for any
-retention time differences due to shifts or biases of the LC. We will use the
+Alignment is a crucial step in the process of data analysis because there may
+be shifts in retention time in the different analyzed samples. These shifts
+find their origin in environmental conditions, such as temperature and pressure
+that can slightly change in the course of the measurements, or in the
+equipment used, for instance, the composition of the mobile phase or the
+stationary phase utilized in the chromatography stage. During alignment, we want
+to make sure that the retention time is always the same for all peaks pertaining
+to one feature, across multiple samples.
+In `xcms` a robust method is implemented to carry out alignment: We will use the
 *peak groups* method, that aligns samples based on *hook* peaks that are present
 in most samples. We thus first group chromatographic peaks requiring them to be
 present in 80% of the samples within each group and use these as the *hook*
 peaks. Most of the settings for the peak grouping can then be reused for the
 correspondence analysis in the next section. Note that before alignment we
-remove potentially problematic samples. We are setting `binSize = 0.01` to
-avoid chromatographic peaks with highly similar m/z values (within the same
-file) to be grouped into the same feature. This has been defined by evaluating
+remove potentially problematic samples. 
+
+First of all, we group peaks among samples, as we do for the correspondence
+step; we use a 0.01 `binSize` to extract all chromatographic peaks from
+very small m/z windows, to ensure proper separation of peaks, even if they are
+very close in m/z. This has been defined by evaluating
 the distance in m/z between chromatographic peaks in the same file in a region
-with a high peak density (see plot below).
+with a high peak density (see plot below). We also set `minFraction` to 0.95 to exclude those peaks
+that are found in less than 95% of samples and `bw` to 2 as the standard
+deviation of the smoothing kernel.
+
+Then, we specify the subset that we want to perform alignment on, the `"POOL"`
+group, and we assign `"average"` to the `subsetAdjust` parameter; this leads to
+an adjustment of non-subset samples based on how much the retention time of the
+previous and following subset samples is shifted.
+
 
 ```{r pos-mz-distance-peaks-plot, message = FALSE, warning = FALSE, fig.cap = "Position of detected chromatographic peaks within a sample. Shown are chromatographic peaks in a region with high peak density. The horizontal blue line represents the bin width if binSize = 0.02 was used."}
 plotChromPeaks(filterMz(data_pos, mz = c(756, 758)), 1)
@@ -929,7 +1008,7 @@ rtr <- c(140, 180)
 pdp_tmp <- PeakDensityParam(sampleGroups = data_pos$source, bw = 1.3)
 plot_grouping(data_pos, mz = mzr, rt = rtr, param = pdp_tmp,
               col = col_source[data_pos$source])
-pdf(file = paste0(IMAGE_PATH, "glucose_bevor.pdf"), height = 7, width = 5)
+pdf(file = paste0(IMAGE_PATH, "glucose_1.8.pdf"), height = 7, width = 5)
 pdp_tmp <- PeakDensityParam(sampleGroups = data_pos$source, bw = 1.3)
 plot_grouping(data_pos, mz = mzr, rt = rtr, param = pdp_tmp,
               col = col_source[data_pos$source])
@@ -951,10 +1030,7 @@ rtr <- c(140, 180)
 pdp_tmp <- PeakDensityParam(sampleGroups = data_pos$source, bw = 3)
 plot_grouping(data_pos, mz = mzr, rt = rtr, param = pdp_tmp,
               col = col_source[data_pos$source])
-pdf(file = paste0(IMAGE_PATH, "glucose_bw_3.pdf"), height = 7, width = 5)
-pdp_tmp <- PeakDensityParam(sampleGroups = data_pos$source, bw = 3)
-plot_grouping(data_pos, mz = mzr, rt = rtr, param = pdp_tmp,
-              col = col_source[data_pos$source])
+
 ```
 
 In addition we evaluate the bandwidth setting on the peaks for 1-Methylhistidine
@@ -973,18 +1049,7 @@ grouped into the same feature. At last we evaluate the grouping for peaks that
 betaine and in addition the peaks seem to be shifted depending on the matrix. We
 thus group all of them together into one feature.
 
-```{r pos-bw-definition-plot-4, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result for Betaine. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks for 1-Methylhistidine and 3-Methylhistidine (y-axis lists samples). The black line shows the density distribution for a bw = 2.5, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
-mzr <- std_info[std_info$HMDB.code == "HMDB0000043", "mz_ion"] + c(0.002, -0.002)
-rtr <- c(140, 180)
-png("test.png")
-plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
-              col = col_source[data_pos$source])
-dev.off()
-```
-
-Also for Betaine we could group all peaks into the same feature. Below we
-perform the peak grouping on the defined settings and subsequently the
-alignment. We perform a subset alignment that is based on the alignment of the
+We perform a subset alignment that is based on the alignment of the
 QC samples. While the QC samples might not be representative for all matrices,
 we still assume that they might still be able to estimate the retention time
 shifts for study samples. For the alignment we require a *hook* peak to be
@@ -1008,7 +1073,7 @@ pdp <- PeakDensityParam(sampleGroups = data_pos$source,
                         minFraction = 0.95,
                         minSamples = 5,
                         binSize = 0.01,
-                        bw = 3)
+                        bw = 2)
 data_pos <- groupChromPeaks(data_pos, param = pdp)
 
 #' Next we perform the alignemnt.
