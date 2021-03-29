@@ -756,17 +756,17 @@ abline(h = c(757, 757.02), col = "#0000ff80")
 
 ```{r neg-alignment-group, message = FALSE, warning = FALSE}
 ## Remove potentially problematic samples. These were manually defined.
-bad_idx <- c(74, 152, 178)
+##bad_idx <- c(74, 152, 178)
 
-data_neg <- filterFile(data_neg, file = seq_along(data_neg$sample)[-bad_idx])
+##data_neg <- filterFile(data_neg, file = seq_along(data_neg$sample)[-bad_idx])
 
 ## Define the peak grouping parameters to define the hook peaks
 ## These should be peaks present in most samples
 pdp <- PeakDensityParam(sampleGroups = data_neg$source,
-                        minFraction = 0.8,
+                        minFraction = 0.95,
                         minSamples = 5,
                         binSize = 0.02,
-                        bw = 1.8)
+                        bw = 2)
 data_neg <- groupChromPeaks(data_neg, param = pdp)
 
 ## Next we perform the alignemnt.
@@ -872,7 +872,7 @@ pdp <- PeakDensityParam(sampleGroups = data_neg$source,
                         minFraction = 1/3,
                         minSamples = 3,
                         binSize = 0.01,
-                        bw = 1.1)
+                        bw = 2)
 data_neg <- groupChromPeaks(data_neg, param = pdp)
 
 ```
