@@ -1,145 +1,172 @@
 "mix"	"name"	"abbreviation"	"HMDB.code"	"formula"	"POS"	"NEG"	"RT"	"data_set"	"sample"	"operator"	"version"	"quality_POS"	"quality_NEG"	"mzneut"	"mz_ion"	"RT_obs"	"is_ok"	"peak_note"
-1	"Acetylhistidine"	"acetylhistidine"	"HMDB0032055"	"C8H11N3O3"	"[M+H]+"	"[M-H]-"	180	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	197.080041281	196.072764826	NA	FALSE	NA
-1	"Betaine"	"betaine"	"HMDB0000043"	"C5H11NO2"	"[M+H]+"	"[M-H+HCOOH]-"	166	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"3_bad"	117.078978647	162.077172647	NA	FALSE	NA
-1	"CDP"	"CDP"	"HMDB0001546"	"C9H15N3O11P2"	NA	"[M-H]-"	172	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	403.018182461	402.010906006	NA	FALSE	NA
-1	"Creatine"	"creatine"	"HMDB0000064"	"C4H9N3O2"	"[M+H]+"	"[M-H]-"	173	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"3_bad"	131.069476581	130.062200126	NA	FALSE	NA
-1	"L-Glutamic Acid"	"glutamic"	"HMDB0000148"	"C5H9NO4"	"[M+H]+"	"[M-H]-"	176	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	147.053157837	146.045881382	NA	FALSE	NA
-1	"Myo-Inositol"	"myoinositol"	"HMDB0000211"	"C6H12O6"	"[M+Na]+"	"[M-H+HCOOH]-"	193	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	180.0633882	225.0615822	NA	FALSE	NA
-1	"Pyruvic Acid"	"pyruvic"	"HMDB0000243"	"C3H4O3"	NA	"[M-H]-"	41	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	88.01604403	87.008767575	NA	FALSE	NA
-1	"Xanthine"	"xanthine"	"HMDB0000292"	"C5H4N4O2"	"[M+H]+"	"[M-H]-"	140	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	152.033425408	151.026148953	NA	FALSE	NA
-2	"Ascorbic Acid"	"ascorbic"	"HMDB0000044"	"C6H8O6"	"[M+H]+"	"[M-H]-"	128	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	176.03208806	175.024811605	NA	FALSE	NA
-2	"Fructose"	"fructose"	"HMDB0000660"	"C6H12O6"	"[M+Na]+"	"[M-H]-"	150	"2020_01_matrix_effect"	"serum"	"Vinicius"	2	"2_medium"	"2_medium"	180.0633882	179.056111745	NA	FALSE	NA
-2	"cGMP"	"GMP_c"	"HMDB0001314"	"C10H12N5O7P"	"[M+H]+"	"[M-H]-"	217	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	345.04743484	344.040158385	NA	FALSE	NA
-2	"Histidine"	"histidine"	"HMDB0000177"	"C6H9N3O2"	"[M+H]+"	"[M-H]-"	188	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	155.069476581	154.062200126	NA	FALSE	NA
-2	"Hydroxyproline"	"hydroxyproline"	"HMDB0000725"	"C5H9NO3"	"[M+H]+"	"[M-H]-"	175	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	131.058243207	130.050966752	NA	FALSE	NA
-2	"Hypoxanthine"	"hypoxanthine"	"HMDB0000157"	"C5H4N4O"	"[M+H]+"	"[M-H]-"	126	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	136.038510778	135.031234323	NA	FALSE	NA
-2	"Lactic acid"	"lactic"	"HMDB0000190"	"C3H6O3"	NA	"[M-H]-"	38	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	90.0316941	89.024417645	NA	FALSE	NA
-2	"1-Methylxanthine"	"methylxanthine_1"	"HMDB0010738"	"C6H6N4O2"	"[M+H]+"	"[M-H]-"	80	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	166.049075478	165.041799023	NA	FALSE	NA
-2	"3-Nitrotyrosine"	"nitrotyrosine"	"HMDB0001904"	"C9H10N2O5"	"[M+H]+"	"[M-H]-"	157	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	226.058971504	225.051695049	NA	FALSE	NA
-2	"Phosphocreatine"	"phosphocreatine"	"HMDB0001511"	"C4H10N3O5P"	"[M+H]+"	"[M-H]-"	198	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	211.035807506	210.028531051	NA	FALSE	NA
-2	"Valine"	"valine"	"HMDB0000883"	"C5H11NO2"	"[M+H]+"	"[M-H]-"	166	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	117.078978647	116.071702192	NA	FALSE	NA
+1	"Betaine"	"betaine"	"HMDB0000043"	"C5H11NO2"	"[M+H]+"	"[M+CHO2]-"	166	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"3_bad"	117.078978647	162.077178647	NA	FALSE	NA
+1	"CDP"	"CDP"	"HMDB0001546"	"C9H15N3O11P2"	NA	"[M-H]-"	172	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	403.018182461	402.010906461	NA	FALSE	NA
+1	"Creatine"	"creatine"	"HMDB0000064"	"C4H9N3O2"	"[M+H]+"	"[M-H]-"	173	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"3_bad"	131.069476581	130.062200581	NA	FALSE	NA
+1	"Dimethylglycine"	"dimethylglycine"	"HMDB0000092"	"C4H9NO2"	"[M+H]+"	"[M-H]-"	177	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	103.063328577	102.056052577	NA	FALSE	NA
+1	"L-Glutamic Acid"	"glutamic"	"HMDB0000148"	"C5H9NO4"	"[M+H]+"	"[M-H]-"	176	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	147.053157837	146.045881837	NA	FALSE	NA
+1	"Myo-Inositol"	"myoinositol"	"HMDB0000211"	"C6H12O6"	"[M+Na]+"	"[M+CHO2]-"	193	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	180.0633882	225.0615882	NA	FALSE	NA
+1	"3-Phosphoglyceric Acid"	"phosphoglyceric_3"	"HMDB0000807"	"C3H7O7P"	"[M+H]+"	"[M-H]-"	267	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	185.992939655	184.985663655	NA	FALSE	NA
+1	"propionic acid"	"propionic"	"HMDB0000237"	"C3H6O2"	NA	"[M-H]-"	53	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	74.03677947	73.02950347	NA	FALSE	NA
+1	"Pyruvic Acid"	"pyruvic"	"HMDB0000243"	"C3H4O3"	NA	"[M-H]-"	41	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	88.01604403	87.00876803	NA	FALSE	NA
+1	"Suberic Acid"	"suberic"	"HMDB0000893"	"C8H14O4"	"[M+Na]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	174.08920901	173.08193301	NA	FALSE	NA
+1	"Xanthine"	"xanthine"	"HMDB0000292"	"C5H4N4O2"	"[M+H]+"	"[M-H]-"	140	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	152.033425408	151.026149408	NA	FALSE	NA
+2	"Ascorbic Acid"	"ascorbic"	"HMDB0000044"	"C6H8O6"	"[M+H]+"	"[M-H]-"	128	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	176.03208806	175.02481206	NA	FALSE	NA
+2	"Fructose"	"fructose"	"HMDB0000660"	"C6H12O6"	"[M+Na]+"	"[M-H]-"	150	"2020_01_matrix_effect"	"serum"	"Vinicius"	2	"2_medium"	"2_medium"	180.0633882	179.0561122	NA	FALSE	NA
+2	"Glycine"	"glycine"	"HMDB0000123"	"C2H5NO2"	"[M+H]+"	"[M-H]-"	172	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	75.032028437	74.024752437	NA	FALSE	NA
+2	"cGMP"	"GMP_c"	"HMDB0001314"	"C10H12N5O7P"	"[M+H]+"	"[M-H]-"	217	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	345.04743484	344.04015884	NA	FALSE	NA
+2	"Histidine"	"histidine"	"HMDB0000177"	"C6H9N3O2"	"[M+H]+"	"[M-H]-"	188	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	155.069476581	154.062200581	NA	FALSE	NA
+2	"Hydroxyproline"	"hydroxyproline"	"HMDB0000725"	"C5H9NO3"	"[M+H]+"	"[M-H]-"	175	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	131.058243207	130.050967207	NA	FALSE	NA
+2	"Hypoxanthine"	"hypoxanthine"	"HMDB0000157"	"C5H4N4O"	"[M+H]+"	"[M-H]-"	126	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	136.038510778	135.031234778	NA	FALSE	NA
+2	"L-Kynurenine"	"kynurenine"	"HMDB0000684"	"C10H12N2O3"	"[M+H]+"	"[M-H]-"	157	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	208.084792314	207.077516314	NA	FALSE	NA
+2	"Lactic acid"	"lactic"	"HMDB0000190"	"C3H6O3"	NA	"[M-H]-"	38	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	90.0316941	89.0244181	NA	FALSE	NA
+2	"1-Methylxanthine"	"methylxanthine_1"	"HMDB0010738"	"C6H6N4O2"	"[M+H]+"	"[M-H]-"	80	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	166.049075478	165.041799478	NA	FALSE	NA
+2	"3-Nitrotyrosine"	"nitrotyrosine"	"HMDB0001904"	"C9H10N2O5"	"[M+H]+"	"[M-H]-"	157	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	226.058971504	225.051695504	NA	FALSE	NA
+2	"Phosphocreatine"	"phosphocreatine"	"HMDB0001511"	"C4H10N3O5P"	"[M+H]+"	"[M-H]-"	198	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	211.035807506	210.028531506	NA	FALSE	NA
+2	"Valine"	"valine"	"HMDB0000883"	"C5H11NO2"	"[M+H]+"	"[M-H]-"	166	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	117.078978647	116.071702647	NA	FALSE	NA
 3	"Alanine"	"alanine"	"HMDB0000161"	"C3H7NO2"	"[M+H]+"	"[M-H+HCOONa]-"	170	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	89.047678507	156.027842507	NA	FALSE	NA
-3	"Citrulline"	"citrulline"	"HMDB0000904"	"C6H13N3O3"	"[M+H]+"	"[M-H]-"	182	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	175.095691351	174.088414896	NA	FALSE	NA
-3	"Glucose"	"glucose"	"HMDB0000122"	"C6H12O6"	"[M+Na]+"	"[M-H+HCOOH]-"	167	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	180.0633882	225.0615822	NA	FALSE	NA
-3	"Glutathione Oxidized"	"glutathione_oxidized"	"HMDB0003337"	"C20H32N6O12S2"	"[M+H]+"	"[M-H]-"	212	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	612.151962092	611.144685637	NA	FALSE	NA
-3	"Glycolic acid"	"glycolic"	"HMDB0000115"	"C2H4O3"	NA	"[M-H]-"	49	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	76.01604403	75.008767575	NA	FALSE	NA
-3	"Isoleucine"	"isoleucine"	"HMDB0000172"	"C6H13NO2"	"[M+H]+"	"[M-H]-"	155	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	131.094628717	130.087352262	NA	FALSE	NA
-3	"Malonic acid"	"malonic"	"HMDB0000691"	"C3H4O4"	NA	"[M-H]-"	63	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	104.01095866	103.003682205	NA	FALSE	NA
-3	"5-Oxoproline"	"oxoproline"	"HMDB0000267"	"C5H7NO3"	"[M+H]+"	"[M-H]-"	71	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	129.042593137	128.035316682	NA	FALSE	NA
-4	"Acetylalanine"	"acetylalanine_NL"	"HMDB0000766"	"C5H9NO3"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	131.058243207	130.050966752	NA	FALSE	NA
-4	"Allantoin"	"allantoin"	"HMDB0000462"	"C4H6N4O3"	"[M+H]+"	"[M-H]-"	139	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	158.043990108	157.036713653	NA	FALSE	NA
-4	"AMP"	"AMP"	"HMDB0000045"	"C10H14N5O7P"	"[M+H]+"	"[2M-H]-"	212	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"1_good"	347.06308491	693.118893365	NA	FALSE	NA
-4	"Glutamine"	"glutamine"	"HMDB0000641"	"C5H10N2O3"	"[M+H]+"	"[M-H]-"	178	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	146.069142244	145.061865789	NA	FALSE	NA
-4	"GMP"	"GMP"	"HMDB0001397"	"C10H14N5O8P"	"[M+H]+"	"[M-H]-"	229	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	363.05799954	362.050723085	NA	FALSE	NA
-4	"Leucine"	"leucine"	"HMDB0000687"	"C6H13NO2"	"[M+H]+"	"[M-H]-"	152	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	131.094628717	130.087352262	NA	FALSE	NA
-4	"Riboflavin"	"riboflavin"	"HMDB0000244"	"C17H20N4O6"	"[M+H]+"	"[M-H]-"	145	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	376.138284488	375.131008033	NA	FALSE	NA
-4	"Ribose"	"ribose"	"HMDB0000283"	"C5H10O5"	NA	"[M-H]-"	100	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	150.0528235	149.045547045	NA	FALSE	NA
-5	"CoA"	"CoA"	"HMDB0001423"	"C21H36N7O16P3S"	NA	"[M-H]-"	203	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	767.115210054	766.107933599	NA	FALSE	NA
-5	"Corticosterone"	"corticosterone"	"HMDB0001547"	"C21H30O4"	"[M+H]+"	"[M-H+HCOOH]-"	35	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"3_bad"	346.21440957	391.21260357	NA	FALSE	NA
-5	"2-Ketobutyric acid"	"ketobutyric_2"	"HMDB0000005"	"C4H6O3"	NA	"[M-H]-"	39	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	102.0316941	101.024417645	NA	FALSE	NA
-5	"Mannose"	"mannose"	"HMDB0000169"	"C6H12O6"	"[M+Na]+"	"[M-H+HCOOH]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	180.0633882	225.0615822	NA	FALSE	NA
-5	"Nicotinic acid"	"nicotinic"	"HMDB0001488"	"C6H5NO2"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	123.032028437	122.024751982	NA	FALSE	NA
-5	"Threonine"	"threonine"	"HMDB0000167"	"C4H9NO3"	"[M+H]+"	"[M-H]-"	173	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	119.058243207	118.050966752	NA	FALSE	NA
-6	"Acetylglycine"	"acetylglycine"	"HMDB0000532"	"C4H7NO3"	"[M+H]+"	"[M-H]-"	54	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	117.042593137	116.035316682	NA	FALSE	NA
-6	"Arginine"	"arginine"	"HMDB0000517"	"C6H14N4O2"	"[M+H]+"	"[M-H]-"	187	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"1_good"	174.111675758	173.104399303	NA	FALSE	NA
-6	"Asparagine"	"asparagine"	"HMDB0000168"	"C4H8N2O3"	"[M+H]+"	"[M-H]-"	183	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	132.053492174	131.046215719	NA	FALSE	NA
-6	"CMP"	"CMP"	"HMDB0000095"	"C9H14N3O8P"	"[M+H]+"	"[M-H]-"	211	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	323.051851536	322.044575081	NA	FALSE	NA
-6	"Cystine"	"cystine"	"HMDB0000192"	"C6H12N2O4S2"	"[M+H]+"	"[M-H]-"	211	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	240.023848344	239.016571889	NA	FALSE	NA
-6	"3-Hydroxybutyric Acid"	"hydroxybutyric_3"	"HMDB0000357"	"C4H8O3"	"[M+Na]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"0_perfect"	104.04734417	103.040067715	NA	FALSE	NA
-6	"Methioninesulfoxide"	"methionine_sulfoxide"	"HMDB0002005"	"C5H11NO3S"	"[M+H]+"	"[M-H]-"	182	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	165.045963977	164.038687522	NA	FALSE	NA
-6	"Paracetamol"	"paracetamol"	"HMDB0001859"	"C8H9NO2"	"[M+H]+"	"[M-H]-"	36	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	151.063328577	150.056052122	NA	FALSE	NA
-6	"Sphingosine-1-phosphate"	"sphingosine_phosphate"	"HMDB0000277"	"C18H38NO5P"	"[M+H]+"	"[M-H]-"	145	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	379.248760482	378.241484027	NA	FALSE	NA
-6	"Sucrose"	"sucrose"	"HMDB0000258"	"C12H22O11"	"[M+Na]+"	"[M-H+HCOOH]-"	187	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	342.1162117	387.1144057	NA	FALSE	NA
-6	"Tryptophan"	"tryptophan"	"HMDB0000929"	"C11H12N2O2"	"[M+H]+"	"[M-H]-"	155	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	204.089877684	203.082601229	NA	FALSE	NA
-7	"dAMP"	"AMP_d"	"HMDB0000905"	"C10H14N5O6P"	"[M+H]+"	"[M-H]-"	208	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	331.06817028	330.060893825	NA	FALSE	NA
-7	"CDP-choline"	"CDP_choline"	"HMDB0001413"	"C14H26N4O11P2"	"[M+H]+"	"[M-H+HCOOH]-"	217	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	488.107331848	533.105525848	NA	FALSE	NA
-7	"Glutaric acid"	"glutaric"	"HMDB0000661"	"C5H8O4"	NA	"[M-H]-"	38	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	132.0422588	131.034982345	NA	FALSE	NA
-7	"Glycero-phosphocholine"	"glycero_phosphocholine"	"HMDB0000086"	"C8H20NO6P"	"[M+H]+"	"[M+Cl]-"	189	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	257.102824482	292.072226482	NA	FALSE	NA
-7	"3-Methylhistidine"	"methylhistidine_3"	"HMDB0000479"	"C7H11N3O2"	"[M+H]+"	"[M-H]-"	186	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	169.085126651	168.077850196	NA	FALSE	NA
-7	"1-Methyluric acid"	"methyluric"	"HMDB0003099"	"C6H6N4O3"	"[M+H]+"	"[M-H]-"	145	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"1_good"	182.043990108	181.036713653	NA	FALSE	NA
-7	"Serine"	"serine"	"HMDB0000187"	"C3H7NO3"	"[M+H]+"	"[M-H]-"	181	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	105.042593137	104.035316682	NA	FALSE	NA
-7	"Sphingosine"	"sphingosine"	"HMDB0000252"	"C18H37NO2"	"[M+H]+"	"[M-H+HCOOH]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"3_bad"	299.282429557	344.280623557	NA	FALSE	NA
-7	"Taurine"	"taurine"	"HMDB0000251"	"C2H7NO3S"	"[M+H]+"	"[M-H]-"	172	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	125.014663837	124.007387382	NA	FALSE	NA
-7	"Threonic Acid"	"threonic"	"HMDB0000943"	"C4H8O5"	"[M+Na]+"	"[M-H]-"	130	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	136.03717343	135.029896975	NA	FALSE	NA
-8	"dGDP"	"GDP_d"	"HMDB0000960"	"C10H15N5O10P2"	"[M+H]+"	"[M-H]-"	260	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	427.029415835	426.02213938	NA	FALSE	NA
-8	"Glyceric Acid"	"glyceric"	"HMDB0000139"	"C3H6O4"	NA	"[M-H]-"	75	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	106.02660873	105.019332275	NA	FALSE	NA
-8	"Inosine"	"inosine"	"HMDB0000195"	"C10H12N4O5"	"[M+Na]+"	"[M-H]-"	146	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	268.080769578	267.073493123	NA	FALSE	NA
-8	"Ornithine"	"ornithine"	"HMDB0000214"	"C5H12N2O2"	"[M+H]+"	"[M-H]-"	190	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	132.089877684	131.082601229	NA	FALSE	NA
-8	"Succinic Acid"	"succinic"	"HMDB0000254"	"C4H6O4"	NA	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	118.02660873	117.019332275	NA	FALSE	NA
-8	"Tyrosine"	"tyrosine"	"HMDB0000158"	"C9H11NO3"	"[M+H]+"	"[M-H]-"	168	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	181.073893277	180.066616822	NA	FALSE	NA
-9	"N-Acetylserine"	"acetylserine"	"HMDB0002931"	"C5H9NO4"	"[M+H]+"	"[M-H]-"	82	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	147.053157837	146.045881382	NA	FALSE	NA
-9	"CDP-ethanolamine"	"CDP_ethanolamine"	"HMDB0001564"	"C11H20N4O11P2"	"[M+H]+"	"[M-H]-"	219	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	446.060381638	445.053105183	NA	FALSE	NA
-9	"Guanosine"	"guanosine"	"HMDB0000133"	"C10H13N5O5"	"[M+H]+"	"[M-H]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	283.091668615	282.08439216	NA	FALSE	NA
-9	"IMP"	"IMP"	"HMDB0000175"	"C10H13N4O8P"	"[M+H]+"	"[M-H]-"	226	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	348.047100503	347.039824048	NA	FALSE	NA
-9	"Proline"	"proline"	"HMDB0000162"	"C5H9NO2"	"[M+H]+"	"[M-H]-"	169	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	115.063328577	114.056052122	NA	FALSE	NA
-10	"N-Acetylornithine"	"acetylornithine"	"HMDB0003357"	"C7H14N2O3"	"[M+H]+"	"[M-H]-"	170	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	174.100442384	173.093165929	NA	FALSE	NA
-10	"Adenosine"	"adenosine"	"HMDB0000050"	"C10H13N5O4"	"[M+H]+"	"[M-H+HCOOH]-"	134	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	267.096753985	312.094947985	NA	FALSE	NA
-10	"L-Aspartic Acid"	"aspartic"	"HMDB0000191"	"C4H7NO4"	"[M+H]+"	"[M-H]-"	181	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	133.037507767	132.030231312	NA	FALSE	NA
-10	"Citric Acid"	"citric"	"HMDB0000094"	"C6H8O7"	"[M+Na]+"	"[M-H]-"	177	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	192.02700269	191.019726235	NA	FALSE	NA
-10	"Cytidine"	"cytidine"	"HMDB0000089"	"C9H13N3O5"	"[M+H]+"	"[M-H+HCOOH]-"	162	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	243.085520611	288.083714611	NA	FALSE	NA
-10	"Fumaric Acid"	"fumaric"	"HMDB0000134"	"C4H4O4"	NA	"[M-H]-"	48	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	116.01095866	115.003682205	NA	FALSE	NA
-10	"Phosphoenolpyruvic Acid"	"phosphoenolpyruvic"	"HMDB0000263"	"C3H5O6P"	"[M+H]+"	"[M-H]-"	227	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	167.982374955	166.9750985	NA	FALSE	NA
-10	"Phosphorylethanolamine"	"phosphorylethanolamine"	"HMDB0000224"	"C2H8NO4P"	"[M+H]+"	"[2M-H]-"	198	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"1_good"	141.019094802	281.030913149	NA	FALSE	NA
-10	"Ribulose 5-Phosphate"	"ribulose_phosphate"	"HMDB0000618"	"C5H11O8P"	"[M+H]+"	"[M-H]-"	225	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	230.019154425	229.01187797	NA	FALSE	NA
-10	"SAH"	"SAH"	"HMDB0000939"	"C14H20N6O5S"	"[M+H]+"	"[M-H]-"	186	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	384.121588562	383.114312107	NA	FALSE	NA
-10	"Salicylic acid"	"salicylic"	"HMDB0001895"	"C7H6O3"	"[M+H]+"	"[M-H]-"	34	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"0_perfect"	138.0316941	137.024417645	NA	FALSE	NA
-11	"ADP"	"ADP"	"HMDB0001341"	"C10H15N5O10P2"	"[M+H]+"	"[M-H]-"	256	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	427.029415835	426.02213938	NA	FALSE	NA
-11	"dCTP"	"CTP_d"	"HMDB0000998"	"C9H16N3O13P3"	NA	"[M-H]-"	228	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	466.989598756	465.982322301	NA	FALSE	NA
-11	"Dihydroorotic acid"	"dihydroorotic"	"HMDB0003349"	"C5H6N2O4"	"[M+H]+"	"[M-H]-"	120	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	158.032756734	157.025480279	NA	FALSE	NA
-11	"Glutathione Reduced"	"glutathione_reduced"	"HMDB0000125"	"C20H32N6O12S2"	"[M+H]+"	"[M-H]-"	211	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	612.151962092	611.144685637	NA	FALSE	NA
-11	"Alpha-ketoisovaleric acid"	"ketoisovaleric"	"HMDB0000019"	"C5H8O3"	NA	"[M-H]-"	34	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	116.04734417	115.040067715	NA	FALSE	NA
-11	"Lysine"	"lysine"	"HMDB0000182"	"C6H14N2O2"	"[M+H]+"	"[M-H]-"	188	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	146.105527754	145.098251299	NA	FALSE	NA
-11	"Malic Acid"	"malic"	"HMDB0000156"	"C4H6O5"	NA	"[M-H]-"	92	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	134.02152336	133.014246905	NA	FALSE	NA
-11	"3-Methylxanthine"	"methylxanthine_3"	"HMDB0001886"	"C6H6N4O2"	"[M+H]+"	"[M-H]-"	86	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	166.049075478	165.041799023	NA	FALSE	NA
-11	"2-Phosphoglyceric Acid"	"phosphoglyceric_2"	"HMDB0000362"	"C3H7O7P"	"[M+H]+"	"[M-H]-"	250	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	185.992939655	184.9856632	NA	FALSE	NA
-12	"Argininosuccinic acid"	"argininosuccinic"	"HMDB0000052"	"C10H18N4O6"	"[M+H]+"	"[M-H]-"	199	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	290.122634418	289.115357963	NA	FALSE	NA
-12	"Carnosine"	"carnosine"	"HMDB0000033"	"C9H14N4O3"	"[M+H]+"	"[M-H]-"	184	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	226.106590388	225.099313933	NA	FALSE	NA
-12	"Galactitol"	"galactitol"	"HMDB0000107"	"C6H14O6"	"[M+Na]+"	"[M-H]-"	167	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	182.07903827	181.071761815	NA	FALSE	NA
-12	"dGMP"	"GMP_d"	"HMDB0001044"	"C10H14N5O7P"	"[M+H]+"	"[M-H]-"	223	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	347.06308491	346.055808455	NA	FALSE	NA
-12	"Homocysteine"	"homocysteine"	"HMDB0000742"	"C4H9NO2S"	"[M+H]+"	"[M-H]-"	168	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	135.035399277	134.028122822	NA	FALSE	NA
-12	"Ketoleucine"	"ketoleucine"	"HMDB0000695"	"C6H10O3"	"[M+H]+"	"[M-H]-"	34	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	130.06299424	129.055717785	NA	FALSE	NA
-12	"Thiamine"	"thiamine"	"HMDB0000235"	"C12H16N4OS"	"[M+H]+"	"[M-H]-"	148	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	264.104481898	263.097205443	NA	FALSE	NA
-13	"N-Acetyl-beta-alanine"	"acetylalanine_NB"	"HMDB0061880"	"C5H9NO3"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	131.058243207	130.050966752	NA	FALSE	NA
-13	"Acetylneuraminic Acid"	"acetylneuraminic"	"HMDB0000230"	"C11H19NO9"	"[M+H-2(H2O)]+"	"[M-H]-"	180	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	309.105981337	308.098704882	NA	FALSE	NA
-13	"Dopamine"	"dopamine"	"HMDB0000073"	"C8H11NO2"	"[M+H]+"	"[M-H]-"	140	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	153.078978647	152.071702192	NA	FALSE	NA
-13	"Ibuprofen"	"ibuprofen"	"HMDB0001925"	"C13H18O2"	NA	"[M-H]-"	31	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"0_perfect"	206.13067989	205.123403435	NA	FALSE	NA
-13	"1-Methylhistidine"	"methylhistidine_1"	"HMDB0000001"	"C7H11N3O2"	"[M+H]+"	"[M-H]-"	182	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	169.085126651	168.077850196	NA	FALSE	NA
-13	"8-Oxo-2-Deoxyguanosine"	"oxodeoxyguanosine"	"HMDB0003333"	"C10H13N5O5"	"[M+H]+"	"[M-H]-"	159	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	283.091668615	282.08439216	NA	FALSE	NA
-13	"Pantothenic Acid"	"pantothenic"	"HMDB0000210"	"C9H17NO5"	"[M+H]+"	"[M-H]-"	38	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	219.110672747	218.103396292	NA	FALSE	NA
-13	"Phosphorylcholine"	"phosphorylcholine"	"HMDB0001565"	"C5H14NO4P"	"[M+H]+"	"[M+Cl]-"	195	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	183.066045012	218.035447012	NA	FALSE	NA
-13	"Sorbitol"	"sorbitol"	"HMDB0000247"	"C6H14O6"	"[M+Na]+"	"[M-H]-"	165	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	182.07903827	181.071761815	NA	FALSE	NA
-13	"Uridine"	"uridine"	"HMDB0000296"	"C9H12N2O6"	"[M+H]+"	"[M-H+HCOOH]-"	124	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	244.069536204	289.067730204	NA	FALSE	NA
-14	"1,5-anhydro D-glucitol"	"anhydroglucitol"	"HMDB0002712"	"C6H12O5"	"[M+Na]+"	"[M-H+HCOOH]-"	135	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	164.06847357	209.06666757	NA	FALSE	NA
-14	"Glyceraldehyde 2-phosphate"	"glyceraldehyde_phosphate"	"HMDB0001112"	"C3H7O6P"	"[M+H]+"	"[M-H]-"	213	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	169.998025025	168.99074857	NA	FALSE	NA
-14	"Glycerol-3-Phosphate"	"glycerol_phosphate"	"HMDB0000126"	"C3H9O6P"	"[M+H]+"	"[2M-H]-"	222	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	172.013675095	343.020073735	NA	FALSE	NA
-14	"Indolelactic acid"	"indolelactic"	"HMDB0000671"	"C11H11NO3"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	205.073893277	204.066616822	NA	FALSE	NA
-14	"Isocitric Acid"	"isocitric"	"HMDB0000193"	"C6H8O7"	NA	"[M-H]-"	146	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	192.02700269	191.019726235	NA	FALSE	NA
-14	"2-Ketoglutaric acid"	"ketoglutaric_2"	"HMDB0000208"	"C5H6O5"	NA	"[M-H]-"	75	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	146.02152336	145.014246905	NA	FALSE	NA
-14	"Levodopa"	"levodopa"	"HMDB0000181"	"C9H11NO4"	"[M+H]+"	"[M-H]-"	170	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	197.068807907	196.061531452	NA	FALSE	NA
-14	"NAD"	"NAD"	"HMDB0000902"	"C21H27N7O14P2"	"[M+H]+"	"[M-H]-"	225	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	663.109122779	662.101846324	NA	FALSE	NA
-14	"Pyridoxic Acid"	"pyridoxic"	"HMDB0000017"	"C8H9NO4"	"[M+H]+"	"[M-H]-"	85	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	183.053157837	182.045881382	NA	FALSE	NA
-14	"Serotonin"	"serotonin"	"HMDB0000259"	"C10H12N2O"	"[M+H-NH3]+"	"[M+Cl]-"	132	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"3_bad"	176.094963054	211.064365054	NA	FALSE	NA
-14	"Xylulose 5-Phosphate"	"xylulose_phosphate"	"HMDB0000868"	"C5H11O8P"	"[M+H]+"	"[2M-H]-"	225	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	230.019154425	459.031032395	NA	FALSE	NA
-15	"Glucosamine-6-Phosphate"	"glucosamine_phosphate"	"HMDB0001254"	"C6H14NO8P"	"[M+H]+"	"[2M-H]-"	219	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	259.045703532	517.084130609	NA	FALSE	NA
-15	"Glucuronic Acid"	"glucuronic"	"HMDB0000127"	"C6H10O7"	"[M+Na]+"	"[M-H]-"	171	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"0_perfect"	194.04265276	193.035376305	NA	FALSE	NA
-15	"p-Hydroxyphenylacetic acid"	"hydroxyphenylacetic"	"HMDB0000020"	"C8H8O3"	"[M+H-H2O]+"	"[M-H]-"	36	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	152.04734417	151.040067715	NA	FALSE	NA
-15	"2-Methylcitric acid"	"methylcitric"	"HMDB0000379"	"C7H10O7"	"[M+Na]+"	"[M-H]-"	171	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	206.04265276	205.035376305	NA	FALSE	NA
-15	"Phenylalanine"	"phenylalanine"	"HMDB0000159"	"C9H11NO2"	"[M+H]+"	"[M-H]-"	154	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	165.078978647	164.071702192	NA	FALSE	NA
-15	"Phosphoserine"	"phosphoserine"	"HMDB0000272"	"C3H8NO6P"	"[M+H]+"	"[2M-H]-"	231	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	185.008924062	369.010571669	NA	FALSE	NA
-16	"Acetyl-Glucosamine"	"acetylglucosamine"	"HMDB0000215"	"C8H15NO6"	"[M+Na]+"	"[M-H+HCOOH]-"	156	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	221.089937307	266.088131307	NA	FALSE	NA
-16	"Acetylmethionine"	"acetylmethionine"	"HMDB0011745"	"C7H13NO3S"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	191.061614047	190.054337592	NA	FALSE	NA
-16	"Dihydroxyacetone phosphate"	"dihydroxyacetone_phosphate"	"HMDB0001473"	"C3H7O6P"	"[M+H]+"	"[2M-H]-"	220	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	169.998025025	338.988773595	NA	FALSE	NA
-16	"1,7-Dimethyluric acid"	"dimethyluric_1_7"	"HMDB0011103"	"C7H8N4O3"	"[M+H]+"	"[M-H]-"	119	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	196.059640178	195.052363723	NA	FALSE	NA
-16	"homovanillic acid"	"homovanillic"	"HMDB0000118"	"C9H10O4"	"[M+H-HCOOH]+"	"[M-H]-"	36	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"0_perfect"	182.05790887	181.050632415	NA	FALSE	NA
-17	"dATP"	"ATP_d"	"HMDB0001532"	"C10H16N5O12P3"	NA	"[M-H]-"	224	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	491.00083213	489.993555675	NA	FALSE	NA
-17	"Gluconic Acid"	"gluconic"	"HMDB0000625"	"C6H12O7"	"[M+Na]+"	"[M-H]-"	171	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	196.05830283	195.051026375	NA	FALSE	NA
-17	"3-Hydroxy-DL-kynurenine"	"hydroxykynurenine_3"	"HMDB0000732"	"C10H12N2O4"	"[M+H]+"	"[M-H]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	224.079706944	223.072430489	NA	FALSE	NA
-17	"Indoxyl sulfate"	"indoxyl_sulfate"	"HMDB0000682"	"C8H7NO4S"	"[M+Na]+"	"[M-H]-"	50	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	213.009578467	212.002302012	NA	FALSE	NA
-17	"alpha-Lactose"	"lactose"	"HMDB0000186"	"C12H22O11"	"[M+Na]+"	"[M-H+HCOOH]-"	194	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	342.1162117	387.1144057	NA	FALSE	NA
-17	"7-Methylxanthine"	"methylxanthine_7"	"HMDB0001991"	"C6H6N4O2"	"[M+H]+"	"[M-H]-"	85	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	166.049075478	165.041799023	NA	FALSE	NA
-17	"Ribose 5-Phosphate"	"ribose_phosphate"	"HMDB0001548"	"C5H11O8P"	"[M+H-H2O]+"	"[M-H]-"	230	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	230.019154425	229.01187797	NA	FALSE	NA
-17	"Xanthosine"	"xanthosine"	"HMDB0000299"	"C10H12N4O6"	"[M+Na]+"	"[M-H]-"	153	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	284.075684208	283.068407753	NA	FALSE	NA
-18	"2-Hydroxybutyric acid"	"hydroxybutyric_2"	"HMDB0000008"	"C4H8O3"	NA	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	104.04734417	103.040067715	NA	FALSE	NA
-18	"3-Hydroxy-DL-kynurenine"	"hydroxykynurenine_3"	"HMDB0000732"	"C10H12N2O4"	"[M+H]+"	"[M-H]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	224.079706944	223.072430489	NA	FALSE	NA
-19	"Adenine"	"adenine"	"HMDB0000034"	"C5H5N5"	"[M+H]+"	"[M-H]-"	133	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	135.054495185	134.04721873	NA	FALSE	NA
-19	"UMP"	"UMP"	"HMDB0000288"	"C9H13N2O9P"	"[M+H]+"	"[M-H]-"	225	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	324.035867129	323.028590674	NA	FALSE	NA
+3	"Citrulline"	"citrulline"	"HMDB0000904"	"C6H13N3O3"	"[M+H]+"	"[M-H]-"	182	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	175.095691351	174.088415351	NA	FALSE	NA
+3	"Glucose"	"glucose"	"HMDB0000122"	"C6H12O6"	"[M+Na]+"	"[M+CHO2]-"	167	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	180.0633882	225.0615882	NA	FALSE	NA
+3	"Glutathione Oxidized"	"glutathione_oxidized"	"HMDB0003337"	"C20H32N6O12S2"	"[M+H]+"	"[M-H]-"	212	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	612.151962092	611.144686092	NA	FALSE	NA
+3	"Glycolic acid"	"glycolic"	"HMDB0000115"	"C2H4O3"	NA	"[M-H]-"	49	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	76.01604403	75.00876803	NA	FALSE	NA
+3	"Isoleucine"	"isoleucine"	"HMDB0000172"	"C6H13NO2"	"[M+H]+"	"[M-H]-"	155	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	131.094628717	130.087352717	NA	FALSE	NA
+3	"Malonic acid"	"malonic"	"HMDB0000691"	"C3H4O4"	NA	"[M-H]-"	63	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	104.01095866	103.00368266	NA	FALSE	NA
+3	"5-Oxoproline"	"oxoproline"	"HMDB0000267"	"C5H7NO3"	"[M+H]+"	"[M-H]-"	71	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	129.042593137	128.035317137	NA	FALSE	NA
+3	"Palmitoylcarnitine"	"palmitoylcarnitine"	"HMDB0000222"	"C23H45NO4"	"[M+H]+"	"[M+CHO2]-"	34	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"2_medium"	"3_bad"	399.334859097	444.333059097	NA	FALSE	NA
+4	"Acetylalanine"	"acetylalanine_NL"	"HMDB0000766"	"C5H9NO3"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	131.058243207	130.050967207	NA	FALSE	NA
+4	"Allantoin"	"allantoin"	"HMDB0000462"	"C4H6N4O3"	"[M+H]+"	"[M-H]-"	139	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	158.043990108	157.036714108	NA	FALSE	NA
+4	"AMP"	"AMP"	"HMDB0000045"	"C10H14N5O7P"	"[M+H]+"	"[2M-H]-"	212	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"1_good"	347.06308491	693.11889382	NA	FALSE	NA
+4	"Glutamine"	"glutamine"	"HMDB0000641"	"C5H10N2O3"	"[M+H]+"	"[M-H]-"	178	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	146.069142244	145.061866244	NA	FALSE	NA
+4	"GMP"	"GMP"	"HMDB0001397"	"C10H14N5O8P"	"[M+H]+"	"[M-H]-"	229	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	363.05799954	362.05072354	NA	FALSE	NA
+4	"Leucine"	"leucine"	"HMDB0000687"	"C6H13NO2"	"[M+H]+"	"[M-H]-"	152	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	131.094628717	130.087352717	NA	FALSE	NA
+4	"Riboflavin"	"riboflavin"	"HMDB0000244"	"C17H20N4O6"	"[M+H]+"	"[M-H]-"	145	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	376.138284488	375.131008488	NA	FALSE	NA
+4	"Ribose"	"ribose"	"HMDB0000283"	"C5H10O5"	NA	"[M-H]-"	100	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	150.0528235	149.0455475	NA	FALSE	NA
+4	"Sedoheptulose-7-phosphate"	"sedoheptulose_phosphate"	"HMDB0001068"	"C7H15O10P"	"[M+H-H2O]+"	"[2M-H]-"	235	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	290.040283825	579.07329165	NA	FALSE	NA
+5	"CoA"	"CoA"	"HMDB0001423"	"C21H36N7O16P3S"	NA	"[M-H]-"	203	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	767.115210054	766.107934054	NA	FALSE	NA
+5	"Corticosterone"	"corticosterone"	"HMDB0001547"	"C21H30O4"	"[M+H]+"	"[M+CHO2]-"	35	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"3_bad"	346.21440957	391.21260957	NA	FALSE	NA
+5	"1,3-Dimethyluric acid"	"dimethyluric_1_3"	"HMDB0001857"	"C7H8N4O3"	"[M+H]+"	"[M-H]-"	100	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	196.059640178	195.052364178	NA	FALSE	NA
+5	"2-Ketobutyric acid"	"ketobutyric_2"	"HMDB0000005"	"C4H6O3"	NA	"[M-H]-"	39	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	102.0316941	101.0244181	NA	FALSE	NA
+5	"Mannose"	"mannose"	"HMDB0000169"	"C6H12O6"	"[M+Na]+"	"[M+CHO2]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	180.0633882	225.0615882	NA	FALSE	NA
+5	"5-MTA"	"MTA"	"HMDB0001173"	"C11H15N5O3S"	"[M+H]+"	"[M+CHO2]-"	80	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	297.089560125	342.087760125	NA	FALSE	NA
+5	"PABA"	"PABA"	"HMDB0001392"	"C7H7NO2"	"[M+H]+"	"[M-H]-"	36	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"2_medium"	137.047678507	136.040402507	NA	FALSE	NA
+5	"Threonine"	"threonine"	"HMDB0000167"	"C4H9NO3"	"[M+H]+"	"[M-H]-"	173	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	119.058243207	118.050967207	NA	FALSE	NA
+6	"Acetylglycine"	"acetylglycine"	"HMDB0000532"	"C4H7NO3"	"[M+H]+"	"[M-H]-"	54	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	117.042593137	116.035317137	NA	FALSE	NA
+6	"Arginine"	"arginine"	"HMDB0000517"	"C6H14N4O2"	"[M+H]+"	"[M-H]-"	187	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"1_good"	174.111675758	173.104399758	NA	FALSE	NA
+6	"Asparagine"	"asparagine"	"HMDB0000168"	"C4H8N2O3"	"[M+H]+"	"[M-H]-"	183	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	132.053492174	131.046216174	NA	FALSE	NA
+6	"CMP"	"CMP"	"HMDB0000095"	"C9H14N3O8P"	"[M+H]+"	"[M-H]-"	211	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	323.051851536	322.044575536	NA	FALSE	NA
+6	"Cystine"	"cystine"	"HMDB0000192"	"C6H12N2O4S2"	"[M+H]+"	"[M-H]-"	211	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	240.023848344	239.016572344	NA	FALSE	NA
+6	"3-Hydroxybutyric Acid"	"hydroxybutyric_3"	"HMDB0000357"	"C4H8O3"	"[M+Na]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"0_perfect"	104.04734417	103.04006817	NA	FALSE	NA
+6	"Methioninesulfoxide"	"methionine_sulfoxide"	"HMDB0002005"	"C5H11NO3S"	"[M+H]+"	"[M-H]-"	182	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	165.045963977	164.038687977	NA	FALSE	NA
+6	"Paracetamol"	"paracetamol"	"HMDB0001859"	"C8H9NO2"	"[M+H]+"	"[M-H]-"	36	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	151.063328577	150.056052577	NA	FALSE	NA
+6	"Sphingosine-1-phosphate"	"sphingosine_phosphate"	"HMDB0000277"	"C18H38NO5P"	"[M+H]+"	"[M-H]-"	145	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	379.248760482	378.241484482	NA	FALSE	NA
+6	"Sucrose"	"sucrose"	"HMDB0000258"	"C12H22O11"	"[M+Na]+"	"[M+CHO2]-"	187	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	342.1162117	387.1144117	NA	FALSE	NA
+6	"Tryptophan"	"tryptophan"	"HMDB0000929"	"C11H12N2O2"	"[M+H]+"	"[M-H]-"	155	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	204.089877684	203.082601684	NA	FALSE	NA
+7	"dAMP"	"AMP_d"	"HMDB0000905"	"C10H14N5O6P"	"[M+H]+"	"[M-H]-"	208	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	331.06817028	330.06089428	NA	FALSE	NA
+7	"CDP-choline"	"CDP_choline"	"HMDB0001413"	"C14H26N4O11P2"	"[M+H]+"	"[M+CHO2]-"	217	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	488.107331848	533.105531848	NA	FALSE	NA
+7	"Glutaric acid"	"glutaric"	"HMDB0000661"	"C5H8O4"	NA	"[M-H]-"	38	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	132.0422588	131.0349828	NA	FALSE	NA
+7	"Glycero-phosphocholine"	"glycero_phosphocholine"	"HMDB0000086"	"C8H20NO6P"	"[M+H]+"	"[M+Cl]-"	189	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	257.102824482	292.072224482	NA	FALSE	NA
+7	"Methionine"	"methionine"	"HMDB0000696"	"C5H11NO2S"	"[M+H]+"	"[M-H]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	149.051049347	148.043773347	NA	FALSE	NA
+7	"3-Methylhistidine"	"methylhistidine_3"	"HMDB0000479"	"C7H11N3O2"	"[M+H]+"	"[M-H]-"	186	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	169.085126651	168.077850651	NA	FALSE	NA
+7	"1-Methyluric acid"	"methyluric"	"HMDB0003099"	"C6H6N4O3"	"[M+H]+"	"[M-H]-"	145	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"1_good"	182.043990108	181.036714108	NA	FALSE	NA
+7	"Phenylpyruvic acid"	"phenylpyruvic"	"HMDB0000205"	"C9H8O3"	"[M+H-H2O]+"	"[M-H]-"	35	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	164.04734417	163.04006817	NA	FALSE	NA
+7	"Serine"	"serine"	"HMDB0000187"	"C3H7NO3"	"[M+H]+"	"[M-H]-"	181	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	105.042593137	104.035317137	NA	FALSE	NA
+7	"Sphingosine"	"sphingosine"	"HMDB0000252"	"C18H37NO2"	"[M+H]+"	"[M+CHO2]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"3_bad"	299.282429557	344.280629557	NA	FALSE	NA
+7	"Taurine"	"taurine"	"HMDB0000251"	"C2H7NO3S"	"[M+H]+"	"[M-H]-"	172	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	125.014663837	124.007387837	NA	FALSE	NA
+7	"Threonic Acid"	"threonic"	"HMDB0000943"	"C4H8O5"	"[M+Na]+"	"[M-H]-"	130	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	136.03717343	135.02989743	NA	FALSE	NA
+8	"Aspirin"	"aspirin"	"HMDB0001879"	"C9H8O4"	NA	"[M-H]-"	33	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	180.0422588	179.0349828	NA	FALSE	NA
+8	"Cystathionine"	"cystathionine"	"HMDB0000099"	"C7H14N2O4S"	"[M+H]+"	"[M-H]-"	207	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	222.067427714	221.060151714	NA	FALSE	NA
+8	"dGDP"	"GDP_d"	"HMDB0000960"	"C10H15N5O10P2"	"[M+H]+"	"[M-H]-"	260	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	427.029415835	426.022139835	NA	FALSE	NA
+8	"Glyceric Acid"	"glyceric"	"HMDB0000139"	"C3H6O4"	NA	"[M-H]-"	75	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	106.02660873	105.01933273	NA	FALSE	NA
+8	"Inosine"	"inosine"	"HMDB0000195"	"C10H12N4O5"	"[M+Na]+"	"[M-H]-"	146	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	268.080769578	267.073493578	NA	FALSE	NA
+8	"Mevalonic Acid"	"mevalonic"	"HMDB0000227"	"C6H12O4"	"[M+H-H2O]+"	"[M-H]-"	48	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	148.07355894	147.06628294	NA	FALSE	NA
+8	"Ornithine"	"ornithine"	"HMDB0000214"	"C5H12N2O2"	"[M+H]+"	"[M-H]-"	190	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	132.089877684	131.082601684	NA	FALSE	NA
+8	"Succinic Acid"	"succinic"	"HMDB0000254"	"C4H6O4"	NA	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	118.02660873	117.01933273	NA	FALSE	NA
+8	"Tyrosine"	"tyrosine"	"HMDB0000158"	"C9H11NO3"	"[M+H]+"	"[M-H]-"	168	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	181.073893277	180.066617277	NA	FALSE	NA
+8	"Uracil"	"uracil"	"HMDB0000300"	"C4H4N2O2"	"[M+H]+"	"[M-H]-"	64	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	112.027277404	111.020001404	NA	FALSE	NA
+9	"N-Acetylserine"	"acetylserine"	"HMDB0002931"	"C5H9NO4"	"[M+H]+"	"[M-H]-"	82	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	147.053157837	146.045881837	NA	FALSE	NA
+9	"CDP-ethanolamine"	"CDP_ethanolamine"	"HMDB0001564"	"C11H20N4O11P2"	"[M+H]+"	"[M-H]-"	219	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	446.060381638	445.053105638	NA	FALSE	NA
+9	"L-Cysteine"	"cysteine"	"HMDB0000574"	"C3H7NO2S"	"[M+H]+"	"[M-H]-"	170	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	121.019749207	120.012473207	NA	FALSE	NA
+9	"Glucose 1-Phosphate"	"glucose_phosphate_1"	"HMDB0000645"	"C6H13O9P"	"[2M+H]+"	"[2M-H]-"	237	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	260.029719125	519.05216225	NA	FALSE	NA
+9	"Guanosine"	"guanosine"	"HMDB0000133"	"C10H13N5O5"	"[M+H]+"	"[M-H]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	283.091668615	282.084392615	NA	FALSE	NA
+9	"IMP"	"IMP"	"HMDB0000175"	"C10H13N4O8P"	"[M+H]+"	"[M-H]-"	226	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	348.047100503	347.039824503	NA	FALSE	NA
+9	"Proline"	"proline"	"HMDB0000162"	"C5H9NO2"	"[M+H]+"	"[M-H]-"	169	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	115.063328577	114.056052577	NA	FALSE	NA
+10	"N-Acetylornithine"	"acetylornithine"	"HMDB0003357"	"C7H14N2O3"	"[M+H]+"	"[M-H]-"	170	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	174.100442384	173.093166384	NA	FALSE	NA
+10	"Adenosine"	"adenosine"	"HMDB0000050"	"C10H13N5O4"	"[M+H]+"	"[M+CHO2]-"	134	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	267.096753985	312.094953985	NA	FALSE	NA
+10	"L-Aspartic Acid"	"aspartic"	"HMDB0000191"	"C4H7NO4"	"[M+H]+"	"[M-H]-"	181	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	133.037507767	132.030231767	NA	FALSE	NA
+10	"Citric Acid"	"citric"	"HMDB0000094"	"C6H8O7"	"[M+Na]+"	"[M-H]-"	177	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	192.02700269	191.01972669	NA	FALSE	NA
+10	"Cytidine"	"cytidine"	"HMDB0000089"	"C9H13N3O5"	"[M+H]+"	"[M+CHO2]-"	162	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	243.085520611	288.083720611	NA	FALSE	NA
+10	"Fumaric Acid"	"fumaric"	"HMDB0000134"	"C4H4O4"	NA	"[M-H]-"	48	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	116.01095866	115.00368266	NA	FALSE	NA
+10	"Glucosamine"	"glucosamine"	"HMDB0001514"	"C6H13NO5"	"[M+H]+"	"[M+CHO2]-"	181	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	179.079372607	224.077572607	NA	FALSE	NA
+10	"Phosphoenolpyruvic Acid"	"phosphoenolpyruvic"	"HMDB0000263"	"C3H5O6P"	"[M+H]+"	"[M-H]-"	227	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	167.982374955	166.975098955	NA	FALSE	NA
+10	"Phosphorylethanolamine"	"phosphorylethanolamine"	"HMDB0000224"	"C2H8NO4P"	"[M+H]+"	"[2M-H]-"	198	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"1_good"	141.019094802	281.030913604	NA	FALSE	NA
+10	"Ribulose 5-Phosphate"	"ribulose_phosphate"	"HMDB0000618"	"C5H11O8P"	"[M+H]+"	"[M-H]-"	225	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	230.019154425	229.011878425	NA	FALSE	NA
+10	"SAH"	"SAH"	"HMDB0000939"	"C14H20N6O5S"	"[M+H]+"	"[M-H]-"	186	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	384.121588562	383.114312562	NA	FALSE	NA
+10	"Salicylic acid"	"salicylic"	"HMDB0001895"	"C7H6O3"	"[M+H]+"	"[M-H]-"	34	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"0_perfect"	138.0316941	137.0244181	NA	FALSE	NA
+11	"ADP"	"ADP"	"HMDB0001341"	"C10H15N5O10P2"	"[M+H]+"	"[M-H]-"	256	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	427.029415835	426.022139835	NA	FALSE	NA
+11	"dCTP"	"CTP_d"	"HMDB0000998"	"C9H16N3O13P3"	NA	"[M-H]-"	228	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	466.989598756	465.982322756	NA	FALSE	NA
+11	"Glutathione Reduced"	"glutathione_reduced"	"HMDB0000125"	"C20H32N6O12S2"	"[M+H]+"	"[M-H]-"	211	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	612.151962092	611.144686092	NA	FALSE	NA
+11	"Alpha-ketoisovaleric acid"	"ketoisovaleric"	"HMDB0000019"	"C5H8O3"	NA	"[M-H]-"	34	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	116.04734417	115.04006817	NA	FALSE	NA
+11	"Lysine"	"lysine"	"HMDB0000182"	"C6H14N2O2"	"[M+H]+"	"[M-H]-"	188	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	146.105527754	145.098251754	NA	FALSE	NA
+11	"Malic Acid"	"malic"	"HMDB0000156"	"C4H6O5"	NA	"[M-H]-"	92	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	134.02152336	133.01424736	NA	FALSE	NA
+11	"3-Methylxanthine"	"methylxanthine_3"	"HMDB0001886"	"C6H6N4O2"	"[M+H]+"	"[M-H]-"	86	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	166.049075478	165.041799478	NA	FALSE	NA
+11	"2-Phosphoglyceric Acid"	"phosphoglyceric_2"	"HMDB0000362"	"C3H7O7P"	"[M+H]+"	"[M-H]-"	250	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	185.992939655	184.985663655	NA	FALSE	NA
+12	"Argininosuccinic acid"	"argininosuccinic"	"HMDB0000052"	"C10H18N4O6"	"[M+H]+"	"[M-H]-"	199	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	290.122634418	289.115358418	NA	FALSE	NA
+12	"Carnosine"	"carnosine"	"HMDB0000033"	"C9H14N4O3"	"[M+H]+"	"[M-H]-"	184	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	226.106590388	225.099314388	NA	FALSE	NA
+12	"dCMP"	"CMP_d"	"HMDB0001202"	"C9H14N3O7P"	"[M+H]+"	"[2M-H]-"	203	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	307.056936906	613.106597812	NA	FALSE	NA
+12	"N-Formyl-L-methionine"	"formylmethionine"	"HMDB0001015"	"C6H11NO3S"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	177.045963977	176.038687977	NA	FALSE	NA
+12	"Galactitol"	"galactitol"	"HMDB0000107"	"C6H14O6"	"[M+Na]+"	"[M-H]-"	167	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	182.07903827	181.07176227	NA	FALSE	NA
+12	"Glucose 6-Phosphate"	"glucose_phosphate_6"	"HMDB0001401"	"C6H13O9P"	"[2M+H]+"	"[2M-H]-"	239	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	260.029719125	519.05216225	NA	FALSE	NA
+12	"dGMP"	"GMP_d"	"HMDB0001044"	"C10H14N5O7P"	"[M+H]+"	"[M-H]-"	223	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	347.06308491	346.05580891	NA	FALSE	NA
+12	"Homocysteine"	"homocysteine"	"HMDB0000742"	"C4H9NO2S"	"[M+H]+"	"[M-H]-"	168	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	135.035399277	134.028123277	NA	FALSE	NA
+12	"Ketoleucine"	"ketoleucine"	"HMDB0000695"	"C6H10O3"	"[M+H]+"	"[M-H]-"	34	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	130.06299424	129.05571824	NA	FALSE	NA
+12	"Sebacic acid"	"sebacic"	"HMDB0000792"	"C10H18O4"	"[M+Na]+"	"[M-H]-"	36	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	202.12050915	201.11323315	NA	FALSE	NA
+13	"N-Acetyl-beta-alanine"	"acetylalanine_NB"	"HMDB0061880"	"C5H9NO3"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	131.058243207	130.050967207	NA	FALSE	NA
+13	"Acetylneuraminic Acid"	"acetylneuraminic"	"HMDB0000230"	"C11H19NO9"	"[M+H-H4O2]+"	"[M-H]-"	180	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	309.105981337	308.098705337	NA	FALSE	NA
+13	"Dopamine"	"dopamine"	"HMDB0000073"	"C8H11NO2"	"[M+H]+"	"[M-H]-"	140	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	153.078978647	152.071702647	NA	FALSE	NA
+13	"Ibuprofen"	"ibuprofen"	"HMDB0001925"	"C13H18O2"	NA	"[M-H]-"	31	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"0_perfect"	206.13067989	205.12340389	NA	FALSE	NA
+13	"Indoleacetic acid"	"indoleacetic"	"HMDB0000197"	"C10H9NO2"	"[M+H]+"	"[M-H]-"	35	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	175.063328577	174.056052577	NA	FALSE	NA
+13	"1-Methylhistidine"	"methylhistidine_1"	"HMDB0000001"	"C7H11N3O2"	"[M+H]+"	"[M-H]-"	182	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	169.085126651	168.077850651	NA	FALSE	NA
+13	"8-Oxo-2-Deoxyguanosine"	"oxodeoxyguanosine"	"HMDB0003333"	"C10H13N5O5"	"[M+H]+"	"[M-H]-"	159	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	283.091668615	282.084392615	NA	FALSE	NA
+13	"Pantothenic Acid"	"pantothenic"	"HMDB0000210"	"C9H17NO5"	"[M+H]+"	"[M-H]-"	38	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	219.110672747	218.103396747	NA	FALSE	NA
+13	"Phenylacetic acid"	"phenylacetic"	"HMDB0000209"	"C8H8O2"	"[M+H]+"	"[M-H]-"	33	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	136.05242954	135.04515354	NA	FALSE	NA
+13	"Phosphorylcholine"	"phosphorylcholine"	"HMDB0001565"	"C5H14NO4P"	"[M+H]+"	"[M+Cl]-"	195	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	183.066045012	218.035445012	NA	FALSE	NA
+13	"Sorbitol"	"sorbitol"	"HMDB0000247"	"C6H14O6"	"[M+Na]+"	"[M-H]-"	165	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	182.07903827	181.07176227	NA	FALSE	NA
+13	"Uridine"	"uridine"	"HMDB0000296"	"C9H12N2O6"	"[M+H]+"	"[M+CHO2]-"	124	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	244.069536204	289.067736204	NA	FALSE	NA
+14	"ADP-Glucose"	"ADP_glucose"	"HMDB0006557"	"C16H25N5O15P2"	"[M+H-Hexose-H2O]+"	"[M-H]-"	275	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	589.082239335	588.074963335	NA	FALSE	NA
+14	"1,5-anhydro D-glucitol"	"anhydroglucitol"	"HMDB0002712"	"C6H12O5"	"[M+Na]+"	"[M+CHO2]-"	135	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	164.06847357	209.06667357	NA	FALSE	NA
+14	"Glyceraldehyde 2-phosphate"	"glyceraldehyde_phosphate"	"HMDB0001112"	"C3H7O6P"	"[M+H]+"	"[M-H]-"	213	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	169.998025025	168.990749025	NA	FALSE	NA
+14	"Glycerol-3-Phosphate"	"glycerol_phosphate"	"HMDB0000126"	"C3H9O6P"	"[M+H]+"	"[2M-H]-"	222	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	172.013675095	343.02007419	NA	FALSE	NA
+14	"Indolelactic acid"	"indolelactic"	"HMDB0000671"	"C11H11NO3"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	205.073893277	204.066617277	NA	FALSE	NA
+14	"Isocitric Acid"	"isocitric"	"HMDB0000193"	"C6H8O7"	NA	"[M-H]-"	146	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	192.02700269	191.01972669	NA	FALSE	NA
+14	"2-Ketoglutaric acid"	"ketoglutaric_2"	"HMDB0000208"	"C5H6O5"	NA	"[M-H]-"	75	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	146.02152336	145.01424736	NA	FALSE	NA
+14	"Levodopa"	"levodopa"	"HMDB0000181"	"C9H11NO4"	"[M+H]+"	"[M-H]-"	170	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	197.068807907	196.061531907	NA	FALSE	NA
+14	"NAD"	"NAD"	"HMDB0000902"	"C21H27N7O14P2"	"[M+H]+"	"[M-H]-"	225	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	663.109122779	662.101846779	NA	FALSE	NA
+14	"Pyridoxic Acid"	"pyridoxic"	"HMDB0000017"	"C8H9NO4"	"[M+H]+"	"[M-H]-"	85	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	183.053157837	182.045881837	NA	FALSE	NA
+14	"Serotonin"	"serotonin"	"HMDB0000259"	"C10H12N2O"	"[M+H-NH3]+"	"[M+Cl]-"	132	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"3_bad"	176.094963054	211.064363054	NA	FALSE	NA
+14	"Xylulose 5-Phosphate"	"xylulose_phosphate"	"HMDB0000868"	"C5H11O8P"	"[M+H]+"	"[2M-H]-"	225	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	230.019154425	459.03103285	NA	FALSE	NA
+15	"alpha-Aminoadipic acid"	"aminoadipic"	"HMDB0000510"	"C6H11NO4"	"[M+H]+"	"[M-H]-"	170	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	161.068807907	160.061531907	NA	FALSE	NA
+15	"Glucosamine-6-Phosphate"	"glucosamine_phosphate"	"HMDB0001254"	"C6H14NO8P"	"[M+H]+"	"[2M-H]-"	219	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	259.045703532	517.084131064	NA	FALSE	NA
+15	"Glucuronic Acid"	"glucuronic"	"HMDB0000127"	"C6H10O7"	"[M+Na]+"	"[M-H]-"	171	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"0_perfect"	194.04265276	193.03537676	NA	FALSE	NA
+15	"p-Hydroxyphenylacetic acid"	"hydroxyphenylacetic"	"HMDB0000020"	"C8H8O3"	"[M+H-H2O]+"	"[M-H]-"	36	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	152.04734417	151.04006817	NA	FALSE	NA
+15	"Isovalerylglycine"	"isovalerylglycine"	"HMDB0000678"	"C7H13NO3"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	159.089543347	158.082267347	NA	FALSE	NA
+15	"2-Methylcitric acid"	"methylcitric"	"HMDB0000379"	"C7H10O7"	"[M+Na]+"	"[M-H]-"	171	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	206.04265276	205.03537676	NA	FALSE	NA
+15	"Phenylalanine"	"phenylalanine"	"HMDB0000159"	"C9H11NO2"	"[M+H]+"	"[M-H]-"	154	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	165.078978647	164.071702647	NA	FALSE	NA
+15	"Phosphoserine"	"phosphoserine"	"HMDB0000272"	"C3H8NO6P"	"[M+H]+"	"[2M-H]-"	231	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	185.008924062	369.010572124	NA	FALSE	NA
+16	"Acetyl-Glucosamine"	"acetylglucosamine"	"HMDB0000215"	"C8H15NO6"	"[M+Na]+"	"[M+CHO2]-"	156	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	221.089937307	266.088137307	NA	FALSE	NA
+16	"Acetylmethionine"	"acetylmethionine"	"HMDB0011745"	"C7H13NO3S"	"[M+H]+"	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	191.061614047	190.054338047	NA	FALSE	NA
+16	"Dihydroxyacetone phosphate"	"dihydroxyacetone_phosphate"	"HMDB0001473"	"C3H7O6P"	"[M+H]+"	"[2M-H]-"	220	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"1_good"	169.998025025	338.98877405	NA	FALSE	NA
+16	"homovanillic acid"	"homovanillic"	"HMDB0000118"	"C9H10O4"	"[M+H-CH2O2]+"	"[M-H]-"	36	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"0_perfect"	182.05790887	181.05063287	NA	FALSE	NA
+16	"Quinolinic acid"	"quinolinic"	"HMDB0000232"	"C7H5NO4"	"[M+H]+"	"[M-H]-"	176	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	167.021857697	166.014581697	NA	FALSE	NA
+17	"dATP"	"ATP_d"	"HMDB0001532"	"C10H16N5O12P3"	NA	"[M-H]-"	224	"2020_01_matrix_effect"	"water"	"Mar Garcia-Aloy"	2	"3_bad"	"3_bad"	491.00083213	489.99355613	NA	FALSE	NA
+17	"Gluconic Acid"	"gluconic"	"HMDB0000625"	"C6H12O7"	"[M+Na]+"	"[M-H]-"	171	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"2_medium"	"2_medium"	196.05830283	195.05102683	NA	FALSE	NA
+17	"3-Hydroxy-DL-kynurenine"	"hydroxykynurenine_3"	"HMDB0000732"	"C10H12N2O4"	"[M+H]+"	"[M-H]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	224.079706944	223.072430944	NA	FALSE	NA
+17	"Indoxyl sulfate"	"indoxyl_sulfate"	"HMDB0000682"	"C8H7NO4S"	"[M+Na]+"	"[M-H]-"	50	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	213.009578467	212.002302467	NA	FALSE	NA
+17	"alpha-Lactose"	"lactose"	"HMDB0000186"	"C12H22O11"	"[M+Na]+"	"[M+CHO2]-"	194	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"0_perfect"	"0_perfect"	342.1162117	387.1144117	NA	FALSE	NA
+17	"7-Methylxanthine"	"methylxanthine_7"	"HMDB0001991"	"C6H6N4O2"	"[M+H]+"	"[M-H]-"	85	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"2_medium"	166.049075478	165.041799478	NA	FALSE	NA
+17	"Ribose 5-Phosphate"	"ribose_phosphate"	"HMDB0001548"	"C5H11O8P"	"[M+H-H2O]+"	"[M-H]-"	230	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	230.019154425	229.011878425	NA	FALSE	NA
+17	"Succinylacetone"	"succinylacetone"	"HMDB0000635"	"C7H10O4"	"[M+Na]+"	"[M-H]-"	35	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	158.05790887	157.05063287	NA	FALSE	NA
+17	"Xanthosine"	"xanthosine"	"HMDB0000299"	"C10H12N4O6"	"[M+Na]+"	"[M-H]-"	153	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"0_perfect"	284.075684208	283.068408208	NA	FALSE	NA
+18	"Fructose 6-Phosphate"	"fructose_phosphate"	"HMDB0000124"	"C6H13O9P"	"[2M+H]+"	"[2M-H]-"	235	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"1_good"	260.029719125	519.05216225	NA	FALSE	NA
+18	"2-Hydroxybutyric acid"	"hydroxybutyric_2"	"HMDB0000008"	"C4H8O3"	NA	"[M-H]-"	37	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"3_bad"	"2_medium"	104.04734417	103.04006817	NA	FALSE	NA
+18	"3-Hydroxy-DL-kynurenine"	"hydroxykynurenine_3"	"HMDB0000732"	"C10H12N2O4"	"[M+H]+"	"[M-H]-"	163	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	224.079706944	223.072430944	NA	FALSE	NA
+19	"Adenine"	"adenine"	"HMDB0000034"	"C5H5N5"	"[M+H]+"	"[M-H]-"	133	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	135.054495185	134.047219185	NA	FALSE	NA
+19	"UMP"	"UMP"	"HMDB0000288"	"C9H13N2O9P"	"[M+H]+"	"[M-H]-"	225	"2020_01_matrix_effect"	"serum"	"Mar Garcia-Aloy"	2	"1_good"	"1_good"	324.035867129	323.028591129	NA	FALSE	NA
