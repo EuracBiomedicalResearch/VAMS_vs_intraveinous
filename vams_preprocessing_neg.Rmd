@@ -878,48 +878,45 @@ data_neg <- groupChromPeaks(data_neg, param = pdp)
 ```
 
 ```{r neg-correspondence-kc-plots, echo = FALSE, warning = FALSE, message = FALSE}
-dir.create(paste0(IMAGE_PATH, "correspondence/"))
-for (i in 1:nrow(neg_cmps)) {
-    rtr <- as.numeric(neg_cmps[i, c("rt_min", "rt_max")])
-    mzr <- c(neg_cmps$mz[i] - 0.002, neg_cmps$mz[i] + 0.002)
-    pks <- chromPeaks(data_neg, rt = rtr, mz = mzr, type = "apex_within")
-    if (nrow(pks))
-        rtr_pks <- c(min(rtr[1], pks[, "rtmin"]), max(rtr[2], pks[, "rtmax"]))
-    else rtr_pks <- rtr
-    chrs <- chromatogram(data_neg, mz = mzr, rt = rtr_pks)
-    nfts <- nrow(featureDefinitions(chrs))
-    clrs <- brewer.pal(9, "Set1")[seq_len(nfts)]
-    fts <- featureDefinitions(chrs)
-    pk_col <- rep("#000000", nrow(chromPeaks(chrs)))
-    for (j in seq_len(nfts)) {
-        pk_col[featureDefinitions(chrs)$peakidx[[j]]] <- clrs[j]
+dr <- paste0(IMAGE_PATH, "correspondence_vams/")
+dir.create(dr, recursive = TRUE,
+           showWarnings = FALSE)
+rtr <- std_info_mz_rt[, c("rtmin", "rtmax")]
+rtr[, 1] <- rtr[, 1] - 6
+rtr[, 2] <- rtr[, 2] + 6
+std_info_chr_cor <- chromatogram(
+    data_neg, mz = std_info_mz_rt[, c("mzmin", "mzmax")],
+    rt = rtr, aggregationFun = "max")
+for (i in 1:nrow(std_info)) {
+    cmpname <- gsub("L-", "", std_info$name[i])
+    cmpname <- tolower(gsub(" .*", "", cmpname))
+    filename <- paste0(dr, i, "-", cmpname, "_", "NEG", ".png")
+    png(file = filename, width = 16, height = 8, units = "cm",
+        res = 300, pointsize = 4)
+    chr <- std_info_chr[i, ]
+    col_samples <- col_source[as.character(chr$source)]
+    pks <- chromPeaks(chr)
+    if (nrow(featureDefinitions(chr))) {
+        plotChromPeakDensity(
+            chr, simulate = FALSE, col = "#00000040",
+            ylab = "", main=std_info$name[i],
+            peakCol = paste0(col_samples[chromPeaks(chr)[, "column"]], 60),
+            peakBg = paste0(col_samples[chromPeaks(chr)[, "column"]], "10"))
+    } else {
+        plotChromPeakDensity(
+            chr, simulate = TRUE, col = "#00000040",
+            ylab = "", main=std_info$name[i],
+            peakCol = paste0(col_samples[chromPeaks(chr)[, "column"]], 60),
+            peakBg = paste0(col_samples[chromPeaks(chr)[, "column"]], "10"),
+            param = pdp)
     }
-    fn <- paste0(IMAGE_PATH, "correspondence/", neg_cmps$id[i],
-                 "_chrom_plot_correspondence.png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot(chrs, peakBg = paste0(pk_col, 20))
-    abline(v = rtr, col = "#00000080", lty = 3)
-    for (j in seq_len(nrow(fts)))
-        abline(v = c(fts$rtmin[j], fts$rtmax[j]), col = paste0(clrs[j], 80),
-               lty = 3)
+    abline(v=std_info$RT[i], lty = 2)
+    legend("topright", legend= names(col_source), col = col_source, pch = 16)
     dev.off()
 }
 ```
 
-Correspondence analysis performed well, being able to separate Mannose and
-Fructose peaks into two different features for most samples (see below). Note
-however that in some samples peak detection failed to separate the signal in two
-distinct peaks. These can be seen as faint purple shapes in the plot below.
 
-![](images/vams_preprocessing_neg/correspondence/kc_82_chrom_plot_correspondence.png)
-
-For Phenylalanine the feature definitions might however be problematic for the
-capillary samples in which a single peak seems to be present (peaks with a
-retention time of their apex between 147 and 150). These are, depending on their
-retention time assigned to one of the features for the two peaks being present
-in most other samples (the peaks in capillary samples.
-
-![](images/vams_preprocessing_neg/correspondence/kc_61_chrom_plot_correspondence.png)
 
 The table below summarizes the results from the correspondence analysis.
 
