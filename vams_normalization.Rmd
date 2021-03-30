@@ -1,6 +1,6 @@
 ---
 title: "Normalization of the vams vs intraveneous untargeted metabolomics data, positive polarity"
-author: "Chiara Volani, Beatrice Giaier, Mar Garcia-Aloy, Vinicius Veri Hernandes and Johannes Rainer"
+author: "Christa Malfertheiner, Chiara Volani, Beatrice Giaier, Mar Garcia-Aloy, Vinicius Veri Hernandes and Johannes Rainer"
 graphics: yes
 output:
   BiocStyle::html_document:
@@ -31,14 +31,14 @@ set.seed(123)
 ## Define paths:
 filename <- "vams_normalization_pos"
 ## Path to save the images; remove all old images.
-IMAGE_PATH <- paste0("C:/Users/bgiaier/Documents/Eurac/VAMS_vs_intraveinous/images/", filename, "/")
+IMAGE_PATH <- paste0("C:/Users/User/Documents/Masterarbeit/R/images/", filename, "/")
 dir.create(IMAGE_PATH, recursive = TRUE, showWarnings = FALSE)
 ## Path to store RData files
 RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
-MZML_PATH <- "C:/Users/bgiaier/Documents/Eurac/vams/VAMS"
+MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -56,7 +56,35 @@ plot_eics <- TRUE
 rt_tol <- 40
 ```
 
+# Abstract
+
+This document defines the normalization of the feature abundance of the
+*MitYOU* project. This comprises a first quality assessment, fill-in of
+missing values, between-sample normalization and normalization of injection
+order-dependent signal drift within the measurement run.
+
 # Introduction
+
+Untargeted metabolomics experiments are, similar to any other data from high
+throughput assays, subject to unwanted variation: this can stem from many
+sources, such as experimental equipment and unwanted technical or biological
+differences among samples. The former kind of variation includes batch-to-batch
+variation due to environmental conditions, such as temperature changes,
+instrument performance, sample preparation and subsequent degradation. The
+latter can arise from different weights or volumes of the samples or a different
+size of cells among samples [@Livera:2015bo].
+
+These effects are unavoidable and several methods have been developed to
+accommodate them in statistical models or to remove them, as described in
+[@Livera:2015bo]. Many algorithms are based on regression models to achieve the
+goal of batch correction, while other approaches use scaling factors to remove
+unwanted variation. The first type is used for example in the approach of
+Wehrens et al. [@Wehrens:2016ie] to perform a featyre-wise normalization of
+batch effects and signal drifts. This approach is however unable to account for
+between-sample differences such as differences in volumes injected, which can
+however be adjusted for by simple scaling methods. For this reason, the two
+approaches can be combined to provide a better outcome for the normalization of
+experimental measurements, in order to make the data more comparable.
 
 In this document we perform the normalization of the feature abundances of the
 *MitYOU* project. This comprises quality assessment based on the feature's
@@ -126,10 +154,17 @@ be more natural.
 
 # Data import and initial quality assessment
 
-Below we load all libraries required for the analysis and the data. We also
-fill-in missing peak values, i.e. for features for which not a peak was
-identified in all samples, we integrate the signal from the feature area in
-these samples. 
+First, we load all the required libraries and the preprocessed data. The
+`quantify` method is then used to extract raw feature intensities from the
+preprocessed data; we set the method to `sum` so that we sum the intensities
+of all peaks detected for one feature in one sample. This function returns a
+`SummarizedExperiment` object, where each column represents a sample and each
+row contains a feature; this object can contain one or more matrices, in the
+form of `assays`, which can be easily accessed with the `assay` function.
+A `SummarizedExperiment` also allows us to retain annotation for each row and
+column, which will later help us to subset columns and rows, in order to easily
+access them with `colData` and `rowData`, respectively. Then, we assign
+different colours to each experimental group, as we did for the preprocessing. 
 
 ```{r libraries-data, message = FALSE, warning = FALSE}
 library(xcms)
@@ -194,7 +229,9 @@ res_pos <- quantify(data_pos, method = "sum", filled = FALSE)
 res_pos <- res_pos[fts_used, ]
 ```
 
-Next we fill-in data for samples in which no peak was detected. While we will
+# Gap filling and imputation of missing values
+
+We fill-in data for samples in which no peak was detected. While we will
 eventually exclude filled-in signals in the estimation of the normalization
 factors for the within and between-batch normalization, we will normalize these
 intensities as they might be affected by the same effects than the *real*
@@ -209,6 +246,20 @@ integrated should be expanded, because the feature's retention time range
 represents the minimal and maximal apex position of the associated peaks in the
 time dimension, and is thus unrelated to the actual retention time width of the
 peaks. The m/z range is also extended by 20ppm.
+
+Many underlying causes can be at the root of these
+missing intensities: a signal may be not detectable because a compound is absent
+from a sample or it may be noisy (hence failing in the peak detection step to be
+identified) and/or below the detection limit of the
+instrument. We can use the `fillChromPeaks` function to rescue missing signals
+with the so-called *gap filling*: this method uses the area under the curve of
+the samples where the specific peak was identified to define plausible intensity
+values where they are missing. We are then able to distinguish the filled-in
+peaks from the detected peaks in the `chromPeakData` data frame: the
+`"is_filled"` column is created, where `TRUE` will be annotated in case of
+filled-in peaks. This information is added to `res_pos` as the `raw_filled`
+assay: this will be later used to retrieve filled-in data only. It is important
+to remember that even after gap filling, a signal can still be missing.
 
 ```{r fill-in, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_pos.RData"))}
 rtwidths <- chromPeaks(data_pos)[, "rtmax"] - chromPeaks(data_pos)[, "rtmin"]
@@ -261,11 +312,14 @@ than truly detected peaks. Abundances are however relatively similar suggesting
 that for many missing peaks a signal from an ion was recorded, but peak
 detection failed.
 
-Next we compare the filled-in with the detected signal for QC samples. To this
-end we calculate per feature the mean intensity of detected signal and of filled
-in signal across QC samples. We then compare these per-feature averages against
-each other. Ideally, the filled-in signal should be correlated to the detected
-signal.
+Afterwards, we compare the filled-in with the detected signal for *QC samples*. 
+We start by calculating the mean of both, then we proceed with plotting the results.
+Ideally, the plotted dots should be found along the diagonal `y = x` 
+(maximum correlation). Also, we compute the Pearson's correlation coefficient,
+specifying `use = "pairwise.complete.obs"`: this string is used to make explicit
+how to handle missing data, in this case calculating the correlation only using
+all complete pairs of values. Ideally, the filled-in signal should be correlated
+to the detected signal.
 
 ```{r correlation-filled-detected, fig.path = IMAGE_PATH, fig.cap = "Correlation of per-feature averaged detected and filled-in signal in QC samples.", echo = FALSE}
 avg_det <- rowMeans(assay(res_pos, "raw")[, res_pos$sample == "POOL"], na.rm = TRUE)
@@ -282,10 +336,92 @@ signal, especially for features with higher abundances. For low abundant
 features (below ~ 1000) detected abundances are systematically higher than
 filled-in.
 
-Next we calculate and compare for each feature in QC samples the difference
+We now calculate and compare for each feature in QC samples the difference
 between the detected and filled-in peak data. Evaluation in QC samples avoids
 any potential differences being caused by biological differences of the compared
 samples.
+
+First, we plot the detected data:
+
+```{r raw-boxplot-detected, fig.path =IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Number of features and log2 abundance of raw detected data.", echo = FALSE}
+dobox <- function(
+ x, col = paste0(col_source[as.character(data_pos$source)], "ff"),
+ outline = FALSE, notch = TRUE, range = 0,
+ border = paste0(col_source[as.character(data_pos$source)], "60"),
+ ylab = expression(log[2]~abundance), xaxt = "n", xlab = "",
+ ...) {
+ boxplot(x, col = col, outline = outline, notch = notch, range = range,
+ border = border, ylab = ylab, xaxt = xaxt, xlab = xlab, ...)
+ grid(nx = NA, ny = NULL)
+}
+
+layout(mat = matrix(1:2, ncol = 1), height = c(0.3, 0.7))
+cols <- col_source[as.character(res_pos$source)]
+par(mar = c(0.2, 4.5, 2, 0.5))
+barplot(apply(assay(res_pos, "raw"), MARGIN = 2, function(x) sum(!is.na(x))),
+        col = paste0(cols, 80), ylim = c(0, 8000),
+        ylab = "Features", xaxt = "n", main = "Detected raw data")
+legend("top", horiz = TRUE, col = col_source, legend = names(col_source), lwd = 1)
+par(mar = c(0.2, 4.5, 0, 0.5))
+dobox(log2(assay(res_pos, "raw")), col = paste0(cols, "ff"), xaxt = "n",
+      border = paste0(cols, 60))
+points(colMeans(log2(assay(res_pos, "raw")), na.rm = TRUE), type = "l")
+grid(nx = NA, ny = NULL)
+```
+
+In the plot above, we find the samples with lower intensity signals that we
+also found in the preprocessing step: in these samples considerably less peaks
+were identified; the mean intensity of these samples, though, is comparable to
+that of the others.
+
+Next, we show the filled-in values:
+
+```{r raw-boxplot-only-filled, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Number of features and log2 abundance of filled-in data.", message = FALSE, echo = FALSE}
+layout(mat = matrix(1:2, ncol = 1), height = c(0.3, 0.7))
+cols <- col_source[as.character(res_pos$source)]
+par(mar = c(0.2, 4.5, 2, 0.5))
+barplot(apply(assay(res_pos, "raw_only_filled"), MARGIN = 2,
+              function(x) sum(!is.na(x))),
+        col = paste0(cols, 80), ylim = c(0, 8000),
+        ylab = "Features", xaxt = "n", main = "Filled-in raw data")
+legend("top", horiz = TRUE, col = col_source, legend = names(col_source), lwd = 1)
+par(mar = c(0.2, 4.5, 0, 0.5))
+dobox(log2(assay(res_pos, "raw_only_filled")), col = paste0(cols, "ff"),
+      xaxt = "n", border = paste0(cols, 60))
+points(colMeans(log2(assay(res_pos, "raw_only_filled")), na.rm = TRUE),
+       type = "l")
+grid(nx = NA, ny = NULL)
+```
+
+We can see that there is a higher number of rescued signals in the ambiguous
+samples: this indicates that a low intensity signal was probably not detected or
+discarded during the course of peak detection. In this case, it is observed that
+the mean abundance of these samples is lower than that of the others; this is
+expected and consistent with the boxplots showed above (lower intensity for
+filled-in signals).
+
+Finally, we plot the complete data set (detected and filled-in signals):
+
+```{r raw-boxplot-all, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Number of features and log2 abundance of detected and filled-in data.", message = FALSE, echo = FALSE}
+layout(mat = matrix(1:2, ncol = 1), height = c(0.3, 0.7))
+cols <- col_source[as.character(res_pos$source)]
+par(mar = c(0.2, 4.5, 2, 0.5))
+barplot(apply(assay(res_pos, "raw_filled"), MARGIN = 2,
+              function(x) sum(!is.na(x))),
+        col = paste0(cols, 80), ylim = c(0, 10000),
+        ylab = "Features", xaxt = "n", main = "Detected and filled-in raw data")
+legend("top", horiz = TRUE, col = col_source, legend = names(col_source), lwd = 1)
+par(mar = c(0.2, 4.5, 0, 0.5))
+dobox(log2(assay(res_pos, "raw_filled")), col = paste0(cols, "ff"), xaxt = "n",
+      border = paste0(cols, 60))
+points(colMeans(log2(assay(res_pos, "raw_filled")), na.rm = TRUE), type = "l")
+grid(nx = NA, ny = NULL)
+```
+
+From this image, we can conclude that most of the missing signals have been
+rescued during the gap-filling step: the number of features, in fact, is
+comparable among all samples, though a significant signal deficiency is still
+observed in the 7 samples seen before.
 
 ```{r per-feature-difference-filled-detected, message = FALSE, fig.cap = "Difference (log2 scale) of detected against filled-in signal.", fig.path = IMAGE_PATH, fig.height = 5, fig.width = 5, echo = FALSE}
 is_QC <- res_pos$sample == "POOL"
@@ -428,35 +564,48 @@ have slightly higher abundances.
 
 ## Internal standards
 
-Internal standards have been added to the sample mix before sample
-processing. Below we load the table with the internal standards and their
-expected mass to charge ratio m/z. Features detected at these m/z are then
-identified.
+Internal standards are chemical species that resemble molecules in a sample, but
+they have a distinct characteristic that helps us discriminate them from the
+metabolites of interest (i.e. these internal standards are artificially modified
+metabolites not occurring in a normal human sample). Internal standards are
+added in the sample mix before data acquisition.
+
+In the chunk code below, we load the table with the internal standards and their
+expected mass-to-charge ratio m/z. Features detected at these m/z that also have
+a retention time within a range of 30 seconds from the internal standard of
+reference are then identified and their ID is added to the table.
 
 ```{r internal-standards-read, message = FALSE, warning = FALSE}
 library(Rdisop)
 library(CompoundDb)
+library("MetaboCoreUtils")
 is_info <- read.table(
     "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/data/internal_standards.txt",
     sep = "\t", header = TRUE, as.is = TRUE)
 is_info$class <- "IS"
 is_info$mzneut = NA
 is_info$mz_ion = NA
-for (i in seq(nrow(is_info))) {
-    if (grepl("C", is_info$formula[i])){
+#for (i in seq(nrow(is_info))) {
+ #   if (grepl("C", is_info$formula[i])){
+      #  is_info$mzneut[i] <- getMolecule(
+       #     as.character(is_info$formula[i]))$exactmass
+   # } else {
+     #   is_info$mzneut[i] = as.numeric(is_info$formula[i])
+  #  }
+    #' Calculate also the m/z
+ #  is_info$mz_ion[i] <- mass2mz(is_info$mzneut[i], adduct = is_info[i, "POS"])[1, 1]
+#}
+is_info <- is_info[!is.na(is_info$mz_ion), ]
+for (i in seq(nrow(is_info))) 
+  if (grepl("C", is_info$formula[i])){
         is_info$mzneut[i] <- getMolecule(
             as.character(is_info$formula[i]))$exactmass
     } else {
         is_info$mzneut[i] = as.numeric(is_info$formula[i])
     }
-    #' Calculate also the m/z
-    is_info$mz_ion[i] <- unlist(
-        mass2mz(is_info$mzneut[i],
-                adduct = as.character(
-                    is_info[i, grep("POS", colnames(is_info))])))
-}
-is_info <- is_info[!is.na(is_info$mz_ion), ]
 ```
+
+We plot now the EIC for each identified internal standard:
 
 ```{r internal-standards-plot, echo = FALSE, message = FALSE, warning = FALSE}
 #' For each internal standard, try to find features that overlap the m/z
@@ -478,23 +627,23 @@ is_info_features <- featureChromatograms(
     data_pos, features = is_info$feature_id, expandRt = 5)
 
 #' Plot the features for the internal standards.
-col <- col_source[data_pos$source]
+col <- col_source[as.character(data_pos$source)]
 
 dr <- paste0(IMAGE_PATH, "internal-standards/")
 dir.create(dr, showWarnings = FALSE)
 for (i in seq_len(nrow(is_info))) {
-    fn <- gsub("%", "", paste0(dr, "IS_", i, "_",
-                               is_info[i, "name"], ".png"))
+    fn <- gsub("%", "", paste0(dr, "IS_", is_info[i, "name"], "_POS.png"))
     chr <- is_info_features[i, ]
     cls <- col[chromPeaks(chr)[, "sample"]]
     png(fn, width = 16, height = 8, units = "cm", res = 200, pointsize = 4)
-    plot(chr, peakBg = paste0(cls, 20), peakCol = paste0(cls, 60))
+    plot(chr, peakBg = paste0(cls, 20),
+         main = paste0(is_info$name[i], ": ",
+                       format(mz(chr)[1], digits = 6), "-",
+                       format(mz(chr)[2], digits = 6)),
+         peakCol = paste0(cls, 60))
     abline(v = is_info$RT[i], lty = 2)
     dev.off()
 }
-
-is_info$feature_id[7] <- NA_character_
-is_info <- is_info[!is.na(is_info$feature_id), ]
 
 ```
 
