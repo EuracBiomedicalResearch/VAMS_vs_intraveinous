@@ -157,7 +157,7 @@ sources and samples) was used as quality control and repeatedly measured (every
 measurement run is visualized below.
 
 ```{r neg-run-plot, fig.width = 10, fig.height = 2, fig.path = IMAGE_PATH, fig.cap = "Layout of a measurement run."}
-tmp <- pData(data_neg)[data_neg$batch == 6022018, ]
+tmp <- pData(data_neg)[data_neg$batch == "31012018", ]
 par(mar = c(2, 0, 2, 0))
 plot(3, 3, pch = NA, xaxt = "n", yaxt = "n", ylim = c(0, 2),
      xlim = c(0.5, nrow(tmp) + 0.5), bty = "n")
@@ -846,10 +846,6 @@ for (i in 1:nrow(std_info)) {
 
 For almost all compounds the retention time correction resulted in better
 aligned chromatograms.
-
-```{r load the stored alignment data}
-load(paste0(RDATA_PATH, "data_neg_align.RData"))
-```
 
 
 ### Summary

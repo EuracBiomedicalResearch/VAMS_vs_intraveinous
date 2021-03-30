@@ -567,7 +567,7 @@ theoretical retention time.
 #' chromatographic peaks
 std_info_mz_rt <- chromPeakArea(data_pos, mz = std_info$mz_ion,
                                 rt = std_info$RT, diffRt = 30,
-                                ppm = 50, type = "apex_within")
+                                ppm = 50)
 std_info <- std_info[!is.na(std_info_mz_rt[, "mzmin"]), ]
 std_info_mz_rt <- std_info_mz_rt[!is.na(std_info_mz_rt[, "mzmin"]), ]
 
@@ -753,7 +753,7 @@ slice_peak_summary <- function(rtr, mzr, mz = NULL, x, group, ppm = 10) {
     group <- factor(group, levels = unique(group))
     if (missing(x))
         stop("'x' has to be submitted.")
-    pks <- chromPeaks(x, rt = rtr, mz = mzr, type = "apex_within", ppm = ppm)
+    pks <- chromPeaks(x, rt = rtr, mz = mzr, ppm = ppm)
     if (nrow(pks)) {
         pks <- cbind(pks,
                      rt_width = pks[, "rtmax"] - pks[, "rtmin"],
