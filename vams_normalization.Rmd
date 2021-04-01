@@ -173,7 +173,7 @@ library(pander)
 
 ## register(bpstart(MulticoreParam(ncores)))
 library(doParallel)
-registerDoParallel(ncores)
+#registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
 library(DESeq2)
 library(CompMetaboTools)
@@ -194,39 +194,11 @@ load("data/RData/vams_preprocessing_pos/data_pos.RData")
 data_pos$batch <- factor(data_pos$batch)
 ```
 
-We restrict the analysis to features found in 30% of the samples of at least one
-group (excluding QC samples). An overview of features used for the analysis is
-given in the table below.
-
-```{r feature-summary, message = FALSE, echo = FALSE, results = "asis"}
-fsumm <- featureSummary(data_pos, data_pos$source)
-study_src <- names(col_source)[names(col_source) != "all"]
-
-## Further require a feature to be found in more than 30% of samples in at
-## least one group.
-tmp_perc <- apply(fsumm[, paste0(study_src, "_perc")], 1,
-                  function (z) any(z > 30))
-fts_used <- rownames(
-    featureDefinitions(data_pos))[which(tmp_perc)]
-
-## Generate summary table
-tab <- rbind(total_features = length(fts_used),
-             `RBC > 50%` = sum(fsumm[fts_used, "RBC_perc"] > 50),
-             `plasma > 50%` = sum(fsumm[fts_used, "plasma_perc"] > 50),
-             `capillary > 50%` = sum(fsumm[fts_used, "capillary_perc"] > 50),
-             `venous > 50%` = sum(fsumm[fts_used, "venous_perc"] > 50))
-colnames(tab) <- "count"
-cptn <- paste("Summary of features used for the analysis. All features are ",
-              "found in more than 30% of samples of at least one sample group.")
-pandoc.table(tab, style = "rmarkdown", caption = cptn)
-```
-
 Next we extract the feature abundances as a `SummarizedExperiment`, subsetting
 also to the features defined above.
 
 ```{r extract-as-se}
 res_pos <- quantify(data_pos, method = "sum", filled = FALSE)
-res_pos <- res_pos[fts_used, ]
 ```
 
 # Gap filling and imputation of missing values
@@ -261,27 +233,22 @@ filled-in peaks. This information is added to `res_pos` as the `raw_filled`
 assay: this will be later used to retrieve filled-in data only. It is important
 to remember that even after gap filling, a signal can still be missing.
 
-```{r fill-in, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_pos.RData"))}
-rtwidths <- chromPeaks(data_pos)[, "rtmax"] - chromPeaks(data_pos)[, "rtmin"]
-fcp <- FillChromPeaksParam(
-    ppm = 20, fixedRt = median(rtwidths) / 2)
-data_pos <- fillChromPeaks(data_pos, param = fcp)
-
-save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
+```{r fill-in, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_pos_filled.RData")), echo = TRUE)}
+## Fill-in missing values
+data_pos <- fillChromPeaks(data_pos, param = ChromPeakAreaParam())
+save(data_pos, file = paste0(RDATA_PATH, "data_pos_filled.RData"))
 ```
 
-```{r load-again, echo = FALSE, results = "hide"}
-load(paste0(RDATA_PATH, "data_pos.RData"))
+```{r load, messgage = FALSE}
+load(paste0(RDATA_PATH, "data_pos_filled.RData"))
+
+## Add filled-in data to the result object
 assays(res_pos)$raw_filled <- featureValues(data_pos, method = "sum",
-                                            filled = TRUE)[fts_used, ]
-## Select only the filled-in signals
+                                            filled = TRUE)
+## Add the only-filled-in signal to the result object
 tmp <- assay(res_pos, "raw_filled")
 tmp[!is.na(assay(res_pos, "raw"))] <- NA
 assays(res_pos)$raw_only_filled <- tmp
-
-## Impute missing values.
-assays(res_pos)$raw_filled_imputed <- imputeRowMinRand(
-                   assay(res_pos, "raw_filled"), method = "from_to")
 ```
 
 Below we compare the signal distribution of detected and filled-in peak signals.
@@ -297,7 +264,7 @@ boxplot(list(detected = log2(ints_det), filled = log2(ints_fil)),
         ylab = expression(log[2]~abundance))
 
 ## Peaks assigned to features
-pk_idxs <- sort(unlist(featureDefinitions(data_pos)[fts_used, "peakidx"]))
+pk_idxs <- sort(unlist(featureDefinitions(data_pos)[, "peakidx"]))
 tmp <- chromPeaks(data_pos)[pk_idxs, "into"]
 ints_det <- tmp[!chromPeakData(data_pos)$is_filled[pk_idxs]]
 ints_fil <- tmp[chromPeakData(data_pos)$is_filled[pk_idxs]]
@@ -374,6 +341,15 @@ also found in the preprocessing step: in these samples considerably less peaks
 were identified; the mean intensity of these samples, though, is comparable to
 that of the others.
 
+Plasma samples (blue) have less valid values for features compared to samples
+from other sources. Some of the RBC (red) samples also have a considerably lower
+number of detected features. The distribution of feature intensities seems to
+be comparable between samples, sources and batches. The high similarity of
+average abundances between samples visible above might however be misleading,
+since only signal from identified peaks are considered. Comparing signal
+intensities **after** filling-in missing peak data might be better, because it
+also reflects the fact that some features are simply not present in the data.
+
 Next, we show the filled-in values:
 
 ```{r raw-boxplot-only-filled, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Number of features and log2 abundance of filled-in data.", message = FALSE, echo = FALSE}
@@ -399,6 +375,16 @@ discarded during the course of peak detection. In this case, it is observed that
 the mean abundance of these samples is lower than that of the others; this is
 expected and consistent with the boxplots showed above (lower intensity for
 filled-in signals).
+
+After filling in missing peak values the proportion of detected features is
+highly comparable between samples, but more differences between abundances are
+visible. Plasma samples (blue) show however considerably lower signal
+intensities than all other samples, which reflects that less peaks were detected
+for these features in these samples (and intensities were thus filled-in).
+
+Next we create relative log abundance plots that represent the difference of the
+(log) abundances of each feature in a sample compared to the median abundance of
+that feature in samples from the same sample group (source).
 
 Finally, we plot the complete data set (detected and filled-in signals):
 
@@ -440,76 +426,34 @@ higher than filled in signals. This suggests that filled-in data does to some
 extend represent signal from the ion, but mostly underestimates the *real*
 signal.
 
-Below we plot the number of non-missing values and the distribution of feature
-intensities first for the data without and then with filled-in data.
+We also plot the Relative Log Abundance (RLA) values for the raw data and for
+data after gap filling; these will be later used to assess the efficiency of
+normalization.
 
-```{r raw-nofill-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution. The black line indicates the mean abundance across all features per sample.", fig.width = 10, fig.height = 5}
-layout(mat = matrix(1:2, ncol = 1), height = c(0.2, 0.8))
-par(mar = c(0.2, 4.5, 0.2, 0.5))
-barplot(apply(assay(res_pos, "raw"), MARGIN = 2, function(x) sum(!is.na(x))),
-        col = paste0(col_source[data_pos$source], 80), ylab = "features",
-        xaxt = "n")
-dobox(log2(assay(res_pos, "raw")), xaxt = "n")
-points(colMeans(log2(assay(res_pos, "raw")), na.rm = TRUE), type = "l")
+```{r r raw-rla-plot, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Relative Log Abundance (RLA) of raw data compared to the filled-in data.", echo = FALSE}
+## RLA of raw data
+par(mfrow = c(2, 1), mar = c(0.2, 4.5, 4.5, 0.5))
+boxplot(xcms::rowRla(assay(res_pos, "raw"), group = res_pos$source),
+        cex = 0.5, pch = 16, col = col_source[as.character(res_pos$source)],
+        border = paste0(col_source[as.character(res_pos$source)], 40),
+        notch = TRUE, outline = FALSE, ylim = c(-6, 4),
+        main = "Raw data", xaxt = "n", ylab = "RLA")
+grid(nx = NA, ny = NULL)
+## RLA after filling-in missing data
+boxplot(xcms::rowRla(assay(res_pos, "raw_filled"), group = res_pos$source),
+        cex = 0.5, pch = 16, col = col_source[as.character(res_pos$source)],
+        border = paste0(col_source[as.character(res_pos$source)], 40),
+        notch = TRUE, outline = FALSE,
+        main = "Filled-in data", xaxt = "n", ylab = "RLA")
 grid(nx = NA, ny = NULL)
 ```
 
-Plasma samples (blue) have less valid values for features compared to samples
-from other sources. Some of the RBC (red) samples also have a considerably lower
-number of detected features. The distribution of feature intensities seems to
-be comparable between samples, sources and batches. The high similarity of
-average abundances between samples visible above might however be misleading,
-since only signal from identified peaks are considered. Comparing signal
-intensities **after** filling-in missing peak data might be better, because it
-also reflects the fact that some features are simply not present in the data.
 
-```{r raw-boxplot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "Counts of non-missing values and feature abundance distribution for the filled-in data. Black points indicate the mean abundance across all features per sample.", fig.width = 10, fig.height = 5}
-layout(mat = matrix(1:2, ncol = 1), height = c(0.2, 0.8))
-par(mar = c(0.2, 4.5, 0.2, 0.5))
-barplot(apply(assay(res_pos, "raw_filled"), MARGIN = 2,
-              function(x) sum(!is.na(x))),
-        col = paste0(col_source[data_pos$source], 80), ylab = "features",
-        xaxt = "n")
-dobox(log2(assay(res_pos, "raw_filled")), xaxt = "n")
-points(colMeans(log2(assay(res_pos, "raw_filled")), na.rm = TRUE), type = "l")
-grid(nx = NA, ny = NULL)
-```
-
-After filling in missing peak values the proportion of detected features is
-highly comparable between samples, but more differences between abundances are
-visible. Plasma samples (blue) show however considerably lower signal
-intensities than all other samples, which reflects that less peaks were detected
-for these features in these samples (and intensities were thus filled-in).
-
-Next we create relative log abundance plots that represent the difference of the
-(log) abundances of each feature in a sample compared to the median abundance of
-that feature in samples from the same sample group (source).
-
-```{r raw-nofill-rla-plot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "RLA plot for the raw data. Note: outliers are not drawn.", fig.width = 10, fig.height = 5}
-boxplot(rowRla(assay(res_pos, "raw"), data_pos$source), cex = 0.5, pch = 16, 
-        col = col_source[data_pos$source], ylab = "RLA",
-        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
-        outline = FALSE, xaxt = "n", main = "raw data")
-grid(nx = NA, ny = NULL)
-abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
-```
-
-The RLA plot above shows some potentially systematic drifts in signal
+The RLA plot showing the raw data indicates some potentially systematic drifts in signal
 intensities that includes also consistently lower average RLA values in the
 last samples from the first, and consistently higher average RLA values in the
 last samples from the second batch. Next we plot the RLA plots after filling-in
 missing peak data. 
-
-```{r raw-rla-plot, fig.path = IMAGE_PATH, message = FALSE, warning = FALSE, echo = FALSE, fig.cap = "RLA plot for the raw data after filling-in missing peak data. Note: outliers are not drawn.", fig.width = 10, fig.height = 5}
-boxplot(rowRla(assay(res_pos, "raw_filled"), data_pos$source),
-        cex = 0.5, pch = 16, col = col_source[data_pos$source], ylab = "RLA",
-        border = paste0(col_source[data_pos$source], 40), notch = TRUE,
-        outline = FALSE, xaxt = "n", main = "raw data, filled-in")
-grid(nx = NA, ny = NULL)
-abline(v = sum(data_pos$batch == 31012018) + 0.5, col = "grey")
-text(y = -2, x = 1:length(data_pos$sample), labels = data_pos$sample, cex = 0.5,
-     srt = -90)
-```
 
 The RLA plots after filling-in missing peak data look similar but the trends
 become more pronounced.
@@ -577,7 +521,7 @@ reference are then identified and their ID is added to the table.
 
 ```{r internal-standards-read, message = FALSE, warning = FALSE}
 library(Rdisop)
-library(CompoundDb)
+#library(CompoundDb)
 library("MetaboCoreUtils")
 is_info <- read.table(
     "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/data/internal_standards.txt",
@@ -585,24 +529,18 @@ is_info <- read.table(
 is_info$class <- "IS"
 is_info$mzneut = NA
 is_info$mz_ion = NA
-#for (i in seq(nrow(is_info))) {
- #   if (grepl("C", is_info$formula[i])){
-      #  is_info$mzneut[i] <- getMolecule(
-       #     as.character(is_info$formula[i]))$exactmass
-   # } else {
-     #   is_info$mzneut[i] = as.numeric(is_info$formula[i])
-  #  }
-    #' Calculate also the m/z
- #  is_info$mz_ion[i] <- mass2mz(is_info$mzneut[i], adduct = is_info[i, "POS"])[1, 1]
-#}
-is_info <- is_info[!is.na(is_info$mz_ion), ]
-for (i in seq(nrow(is_info))) 
-  if (grepl("C", is_info$formula[i])){
+for (i in seq(nrow(is_info))) {
+    if (grepl("C", is_info$formula[i])){
         is_info$mzneut[i] <- getMolecule(
             as.character(is_info$formula[i]))$exactmass
     } else {
         is_info$mzneut[i] = as.numeric(is_info$formula[i])
     }
+    #' Calculate also the m/z
+    is_info$mz_ion[i] <- mass2mz(
+        is_info$mzneut[i], adduct = is_info$POS[i])[[1, 1]]
+}
+is_info <- is_info[!is.na(is_info$mz_ion), ]
 ```
 
 We plot now the EIC for each identified internal standard:
