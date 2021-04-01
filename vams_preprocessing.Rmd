@@ -57,7 +57,7 @@ rt_cut <- 340
 ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 5))
 
 #' Whether or not to plot the EICs for all standards - takes loooong time
-plot_eics <- TRUE
+plot_eics <- FALSE
 
 ```
 
@@ -157,7 +157,7 @@ load(paste0(RDATA_PATH, "data_pos_read_raws.RData"))
 All samples of the experiment are listed below.
 
 ```{r pos-phenodata, message = FALSE, results = "asis", echo = FALSE}
-tab <- pData(data_pos)[, -4]
+tab <- pData(data_pos)[, c("batch", "sample", "source", "age", "sex")]
 pandoc.table(tab, style = "rmarkdown",
              caption = paste0("Data files and samples for positive polarity"))
 
@@ -430,7 +430,7 @@ repository](http://github.com/EuracBiomedicalResearch/lcms-standards).
 
 ```{r known-cmps, warning = FALSE}
 library(Rdisop)
-library("MetaboCoreUtils")
+library(MetaboCoreUtils)
 std_info <- read.table(
 "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/data/standards_dilution.txt",
     sep = "\t", header = TRUE, as.is = TRUE)
@@ -439,12 +439,10 @@ std_info <- std_info[order(std_info$name), ]
 std_info$mzneut = NA
 std_info$mz_ion = NA
 for (i in seq(nrow(std_info))) {
-    if (grepl("C", std_info$formula[i])){
-        std_info$mzneut[i] <- getMolecule(
-            as.character(std_info$formula[i]))$exactmass
-    } else {
+    if (grepl("C", std_info$formula[i]))
+        std_info$mzneut[i] <- getMolecule(std_info$formula[i])$exactmass
+    else
         std_info$mzneut[i] = as.numeric(std_info$formula[i])
-    }
     ## Calculate also the m/z
     std_info$mz_ion[i] <- mass2mz(std_info$mzneut[i],
                                   adduct = std_info[i, "POS"])[1, 1]
@@ -607,6 +605,7 @@ for (i in 1:nrow(std_info)) {
     dev.off()
 }
 ```
+
 All the plotted EICs have been visually inspected in order to find the most
 interesting peaks that could indicate which compounds might be the most
 interesting for our analysis. During this process, we annotated the observed RT,
@@ -637,12 +636,12 @@ dashed line.
 
 ```{r pos-centWave-manual-check-import, echo = FALSE}
 std_info <- read.table("data/std_info_3_checked.txt", sep = "\t", as.is = TRUE,
-                       header = TRUE)
+                       header = TRUE, dec = ".")
 std_info$mz_ion <- as.numeric(std_info$mz_ion)
 std_info <- std_info[std_info$is_ok, ]
 std_info_mz_rt <- chromPeakArea(data_pos, mz = std_info$mz_ion,
                                 rt = std_info$RT_obs, diffRt = 0, ppm = 50,
-                                type="any")
+                                type = "any")
 std_info <- std_info[!is.na(std_info_mz_rt[, "mzmin"]), ]
 std_info_mz_rt <- std_info_mz_rt[!is.na(std_info_mz_rt[, "mzmin"]), ]
 ```
