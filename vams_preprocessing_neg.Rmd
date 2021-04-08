@@ -26,12 +26,15 @@ BiocStyle::markdown()
 ```{r settings, echo = FALSE, results = "hide", message = FALSE}
 ## Set general options
 options(useFancyQuotes = FALSE)
-set.seed(18011977)
+set.seed(123)
+
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
 
 ## Define paths:
 filename <- "vams_preprocessing_neg"
 ## Path to save the images; remove all old images.
-IMAGE_PATH <- paste0("C:/Users/User/Documents/Masterarbeit/R/images/", filename, "/")
+IMAGE_PATH <- paste0("images/", filename, "/")
 if (file.exists(IMAGE_PATH))
     unlink(IMAGE_PATH, recursive = TRUE)
 dir.create(IMAGE_PATH, recursive = TRUE)
@@ -41,6 +44,7 @@ if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
 MZML_PATH <- "C:/Users/User/Documents/mzML_neg"
+## MZML_PATH <- "/data/massspec/mzML/2018/"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -52,6 +56,8 @@ rt_cut <- 250
 
 ## Get the number of cpus allocated or fall back to 3 
 ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+
+plot_eics <- TRUE
 ```
 
 # Introduction
@@ -90,7 +96,7 @@ library(MsCoreUtils)
 library(magick)
 registerDoParallel(ncores)
 register(DoparParam(), default = TRUE)
-source("util-functions.R")
+## source("util-functions.R")
 
 pd <- read.table("data/phenodata.txt", sep = "\t", as.is = TRUE, header = TRUE)
 pd_neg <- pd[pd$polarity == "NEG", ]
@@ -114,35 +120,14 @@ time_stamp <- extract_time_stamp(fileNames(data_neg))
 data_neg$time_stamp <- time_stamp
 stopifnot(!is.unsorted(time_stamp))
 ```
+
 # Explorative analysis
 
 All samples of the experiment are listed below.
 
 ```{r neg-phenodata, message = FALSE, results = "asis", echo = FALSE}
-validatePdata <- function(x) {
-    src <- c(`1` = "plasma", `2` = "venous", `3` = "capillary", RBC = "RBC")
-    fn <- strsplit(x$mzML_file, split = "_")
-    for (i in 1:nrow(x)) {
-        splt <- fn[[i]]
-        if (substr(splt[1], 2, nchar(splt[1])) != x$batch[i])
-            message("Row ", i, ": batch wrong")
-        if (length(splt) == 5) {
-            if (as.numeric(splt[2]) != x$sample[i])
-                message("Row ", i, ": sample wrong")
-            if (src[splt[3]] != x$source[i])
-                message("Row ", i, ": source wrong")
-            if ((splt[4] == "a" & x$replicate[i] != 1) ||
-                (splt[4] == "b" & x$replicate[i] != 2))
-                message("Row ", i, ": replicate wrong")
-        } else {
-            if (x$sample[i] != "POOL")
-                message("Row ", i, ": sample wrong")
-        }
-    }
-}
-## validatePdata(pData(data_neg))
-
-tab <- pData(data_neg)[, -4]
+tab <- pData(data_neg)[, c("mzML_file", "batch", "sample",
+                           "source", "age", "sex")]
 pandoc.table(tab, style = "rmarkdown",
              caption = paste0("Data files and samples for negative polarity"))
 
@@ -157,7 +142,7 @@ sources and samples) was used as quality control and repeatedly measured (every
 measurement run is visualized below.
 
 ```{r neg-run-plot, fig.width = 10, fig.height = 2, fig.path = IMAGE_PATH, fig.cap = "Layout of a measurement run."}
-tmp <- pData(data_neg)[data_neg$batch == "31012018", ]
+tmp <- pData(data_neg)[data_neg$batch == "2018_02/06022018", ]
 par(mar = c(2, 0, 2, 0))
 plot(3, 3, pch = NA, xaxt = "n", yaxt = "n", ylim = c(0, 2),
      xlim = c(0.5, nrow(tmp) + 0.5), bty = "n")
@@ -176,10 +161,9 @@ order.
 ## Base peak chromatogram
 
 Next we perform an initial quality assessment by comparing the distribution of
-TIC and BPC values from the spectra between all samples.
+BPC values from the spectra between all samples.
 
 ```{r neg-calc-tic, message = FALSE}
-chrs_tic <- chromatogram(data_neg, aggregationFun = "sum")
 chrs_bpc <- chromatogram(data_neg, aggregationFun = "max")
 ```
 
@@ -190,14 +174,6 @@ plot(chrs_bpc, col = paste0(col_source[chrs_bpc$source], "60"))
 abline(v = rt_cut)
 legend("topright", col = col_source, legend = names(col_source), lwd = 2)
 
-```
-```{r}
-# Export PDF plot
-pdf(file = paste0(IMAGE_PATH, "chrs_bpc_neg.pdf"), height = 5, width = 9)
-  plot(chrs_bpc, col = paste0(col_source[chrs_bpc$source], "60"))
-  abline(v = rt_cut)
-  legend("topright", col = col_source, legend = names(col_source), lwd = 2)
-dev.off()
 ```
 
 The base peak chromatograms are quite different between the different sample
@@ -214,7 +190,7 @@ similar behaviour and characteristics. We proceed with binning the chromatograms
 and calculating the correlation among samples and clustering these with complete
 linkage hierarchical clustering.
 
-```{r neg-bin-chr, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 12, fig.height = 12, fig.cap = "Samples clustered by base peak chromatogram. Clustering bases on complete linkage hierarchical clustering of pairwise correlations of log2 base peak signals."}
+```{r neg-bin-chr, fig.path = IMAGE_PATH, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 12, fig.height = 12, fig.cap = "Samples clustered by base peak chromatogram. Clustering bases on complete linkage hierarchical clustering of pairwise correlations of log2 base peak signals."}
 ## Bin the chromatograms to force them to have the same retention times
 chrs_bin <- MSnbase::bin(chrs_bpc)
 ## Calculating the correlation on the log2 transformed bp signals
@@ -225,13 +201,6 @@ ann <- pData(data_neg)[, c("batch", "source")]
 res <- pheatmap(cormat, annotation_col = ann, cutree_cols = 3,
                 annotation_color = list(group = col_source))
 
-```
-```{r export heatmap, echo = FALSE, results = "hide"}
-# Export PDF plot
-pdf(file = paste0(IMAGE_PATH, "heatmap_neg.pdf"), height = 15, width = 15)
-  res <- pheatmap(cormat, annotation_col = ann, cutree_cols = 3,
-                  annotation_color = list(group = col_source))
-dev.off()
 ```
 
 
@@ -248,7 +217,7 @@ In order to confirm the hypothesis formulated in the previous steps, we also
 perform PCA. This way we can visualize the clusters by reducing the number
 of characteristics of the dataset retaining the most important information.
 
-```{r, echo = FALSE, eval = FALSE}
+```{r, echo = FALSE, eval = FALSE, fig.path = IMAGE_PATH, fig.height = 12, fig.height = 6, fig.cap = "PCA of the binned base peak chromatograms."}
 ## Perform the PCA
 pc <- prcomp(t(log2(do.call(cbind, lapply(chrs_bin, intensity)))),
              scale = FALSE, center = TRUE)
@@ -259,9 +228,9 @@ legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4
 plot_pca(pc, col = col_source[as.character(data_neg$source)],
          pc_x = 3, pc_y = 4, labels = data_neg$inj_idx)
 legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
-plot_pca(pc, col = col_source[as.character(data_neg$source)],
-         pc_x = 2, pc_y = 3, labels = data_neg$inj_idx)
-legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
+## plot_pca(pc, col = col_source[as.character(data_neg$source)],
+##          pc_x = 2, pc_y = 3, labels = data_neg$inj_idx)
+## legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
 
 
 ## cols <- rep("#00000040", length(chrs_bin$source))
@@ -274,22 +243,6 @@ legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4
 
 ## plot(chrs_bpc, col = cols)
 
-```
-```{r export pca, echo = FALSE, results = "hide"}
-# Export PDF plot
-pdf(file = paste0(IMAGE_PATH, "pca_neg.pdf"), height = 7, width = 8)
-  pc <- prcomp(t(log2(do.call(cbind, lapply(chrs_bin, intensity)))),
-              scale = FALSE, center = TRUE)
-  par(mfrow = c(2, 2))
- plot_pca(pc, col = col_source[as.character(data_neg$source)],
-         pc_x = 1, pc_y = 2, labels = data_neg$inj_idx)
-legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
-plot_pca(pc, col = col_source[as.character(data_neg$source)],
-         pc_x = 3, pc_y = 4, labels = data_neg$inj_idx)
-legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
-plot_pca(pc, col = col_source[as.character(data_neg$source)],
-         pc_x = 2, pc_y = 3, labels = data_neg$inj_idx)
-legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
 ```
 
 ## Boxplots and RLA-values
@@ -311,13 +264,6 @@ boxplot(lapply(tc, log2), col = col_source[as.character(data_neg$source)],
         xlab = "sample number",
         ylab = "intensity", main = "Total ion current")
 ```
-```{r Export pdf}
-pdf(file = paste0(IMAGE_PATH, "total_ion_content_neg.pdf"), height = 7, width = 15)
-boxplot(lapply(tc, log2), col = col_source[as.character(data_neg$source)],
-        xlab = "sample number",
-        ylab = "intensity", main = "Total ion current")
-legend("topleft", col = col_source, legend = names(col_source), lwd = 2, cex=0.4)
-```
 
 
 ```{r neg-bpc-boxplot, message = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 6, fig.cap = "Distribution of the spectras' base peak signal per sample (top) and average RLA of base peak signals per sample (bottom). Potential outlier samples identified based on their base peak intensities are indicated with squares."}
@@ -336,23 +282,6 @@ plot(bpcs_rla, xlab = "", ylab = "average RLA", xlim = xl,
 grid(nx = NULL)
 
 ```
-```{r export rla-plot, echo = FALSE, results = "hide"}
-# Export PDF plot
-pdf(file = paste0(IMAGE_PATH, "rla.pdf"), height = 5, width = 10)
-par(mfrow = c(2, 1), mar = c(0, 4.3, 0, 0.1))
-boxplot(lapply(bpcs, log2), col = paste0(col_source[chrs_bpc$source], 60),
-        pch = NA, xaxt = "n", ylab = expression(log[2]~base~peak~intensity),
-        xlim = xl)
-grid(nx = NULL)
-par(mar = c(3, 4.3, 0.5, 0.1))
-bpcs_rla <- rla(vapply(bpcs, mean, numeric(1)), f = chrs_bpc$source)
-pch <- rep(16, length(bpcs_rla))
-plot(bpcs_rla, xlab = "", ylab = "average RLA", xlim = xl,
-     col = paste0(col_source[chrs_bpc$source], 80), pch = pch)
-grid(nx = NULL)
-
-```
-
 
 The (base peak) signal from capillary blood samples is generally lower than that
 of all other sample types. According to the RLA, only 3 samples, all
@@ -402,29 +331,27 @@ load below the list of known compounds with the theoretical m/z value of the
 most likely ion adduct and their expected retention time window.
 
 ```{r known-cmps, message = FALSE, warning = FALSE}
-library("MetaboCoreUtils")
+library(MetaboCoreUtils)
 library(Rdisop)
 std_info <- read.table(
     "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/data/standards_dilution.txt",
     ## "data/standards_dilution.txt",
     sep = "\t", header = TRUE, as.is = TRUE)
 std_info <- std_info[!is.na(std_info[, "NEG"]), ]
-rownames(std_info) <- 1:nrow(std_info)
+std_info <- std_info[order(std_info$name), ]
 std_info$mzneut = NA
 std_info$mz_ion = NA
 
 for (i in seq(nrow(std_info))) {
-    if (grepl("C", std_info$formula[i])){
-        std_info$mzneut[i] <- getMolecule(
-            as.character(std_info$formula[i]))$exactmass
-    } else {
+    if (grepl("C", std_info$formula[i]))
+        std_info$mzneut[i] <- getMolecule(std_info$formula[i])$exactmass
+    else
         std_info$mzneut[i] = as.numeric(std_info$formula[i])
-    }
     ## Calculate also the m/z
     std_info$mz_ion[i] <- mass2mz(std_info$mzneut[i],
                                   adduct = std_info[i, "NEG"])[1, 1]
 }
-
+std_info <- std_info[!is.na(std_info$mz_ion), ]
 ```
 
 After reading the data on standard molecules, we apply the `centWave` algorithm
@@ -464,8 +391,11 @@ save(data_neg, file = paste0(RDATA_PATH, "data_neg_cwp.RData"))
 ```{r centWave-cached, echo = FALSE, eval = file.exists(paste0(RDATA_PATH, "data_neg_cwp.RData"))}
 load(paste0(RDATA_PATH, "data_neg_cwp.RData"))
 ```
+
 The following step in the analysis is done to remove potential artifacts that
-arose during peak detection, as a result of largely overlapping peaks. The `MergeNeighboringPeaksParam` function is used to eliminate such artifacts.
+arose during peak detection, as a result of largely overlapping peaks. The
+`MergeNeighboringPeaksParam` function is used to eliminate such artifacts.
+
 ```{r neg-centWave-refine, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_neg_refined.RData"))}
 mnp <- MergeNeighboringPeaksParam(expandRt = 2.5, expandMz = 0.001,
                                   minProp = 3/4)
@@ -491,9 +421,6 @@ the theoretical retention time which was determined by measuring the standard
 for the respective compound solved in water.
 
 ```{r neg-centWave-eic-plots, echo = TRUE, eval = plot_eics}
-std_info_mz_rt <- matrix(
-    ncol = 4, nrow = nrow(std_info),
-    dimnames = list(std_info$name, c("mzmin", "mzmax", "rtmin", "rtmax")))
 std_info_mz_rt <- chromPeakArea(data_neg, mz = std_info$mz_ion,
                                 rt = std_info$RT, diffRt = 30,
                                 ppm = 50)
@@ -577,19 +504,10 @@ also, the observed retention time is depicted with a black vertical dashed line.
 std_info <- read.table("data/std_info_neg_check.txt", sep = "\t",
                        as.is = TRUE, header = TRUE)
 std_info <- std_info[std_info$is_ok, ]
-## Select for each standard the peaks overlapping with the observed rt.
-std_info_mz_rt <- matrix(nrow = nrow(std_info), ncol = 4,
-                         dimnames = list(std_info$name,
-                                         c("mzmin", "mzmax", "rtmin", "rtmax")))
-for (i in 1:nrow(std_info)) {
-    pks <- chromPeaks(data_neg, mz = std_info$mz_ion[i], ppm = 50,
-                      rt = std_info$RT_obs[i])
-    if (nrow(pks)) {
-        mzr <- range(pks[, c("mzmin", "mzmax")])
-        rtr <- range(pks[, c("rtmin", "rtmax")])
-        std_info_mz_rt[i, ] <- c(mzr, rtr)
-    }
-}
+
+std_info_mz_rt <- chromPeakArea(data_neg, mz = std_info$mz_ion,
+                                rt = std_info$RT_obs, diffRt = 1,
+                                ppm = 10, type = "any")
 std_info <- std_info[!is.na(std_info_mz_rt[, "mzmin"]), ]
 std_info_mz_rt <- std_info_mz_rt[!is.na(std_info_mz_rt[, "mzmin"]), ]
 ```
@@ -597,8 +515,8 @@ std_info_mz_rt <- std_info_mz_rt[!is.na(std_info_mz_rt[, "mzmin"]), ]
 ```{r neg-centWace-eics-refined, echo = FALSE, eval = plot_eics, warning = FALSE, message = FALSE}
 ## Extract the ion chromatogram for each standard
 rtr <- std_info_mz_rt[, c("rtmin", "rtmax")]
-rtr[, 1] <- rtr[, 1] - 10
-rtr[, 2] <- rtr[, 2] + 10
+rtr[, 1] <- rtr[, 1] - 5
+rtr[, 2] <- rtr[, 2] + 5
 std_info_chr <- chromatogram(
     data_neg, mz = std_info_mz_rt[, c("mzmin", "mzmax")],
     rt = rtr, aggregationFun = "max")
@@ -606,10 +524,10 @@ std_info_chr <- chromatogram(
 dr <- paste0(IMAGE_PATH, "peakdetection-standards/")
 dir.create(dr, recursive = TRUE, showWarnings = FALSE)
 sample_colors <- col_source[as.character(data_neg$source)]
-for (i in 1:nrow(std_info)) {
-    cmpname <- gsub("L-", "", std_info$name[i])
-    cmpname <- tolower(gsub(" .*", "", cmpname))
-    filename <- paste0(dr, i, "-", cmpname, "_", "NEG", ".png")
+for (i in seq_len(nrow(std_info))) {
+    cmpname <- std_info$name[i]
+    filename <- paste0(dr, gsub("%", "p", cmpname, fixed = TRUE),
+                       "_NEG.png")
     png(file = filename, width = 16, height = 8, units = "cm",
         res = 300, pointsize = 4)
     chr <- std_info_chr[i, ]
@@ -650,7 +568,7 @@ par(mfrow = c(3, 1), mar = c(0, 4.3, 1.5, 0.1))
 barplot(unlist(lapply(pk_list, nrow)),
         col = paste0(col_source[as.character(data_neg$source)], 80),
         ylab = "peak count", main = "Peak detection summary, NEG",
-        ylim = c(0, 6000), xaxt = "n")
+        ylim = c(0, 10000), xaxt = "n")
 grid()
 legend("top", horiz = TRUE, col = col_source, pch = 15,
        legend = names(col_source))
@@ -665,29 +583,6 @@ boxplot(lapply(pk_list, function(z) log2(z[, "into"])), outline = FALSE,
         ylab = expression(log[2]~intensity), varwidth = TRUE, xaxt = "n",
         col = paste0(col_source[as.character(data_neg$source)], 80))
 ```
-
-```{r export summary plots, echo = FALSE, results = "hide"}
-# pdf export plot
-pdf(file = paste0(IMAGE_PATH,"summary_preprocessing_change.pdf"), height = 7, width = 7)
-  par(mfrow = c(3, 1), mar = c(0, 4.3, 1.5, 0.1))
-  barplot(unlist(lapply(pk_list, nrow)),
-          col = paste0(col_source[as.character(data_neg$source)], 80),
-          ylab = "peak count", main = "Peak detection summary, NEG",
-          ylim = c(0, 12000), xaxt = "n")
-  grid()
-  legend("top", horiz = TRUE, col = col_source, pch = 15,
-        legend = names(col_source))
-  par(mar = c(0, 4.3, 0, 0.1))
-  boxplot(lapply(pk_list, function(z) z[, "mz_width_ppm"]), outline = FALSE,
-          ylab = "m/z width [ppm]", varwidth = TRUE, xaxt = "n",
-          col = paste0(col_source[as.character(data_neg$source)], 80))
-  boxplot(lapply(pk_list, function(z) log2(z[, "into"])), outline = FALSE,
-          ylab = expression(log[2]~intensity), varwidth = TRUE, xaxt = "n",
-          col = paste0(col_source[as.character(data_neg$source)], 80))
-dev.off()
-```
-
-
 
 The numbers of detected peaks is with 8000 to 10000 slightly higher than for the
 positive-mode data, with the most peaks being found in venous samples and the
@@ -725,10 +620,6 @@ samples show the lowest and venous samples the highest numbers.
 
 ### Summary
 
-The settings for the centWave-based chromatographic peak detection might still
-have to be slightly modified, specifically the `ppm` and the `mzdiff`
-parameters.
-
 On average about 9000 chromatographic peaks were identified per sample, with the
 median m/z width of these peaks being quite small.
 
@@ -739,7 +630,7 @@ After detection, chromatographic peaks have to be aligned to adjust for any
 retention time differences due to shifts or biases of the LC. We will use the
 *peak groups* method, that aligns samples based on *hook* peaks that are present
 in most samples. We thus first group chromatographic peaks requiring them to be
-present in 80% of the samples within each group and use these as the *hook*
+present in 95% of the samples within each group and use these as the *hook*
 peaks. Most of the settings for the peak grouping can then be reused for the
 correspondence analysis in the next section. Note that before alignment we
 remove potentially problematic samples. We are setting `binSize = 0.02` to
@@ -748,7 +639,7 @@ file) to be grouped into the same feature. This has been defined by evaluating
 the distance in m/z between chromatographic peaks in the same file in a region
 with a high peak density (see plot below).
 
-```{r neg-mz-distance-peaks-plot, message = FALSE, warning = FALSE, fig.cap = "Position of detected chromatographic peaks within a sample. Shown are chromatographic peaks in a region with high peak density. The horizontal blue line represents the bin width if binSize = 0.02 was used."}
+```{r neg-mz-distance-peaks-plot, message = FALSE, warning = FALSE, fit.path = IMAGE_PATH, fig.cap = "Position of detected chromatographic peaks within a sample. Shown are chromatographic peaks in a region with high peak density. The horizontal blue line represents the bin width if binSize = 0.02 was used."}
 plotChromPeaks(filterMz(data_neg, mz = c(756, 758)), 1)
 abline(h = c(757, 757.02), col = "#0000ff80")
 
@@ -770,9 +661,10 @@ pdp <- PeakDensityParam(sampleGroups = data_neg$source,
 data_neg <- groupChromPeaks(data_neg, param = pdp)
 
 ## Next we perform the alignemnt.
-pgp <- PeakGroupsParam(minFraction = 0.9, extraPeaks = 50, span = 0.3)
+pgp <- PeakGroupsParam(minFraction = 0.9, extraPeaks = 50, span = 0.3,
+                       subsetAdjust = "average",
+                       subset = which(data_neg$sample == "POOL"))
 data_neg <- adjustRtime(data_neg, param = pgp)
-
 ```
 
 The results from the alignment are shown below. The base peak chromatograms are
@@ -780,7 +672,7 @@ slightly more overlapping after alignment. Also, adjustment of retention time is
 smaller 5 seconds for most of the signal, which is what we would expect from
 such a small experiment consisting of only two measurement runs.
 
-```{r neg-alignment-rtime-plot, message = FALSE, warning = FALSE, echo = FALSE, fig.width = 12, fig.height = 10, fig.cap = "Alignment result. Shown are the raw base peak chromatogram, the base peak chromatogram after alignment and the difference between the adjusted and raw retention time. Grey dots indicate hook peaks on which the alignment based."}
+```{r neg-alignment-rtime-plot, message = FALSE, warning = FALSE, echo = FALSE, fig.width = 12, fig.height = 10, fig.cap = "Alignment result. Shown are the raw base peak chromatogram, the base peak chromatogram after alignment and the difference between the adjusted and raw retention time. Grey dots indicate hook peaks on which the alignment based.", fig.path = IMAGE_PATH}
 
 chr_raw <- chromatogram(data_neg, aggregationFun = "max", adjustedRtime = FALSE)
 chr_adj <- chromatogram(data_neg, aggregationFun = "max")
@@ -793,25 +685,12 @@ plotAdjustedRtime(data_neg, col = paste0(col_source[data_neg$source], 80))
 
 ```
 
-```{r export alignment-plot, echo = FALSE, results = "hide"}
-# pdf export plot
-pdf(file = paste0(IMAGE_PATH, "alignment_neg.pdf"), height = 7, width = 15)
-  par(mfrow = c(2, 1), mar = c(4, 4.5, 1, 0.5))
-  plot(chr_raw, col = paste0(col_source[chr_raw$source], 40), peakType = "none",
-     main = "BPC, raw")
-  plot(chr_adj, col = paste0(col_source[chr_raw$source], 40), peakType = "none",
-     main = "BPC, adjusted")
-plotAdjustedRtime(data_neg, col = paste0(col_source[data_neg$source], 80))
-dev.off()
-```
-
-
 At last we generate extracted ion chromatogram plots of the raw and adjusted
 data for the list of known compounds. These are visually inspected to evaluate
 the impact of the alignment. The plots for some representative compounds are
 shown below.
 
-```{r neg-alignment-kc-plots, echo = FALSE, warning = FALSE, message = FALSE}
+```{r neg-alignment-kc-plots, echo = FALSE, warning = FALSE, message = FALSE, eval = plot_eics}
 
 dr <- paste0(IMAGE_PATH, "alignment/")
 dir.create(dr, recursive = TRUE, showWarnings = FALSE)
@@ -867,46 +746,57 @@ features that are present in fewer individuals.
 pdp <- PeakDensityParam(sampleGroups = data_neg$source,
                         minFraction = 1/3,
                         minSamples = 3,
-                        binSize = 0.01,
-                        bw = 2)
+                        binSize = 0.015,
+                        bw = 2.3)
 data_neg <- groupChromPeaks(data_neg, param = pdp)
 
 ```
 
-```{r neg-correspondence-kc-plots, echo = FALSE, warning = FALSE, message = FALSE}
+```{r neg-correspondence-kc-plots, echo = FALSE, warning = FALSE, message = FALSE, eval = plot_eics}
+std_info_mz_rt <- chromPeakArea(data_neg, mz = std_info$mz_ion,
+                                rt = std_info$RT_obs, diffRt = 0.5,
+                                ppm = 10, type = "any")
+std_info <- std_info[!is.na(std_info_mz_rt[, "mzmin"]), ]
+std_info_mz_rt <- std_info_mz_rt[!is.na(std_info_mz_rt[, "mzmin"]), ]
+
 dr <- paste0(IMAGE_PATH, "correspondence_vams/")
 dir.create(dr, recursive = TRUE,
            showWarnings = FALSE)
 rtr <- std_info_mz_rt[, c("rtmin", "rtmax")]
-rtr[, 1] <- rtr[, 1] - 6
-rtr[, 2] <- rtr[, 2] + 6
+rtr[, 1] <- rtr[, 1] - 5
+rtr[, 2] <- rtr[, 2] + 5
 std_info_chr_cor <- chromatogram(
     data_neg, mz = std_info_mz_rt[, c("mzmin", "mzmax")],
     rt = rtr, aggregationFun = "max")
-for (i in 1:nrow(std_info)) {
-    cmpname <- gsub("L-", "", std_info$name[i])
-    cmpname <- tolower(gsub(" .*", "", cmpname))
-    filename <- paste0(dr, i, "-", cmpname, "_", "NEG", ".png")
+for (i in seq_len(nrow(std_info))) {
+    cmpname <- std_info$name[i]
+    filename <- paste0(dr, gsub("%", "p", cmpname, fixed = TRUE),
+                       "_NEG.png")
     png(file = filename, width = 16, height = 8, units = "cm",
         res = 300, pointsize = 4)
-    chr <- std_info_chr[i, ]
+    chr <- std_info_chr_cor[i, ]
     col_samples <- col_source[as.character(chr$source)]
     pks <- chromPeaks(chr)
     if (nrow(featureDefinitions(chr))) {
         plotChromPeakDensity(
             chr, simulate = FALSE, col = "#00000040",
-            ylab = "", main=std_info$name[i],
+            ylab = "", main = paste0(std_info$name[i], ": ",
+                                     paste(format(mz(chr), digits = 6),
+                                           collapse = "-")),
             peakCol = paste0(col_samples[chromPeaks(chr)[, "column"]], 60),
             peakBg = paste0(col_samples[chromPeaks(chr)[, "column"]], "10"))
     } else {
         plotChromPeakDensity(
             chr, simulate = TRUE, col = "#00000040",
-            ylab = "", main=std_info$name[i],
+            ylab = "", main = paste0(std_info$name[i], ": ",
+                                     paste(format(mz(chr), digits = 6),
+                                           collapse = "-")),
             peakCol = paste0(col_samples[chromPeaks(chr)[, "column"]], 60),
             peakBg = paste0(col_samples[chromPeaks(chr)[, "column"]], "10"),
             param = pdp)
     }
-    abline(v=std_info$RT[i], lty = 2)
+    abline(v=std_info$RT[i], lty = 3, col = "grey")
+    abline(v=std_info$RT_obs[i], lty = 1)
     legend("topright", legend= names(col_source), col = col_source, pch = 16)
     dev.off()
 }
@@ -1034,7 +924,7 @@ pandoc.table(tab, style = "rmarkdown",
 The plot below shows the distribution of log2 ratios in abundances and their
 dependency on average abundance.
 
-```{r feature-vals-diff-plot, echo = FALSE, fig.cap = "Distribution of log2 ratios in abundances between QC samples and their dependency on their average abundance.", fig.widht = 10, fig.height = 5}
+```{r feature-vals-diff-plot, echo = FALSE, fig.cap = "Distribution of log2 ratios in abundances between QC samples and their dependency on their average abundance.", fig.widht = 10, fig.height = 5, fig.path = IMAGE_PATH}
 par(mfrow = c(1, 2), mar = c(4, 4.5, 1, 1))
 boxplot(QC_diffs, ylab = expression(log[2]~abundance~ratio))
 grid(nx = NA, ny = NULL)
@@ -1049,310 +939,17 @@ with single peaks, features having occasionally additional peaks and peaks with
 additional peaks in more than 50% of samples. Also, we aim to identify features
 that have single peaks in samples from one source, but multiple in others.
 
-
-### Single peak features
-
-These are supposedly higher quality features. We below identify these peaks and
-subsequently create extracted ion chromatograms for 30 randomly chosen ones, 10
-with low (signal below 10000), 10 with intermediate (10000 to 20000) and 10 with
-high signal intensities (above 2000). For the selection we focus in addition on
-features that are present in at least one third of samples.
-
-```{r neg-single-peak-features, message = FALSE}
-## Selecting features with a single peak being present
-## in more than 33% of samples.
-feats <- rownames(feat_summ)[feat_summ[, "multi_count"] == 0 &
-                             feat_summ[, "perc"] > 100/3]
-rms <- rowMeans(fmat[feats, ], na.rm = TRUE)
-feats_low <- sample(feats[rms < 10000], 10)
-feats_int <- sample(feats[rms > 10000 & rms < 20000], 10)
-feats_high <- sample(feats[rms > 20000], 10)
-
-```
-
-```{r neg-single-peak-features-plot, echo = FALSE, message = FALSE, warning = FALSE}
-#' Plot the data for a feature. This includes the identified chromatographic
-#' peaks per sample (only of that feature) and the correspondence results.
-plot_feature <- function(x, feature) {
-    ft <- featureDefinitions(x)[feature, ]
-    pks <- chromPeaks(x)[unlist(ft$peakidx), , drop = FALSE]
-    ## mzr <- range(pks[, c("mzmin", "mzmax")])
-    mzr <- c(ft$mzmin[1], ft$mzmax[1])
-    rtr <- range(pks[, c("rtmin", "rtmax")])
-    chr <- chromatogram(x, mz = mzr, rt = rtr)
-    pk_col <- rep("#000000", nrow(chromPeaks(chr)))
-    names(pk_col) <- rownames(chromPeaks(chr))
-    pk_col[rownames(pks)] <- brewer.pal(3, "Set1")[2]
-    plotChromPeakDensity(chr, peakBg = paste0(pk_col, 10), peakPch = 16,
-                         peakCol = paste0(pk_col, 40), simulate = FALSE)
-}
-
-##feats_sel <- unique(c(feats_sel, "FT01984"))
-dr <- paste0(IMAGE_PATH, "single_peak_fts/")
-dir.create(dr, showWarnings = FALSE)
-
-for (feat in feats_low) {
-    fn <- paste0(dr, "low-", feat, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, feat)
-    dev.off()
-}
-for (feat in feats_int) {
-    fn <- paste0(dr, "int-", feat, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, feat)
-    dev.off()
-}
-for (feat in feats_high) {
-    fn <- paste0(dr, "high-", feat, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, feat)
-    dev.off()
-}
-
-```
-
-The chromatograms for most of these peaks look OK, especially for the high
-intensity group. Potentially problematic could be the occasional very broad
-chromatographic peaks in some samples for low and intermediate abundance
-features.
-
-### Features having occasionally additional peaks
-
-These are features that have an additional peak in less than 10% of
-samples. Again we require the features to have a peak in more then 30% of
-samples and select 10 random features for low, intermediate and high
-intensities.
-
-```{r neg-occasional-multi-features, message = FALSE}
-## Selecting features with occacional multiple peaks
-## being present. A peak has to be present also in more than 33% of samples.
-feats <- rownames(feat_summ)[feat_summ[, "multi_count"] > 0 &
-                             feat_summ[, "multi_perc"] < 10 &
-                             feat_summ[, "perc"] > 100/3]
-rms <- rowMeans(fmat[feats, ], na.rm = TRUE)
-feats_low <- sample(feats[rms < 10000], 10)
-feats_int <- sample(feats[rms > 10000 & rms < 20000], 10)
-feats_high <- sample(feats[rms > 20000], 10)
-
-```
-
-```{r neg-occasional-multi-features-plot, echo = FALSE, message = FALSE, warning = FALSE}
-dr <- paste0(IMAGE_PATH, "occasional_multi_peak_fts/")
-dir.create(dr, showWarnings = FALSE)
-
-for (feat in feats_low) {
-    fn <- paste0(dr, "low-", feat, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, feat)
-    dev.off()
-}
-for (feat in feats_int) {
-    fn <- paste0(dr, "int-", feat, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, feat)
-    dev.off()
-}
-for (feat in feats_high) {
-    fn <- paste0(dr, "high-", feat, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, feat)
-    dev.off()
-}
-
-```
-
-Some of the features represent signal from isomers with multiple peaks, with
-some of the peaks being assigned to one feature. For others the peak shape shows
-plateu which represents most likely to the identified peak being split into two.
-Examples for isomers with separate features, for which some peaks overlap
-however the other feature are shown below.
-
-```{r manual-isomers, echo = FALSE, message = FALSE, warning = FALSE, fig.width = 12, fig.height = 10, fig.cap = "Examples of isomers for which chromatographic peaks overlap both features."}
-par(mfrow = c(2, 1), mar = c(4, 4.5, 1, 1))
-chrs <- chromatogram(data_neg, mz = c(356.836, 356.864), rt = c(148, 163))
-pk_col <- rep("#000000", nrow(chromPeaks(chrs)))
-for (i in 1:nrow(featureDefinitions(chrs))) {
-    pk_col[featureDefinitions(chrs)$peakidx[[i]]] <- brewer.pal(9, "Set1")[i]
-}
-plot(chrs, peakCol = paste0(pk_col, 80), peakBg = paste0(pk_col, 10))
-
-chrs <- chromatogram(data_neg, mz = c(179.056, 179.058), rt = c(160, 170))
-pk_col <- rep("#000000", nrow(chromPeaks(chrs)))
-for (i in 1:nrow(featureDefinitions(chrs))) {
-    pk_col[featureDefinitions(chrs)$peakidx[[i]]] <- brewer.pal(9, "Set1")[i]
-}
-plot(chrs, peakCol = paste0(pk_col, 80), peakBg = paste0(pk_col, 10))
-
-
-```
-
-Note however that there is not much we can do to avoid the above
-cases. Eventually we might want to *fuse* such features into a single feature.
-
-
-### Features with many peaks per sample
-
-Here we want to characterize features that have more than one chromatographic
-peak assigned in more than 50% of samples.
-
-```{r neg-multi50-features, message = FALSE}
-## Selecting features with multiple peaks
-## being present. A peak has to be present also in more than 33% of samples.
-feats <- rownames(feat_summ)[feat_summ[, "multi_perc"] > 50 &
-                             feat_summ[, "perc"] > 100/3]
-
-```
-
-```{r neg-multi50-features-plot, echo = FALSE, message = FALSE, warning = FALSE}
-dr <- paste0(IMAGE_PATH, "multi_50_peak_fts/")
-dir.create(dr, showWarnings = FALSE)
-
-for (feat in feats) {
-    fn <- paste0(dr, feat, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, feat)
-    dev.off()
-}
-
-```
-
-Some of these features combine peaks from isomers for which correspondence
-failed to separate them into different features while most combine signal from
-presumably background ions.
-
-
-### Features with different number of peaks depending on the source
-
-In this section we identify features that have multiple peaks in one sample
-group but only single peaks in other groups. For each feature we require to have
-peaks in at least 50% of samples. For multi-peaks we require a feature to have
-multiple peaks in at least 75% of the samples (in which a peak was detected),
-and for single peaks to have less than 5% of samples with an additional peak.
-
-```{r multi-single-define, echo = FALSE, results = "asis", warning = FALSE, message = FALSE}
-srcs <- unique(data_neg$source)
-srcs <- srcs[srcs != "all"]
-mlts <- do.call(cbind, lapply(srcs, function(src) {
-    feat_summ[, paste0(src, "_perc")] > 50 &
-        feat_summ[, paste0(src, "_multi_perc")] > 75
-}))
-colnames(mlts) <- srcs
-
-sngls <- do.call(cbind, lapply(srcs, function(src) {
-    feat_summ[, paste0(src, "_perc")] > 50 &
-        feat_summ[, paste0(src, "_multi_perc")] < 5
-}))
-colnames(sngls) <- srcs
-
-sngls_mlt <- sngls[rowSums(mlts) > 0, ]
-fts_sel <- rownames(sngls_mlt)[rowSums(sngls_mlt) > 0]
-
-tab <- feat_summ[fts_sel, paste0(rep(srcs, each = 2),
-                                 c("_perc", "_multi_perc"))]
-pandoc.table(tab, style = "rmarkdown", 
-             caption = paste("Features with single peaks for some sources and",
-                             "multiple peaks for others. Shown are percentages",
-                             "of samples per source in which peak(s) were",
-                             "found and percentage among those in which",
-                             "multiple peaks were present."))
-
-```
-
-```{r multi-single-plot, echo = FALSE, results = "silent", message = FALSE, warning = FALSE}
-dr <- paste0(IMAGE_PATH, "source-dependent-multi-peaks/")
-dir.create(dr, showWarnings = FALSE)
-
-for (feat in rownames(tab)) {
-    fn <- paste0(dr, feat, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, feat)
-    dev.off()
-}
-
-```
-
-### Features close on m/z and with partially overlapping chromatographic peaks
-
-At last we evaluate features that are overlapping on m/z and retention time with
-or without extending their region. If only the feature boundaries are
-considered, overlapping features will necessarily share one or more peaks with
-each other. Below we identify overlapping features, but also features that are
-close on retention time, m/z or both dimensions.
-
-```{r overlapping-features, message = FALSE, warning = FALSE}
-ovlap_fts <- overlappingFeatures(data_neg)
-ovlap_fts_rt <- overlappingFeatures(data_neg, expandRt = 2) # isomers?
-ovlap_fts_mz <- overlappingFeatures(data_neg, ppm = 40)
-ovlap_fts_rt_mz <- overlappingFeatures(data_neg, ppm = 40, expandRt = 2)
-
-```
-
-```{r overlapping-features-table, message = FALSE, echo = FALSE, results = "asis"}
-tab <- rbind(overlapping = length(ovlap_fts),
-             overlapping_within_4seconds = length(ovlap_fts_rt),
-             overlapping_50ppm = length(ovlap_fts_mz),
-             overlapping_4seconds_100ppm = length(ovlap_fts_rt_mz))
-pandoc.table(tab, style = "rmarkdown",
-             caption = paste("Summary of overlapping or close features.",
-                             "Listed are the total number of overlapping",
-                             "features, features that are within 4 seconds to",
-                             "each other, features that are overlapping if the",
-                             "m/z width is extended by 100 ppm and features",
-                             "overlapping if both their retention time range",
-                             "and m/z width is extended."))
-```
-
-While no features are directly overlapping, quite some are very close in
-retention time and/or m/z dimension. The largest part of the feature groups
-that are close on retention time consists of only two features. There are
-however some groups that consist of more than 5 features.
-
-```{r feature-groups-close-rt, message = FALSE, echo = FALSE, warning = FALSE}
-ft_grps <- ovlap_fts_rt[lengths(ovlap_fts_rt) > 5]
-
-dr <- paste0(IMAGE_PATH, "overlapping_close_rt/")
-dir.create(dr, showWarnings = FALSE)
-
-for (i in seq_along(ft_grps)) {
-    fn <- paste0(dr, "feature-group-", i, ".png")
-    png(fn, width = 10, height = 8, units = "cm", res = 200, pointsize = 6)
-    plot_feature(data_neg, ft_grps[[i]])
-    dev.off()
-}
-
-```
-
-
-```{r feature-groups-close-ppm, echo = FALSE, results = "hide", message = FALSE, warning = FALSE}
-## Randomly choosing among features that are less than 50 ppm apart.
-set.seed(123)
-
-fts_grps <- ovlap_fts_mz[sample(seq_along(ovlap_fts_mz), 20)]
-
-dr <- paste0(IMAGE_PATH, "overlapping_close_mz/")
-dir.create(dr, showWarnings = FALSE)
-data_qc <- filterFile(dropChromPeaks(data_neg),
-                      file = which(data_neg$source == "all"))
-for (i in seq_along(fts_grps)) {
-    fn <- paste0(dr, "feature-group-", i, ".png")
-    png(fn, width = 20, height = 16, units = "cm", res = 200, pointsize = 6)
-    fts_def <- featureDefinitions(data_neg)[fts_grps[[i]], ]
-    pks <- chromPeaks(data_neg)[unlist(fts_def$peakidx), ]
-    tmp <- filterMz(filterRt(data_qc, range(pks[, c("rtmin", "rtmax")])),
-                    mz = range(pks[, c("mzmin", "mzmax")]))
-    plot(tmp, type = "XIC", cex = 1)
-    dev.off()
-}
-
-```
-
-
 ```{r save-data, echo = FALSE, results = "hide"}
 save(data_neg, file = paste0(RDATA_PATH, "data_neg.RData"))
 
 ```
 
 ### Summary
+
+# Session information
+
+```{r}
+sessionInfo()
+```
 
 # References
