@@ -54,7 +54,7 @@ if (!file.exists(MZML_PATH))
 rt_cut <- 340
 
 #' Get the number of cpus allocated or fall back to 3 
-ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 5))
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 2))
 
 #' Whether or not to plot the EICs for all standards - takes loooong time
 plot_eics <- FALSE
@@ -152,6 +152,7 @@ save(data_pos, file = paste0(RDATA_PATH, "data_pos_read_raws.RData"))
 
 ```{r, echo = FALSE}
 load(paste0(RDATA_PATH, "data_pos_read_raws.RData"))
+sample_colors <- col_source[as.character(data_pos$source)]
 ```
 
 All samples of the experiment are listed below.
@@ -209,6 +210,8 @@ window.
 
 ```{r pos-calc-tic, message = FALSE, eval = !file.exists(paste0(RDATA_PATH, "chrs_bpc_raw.RData"))}
 #chrs_tic <- chromatogram(data_pos, aggregationFun = "sum")
+gc()
+register(SerialParam())
 chrs_bpc <- chromatogram(data_pos, aggregationFun = "max")
 save(chrs_bpc, file = paste0(RDATA_PATH, "chrs_bpc_raw.RData"))
 ```
