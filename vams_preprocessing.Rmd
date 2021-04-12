@@ -210,6 +210,8 @@ window.
 
 ```{r pos-calc-tic, message = FALSE, eval = !file.exists(paste0(RDATA_PATH, "chrs_bpc_raw.RData"))}
 #chrs_tic <- chromatogram(data_pos, aggregationFun = "sum")
+gc()
+register(SerialParam())
 chrs_bpc <- chromatogram(data_pos, aggregationFun = "max")
 save(chrs_bpc, file = paste0(RDATA_PATH, "chrs_bpc_raw.RData"))
 ```
