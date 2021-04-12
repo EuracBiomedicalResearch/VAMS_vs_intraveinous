@@ -54,10 +54,10 @@ if (!file.exists(MZML_PATH))
 rt_cut <- 340
 
 #' Get the number of cpus allocated or fall back to 3 
-ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 2))
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
 
 #' Whether or not to plot the EICs for all standards - takes loooong time
-plot_eics <- FALSE
+plot_eics <- TRUE
 
 ```
 
@@ -643,7 +643,7 @@ std_info <- read.table("data/std_info_3_checked.txt", sep = "\t", as.is = TRUE,
 std_info$mz_ion <- as.numeric(std_info$mz_ion)
 std_info <- std_info[std_info$is_ok, ]
 std_info_mz_rt <- chromPeakArea(data_pos, mz = std_info$mz_ion,
-                                rt = std_info$RT_obs, diffRt = 0, ppm = 50,
+                                rt = std_info$RT_obs, diffRt = 1, ppm = 10,
                                 type = "any")
 std_info <- std_info[!is.na(std_info_mz_rt[, "mzmin"]), ]
 std_info_mz_rt <- std_info_mz_rt[!is.na(std_info_mz_rt[, "mzmin"]), ]
@@ -653,8 +653,8 @@ std_info_mz_rt <- std_info_mz_rt[!is.na(std_info_mz_rt[, "mzmin"]), ]
 ```{r pos-centWace-eics-refined, echo = FALSE, eval = plot_eics, warning = FALSE, message = FALSE}
 #' Extract the ion chromatogram for each standard
 rtr <- std_info_mz_rt[, c("rtmin", "rtmax")]
-rtr[, 1] <- rtr[, 1] - 10
-rtr[, 2] <- rtr[, 2] + 10
+rtr[, 1] <- rtr[, 1] - 5
+rtr[, 2] <- rtr[, 2] + 5
 std_info_chr <- chromatogram(
     data_pos, mz = std_info_mz_rt[, c("mzmin", "mzmax")],
     rt = rtr, aggregationFun = "max")
@@ -662,7 +662,7 @@ std_info_chr <- chromatogram(
 dr <- paste0(IMAGE_PATH, "peakdetection-standards/")
 dir.create(dr, recursive = TRUE, showWarnings = FALSE)
 sample_colors <- col_source[data_pos$source]
-for (i in 1:nrow(std_info)) {
+for (i in seq_len(nrow(std_info))) {
     cmpname <- std_info$name[i]
     filename <- paste0(dr, gsub("%", "p", cmpname, fixed = TRUE),
                        "_POS.png")
@@ -822,7 +822,7 @@ write.table(std_info_pks, file = "data/std_info_summary_id_peaks.txt", row.names
 Next we evaluate the numbers of detected peaks, m/z and retention time widths of
 the peaks and the distribution of integrated peak signals in all samples.
 
-```{r pos-peaks-summary-plot, warning = FALSE, message = FALSE, fig.cap = "Summaries of identified chromatographic peaks. Shown are the number of detected peaks, their m/z widths and their integrated signal in each measured sample.", fig.width = 12, fig.height = 10}
+```{r pos-peaks-summary-plot, warning = FALSE, message = FALSE, fig.cap = "Summaries of identified chromatographic peaks. Shown are the number of detected peaks, their m/z widths and their integrated signal in each measured sample.", fig.width = 12, fig.height = 10, fig.path = IMAGE_PATH}
 #' Split the peaks per sample.
 pk_list <- split.data.frame(chromPeaks(data_pos),
                             chromPeaks(data_pos)[, "sample"])
@@ -950,7 +950,7 @@ an adjustment of non-subset samples based on how much the retention time of the
 previous and following subset samples is shifted.
 
 
-```{r pos-mz-distance-peaks-plot, message = FALSE, warning = FALSE, fig.cap = "Position of detected chromatographic peaks within a sample. Shown are chromatographic peaks in a region with high peak density. The horizontal blue line represents the bin width if binSize = 0.02 was used."}
+```{r pos-mz-distance-peaks-plot, message = FALSE, warning = FALSE, fig.cap = "Position of detected chromatographic peaks within a sample. Shown are chromatographic peaks in a region with high peak density. The horizontal blue line represents the bin width if binSize = 0.02 was used.", fig.path = IMAGE_PATH}
 plotChromPeaks(filterMz(data_pos, mz = c(756, 758)), 1)
 abline(h = c(757, 757.01), col = "#0000ff80")
 ```
@@ -963,7 +963,7 @@ dimensional MS data map with the `plotChromPeaks` function. In general, the `bw`
 parameter should be defined in a way that allows separation of peaks that
 represent signal from different compounds.
 
-```{r pos-bw-definition-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result on a m/z slice containing the Fructose and Mannose peaks. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks in that slice along the retention time axis (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
+```{r pos-bw-definition-plot, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result on a m/z slice containing the Fructose and Mannose peaks. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks in that slice along the retention time axis (y-axis lists samples). The black line shows the density distribution for a bw = 1.3, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8, fig.path = IMAGE_PATH}
 plot_grouping <- function(x, mz, rt, param, col = "#00000080",
                           peak_type = "point", lwd = 1, ...) {
     if (missing(rt))
@@ -1010,7 +1010,7 @@ plot_grouping(data_pos, mz = mzr, rt = rtr, param = pdp_tmp,
 In addition we evaluate the bandwidth setting on the peaks for 1-Methylhistidine
 and 3-Methylhistidine.
 
-```{r pos-bw-definition-plot-3, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result for Methylhistidine. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks for 1-Methylhistidine and 3-Methylhistidine (y-axis lists samples). The black line shows the density distribution for a bw = 2, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8}
+```{r pos-bw-definition-plot-3, echo = FALSE, message = FALSE, warning = FALSE, fig.cap = "Simulated peak grouing result for Methylhistidine. The upper panel shows the chromatogram for the MS data slice, the lower the position of the chromatographic peaks for 1-Methylhistidine and 3-Methylhistidine (y-axis lists samples). The black line shows the density distribution for a bw = 2, the grey rectangles indicate the peaks that are grouped to a feature.", fig.width = 12, fig.height = 8, fig.path = IMAGE_PATH}
 mzr <- std_info[std_info$HMDB.code == "HMDB0000001", "mz_ion"] + c(0.002, -0.002)
 rtr <- c(170, 210)
 plot_grouping(data_pos, rt = rtr, mz = mzr, param = pdp_tmp,
@@ -1062,7 +1062,7 @@ slightly more overlapping after alignment. Also, adjustment of retention time is
 smaller 5 seconds for most of the signal, which is what we would expect from
 such a small experiment consisting of only two measurement runs.
 
-```{r pos-alignment-rtime-plot, message = FALSE, warning = FALSE, echo = FALSE, fig.width = 12, fig.height = 10, fig.cap = "Alignment result. Shown are the raw base peak chromatogram, the base peak chromatogram after alignment and the difference between the adjusted and raw retention time. Grey dots indicate hook peaks on which the alignment based."}
+```{r pos-alignment-rtime-plot, message = FALSE, warning = FALSE, echo = FALSE, fig.width = 12, fig.height = 10, fig.cap = "Alignment result. Shown are the raw base peak chromatogram, the base peak chromatogram after alignment and the difference between the adjusted and raw retention time. Grey dots indicate hook peaks on which the alignment based.", fig.path = IMAGE_PATH}
 chr_raw <- chromatogram(data_pos, aggregationFun = "max", adjustedRtime = FALSE)
 chr_adj <- chromatogram(data_pos, aggregationFun = "max")
 par(mfrow = c(3, 1), mar = c(0, 4.3, 2, 0.1))
@@ -1083,10 +1083,10 @@ the impact of the alignment. The plots for some representative compounds are sho
 #' For each standard, reduce to the peak with the highest intensity within
 #' the observed rt +/- 7 seconds.
 std_info_mz_rt_obs <- chromPeakArea(data_pos, mz = std_info$mz_ion,
-                                    rt = std_info$RT_obs, diffRt = 2, ppm = 50,
-                                    type = "any")
-rtr <- cbind(std_info_mz_rt_obs[, "rtmin"] - 7,
-             std_info_mz_rt_obs[, "rtmax"] + 7)
+                                    rt = std_info$RT_obs, diffRt = 1,
+                                    ppm = 10, type = "any")
+rtr <- cbind(std_info_mz_rt_obs[, "rtmin"] - 5,
+             std_info_mz_rt_obs[, "rtmax"] + 5)
 
 std_info_chr <- chromatogram(
     data_pos, mz = std_info_mz_rt_obs[, c("mzmin", "mzmax")],
@@ -1137,12 +1137,12 @@ allow definition of features that are present in fewer individuals.
 pdp <- PeakDensityParam(sampleGroups = data_pos$source,
                         minFraction = 1/3,
                         minSamples = 3,
-                        binSize = 0.01,
-                        bw = 2)
+                        binSize = 0.015,
+                        bw = 2.3)
 data_pos <- groupChromPeaks(data_pos, param = pdp)
 ```
 
-```{r pos-correspondence-kc-plots, echo = FALSE, warning = FALSE, message = FALSE, eval = plot_eics}
+```{r pos-correspondence-kc-plots, echo = FALSE, warning = FALSE, eval = plot_eics, message = FALSE}
 std_info_chr <- chromatogram(
     data_pos, mz = std_info_mz_rt_obs[, c("mzmin", "mzmax")],
     rt = rtr, aggregationFun = "max")
@@ -1322,7 +1322,7 @@ pandoc.table(tab, style = "rmarkdown",
 The plot below shows the distribution of log2 ratios in abundances and their
 dependency on average abundance.
 
-```{r feature-vals-diff-plot, echo = FALSE, fig.cap = "Distribution of log2 ratios in abundances between QC samples and their dependency on their average abundance.", fig.widht = 10, fig.height = 5}
+```{r feature-vals-diff-plot, echo = FALSE, fig.cap = "Distribution of log2 ratios in abundances between QC samples and their dependency on their average abundance.", fig.widht = 10, fig.height = 5, fig.path = IMAGE_PATH}
 par(mfrow = c(1, 2), mar = c(4, 4.5, 1, 1))
 boxplot(QC_diffs, ylab = expression(log[2]~abundance~ratio))
 grid(nx = NA, ny = NULL)
@@ -1338,5 +1338,11 @@ save(data_pos, file = paste0(RDATA_PATH, "data_pos.RData"))
 ```
 
 ### Summary
+
+# Session information
+
+```{r}
+sessionInfo()
+```
 
 # References
