@@ -152,6 +152,7 @@ save(data_pos, file = paste0(RDATA_PATH, "data_pos_read_raws.RData"))
 
 ```{r, echo = FALSE}
 load(paste0(RDATA_PATH, "data_pos_read_raws.RData"))
+sample_colors <- col_source[as.character(data_pos$source)]
 ```
 
 All samples of the experiment are listed below.
