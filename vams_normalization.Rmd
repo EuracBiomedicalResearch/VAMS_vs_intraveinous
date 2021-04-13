@@ -221,7 +221,7 @@ filled-in peaks. This information is added to `res_pos` as the `raw_filled`
 assay: this will be later used to retrieve filled-in data only. It is important
 to remember that even after gap filling, a signal can still be missing.
 
-```{r fill-in, message = FALSE, warning = FALSE}
+```{r fill-in, message = FALSE, warning = FALSE, eval = !file.exists(paste0(RDATA_PATH, "data_pos_filled.RData"))}
 ## Fill-in missing values
 data_pos <- fillChromPeaks(data_pos, param = ChromPeakAreaParam())
 save(data_pos, file = paste0(RDATA_PATH, "data_pos_filled.RData"))
