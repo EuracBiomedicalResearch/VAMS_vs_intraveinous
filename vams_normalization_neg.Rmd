@@ -26,7 +26,7 @@ BiocStyle::markdown()
 ```{r settings, echo = FALSE, results = "hide", message = FALSE}
 ##' Set general options
 options(useFancyQuotes = FALSE)
-set.seed(18011977)
+set.seed(123)
 
 ##' Define paths:
 filename <- "vams_normalization_neg"
