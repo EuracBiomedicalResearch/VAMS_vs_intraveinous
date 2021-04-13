@@ -966,7 +966,7 @@ to the sample pool differs between the two batches. It would be highly
 problematic to adjust such features based on the sample pools because artificial
 variance would be introduced. An example for such a case is given below.
 
-```{r between-batch-problematic-pool, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Feature for which abundances in pooled samples relative to study samples differ between the batches"}
+```{r between-batch-problematic-pool, echo = FALSE, fig.path = IMAGE_PATH, fig.cap = "Feature for which abundances in pooled samples relative to study samples differ between the batches", fig.width = 10, fig.height = 5}
 plot(x = seq_len(ncol(res_pos)),
      y = log2(assay(res_pos, "within_filled")["FT2372", ]),
      pch = ifelse(is.na(assay(res_pos, "raw")["FT2372", ]),
