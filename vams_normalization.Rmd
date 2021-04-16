@@ -44,6 +44,7 @@ if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
 MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
+MZML_PATH <- "/data/massspec/mzML/"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -935,6 +936,7 @@ assays(res_pos)$within_nofill <- 2^tmp
 rm(tmp)
 ```
 
+
 # Between-batch normalization
 
 As a last step we perform a per-feature between-batch normalization. This
@@ -1019,7 +1021,6 @@ coefs <- coefs_a - coefs_b
 ## Flagging models for which the sample-matrix relative difference to the pool
 ## differs between batches
 flags_relative_diff <- which(rowSums(abs(coefs) > 1, na.rm = TRUE) >= 2)
-mdls_batch[flags_relative_diff] <- NA
 ```
 
 The table below lists the number of valid model fits.
@@ -1047,59 +1048,26 @@ slps_batch <- vapply(mdls_batch, function(z) {
 We now have a look at the distribution of the slopes:
 
 ```{r between-norm-slope-dist, fig.path = IMAGE_PATH, fig.height = 5, fig.width = 5 * phi, fig.cap = "Distribution of slopes.", message = FALSE, echo = FALSE}
-tmp_pool <- res_pos[, res_pos$sample == "POOL"]
-mdls_batch <- xcms:::rowFitModel(y ~ inj_idx,
-                                 data = as.data.frame(colData(tmp_pool)),
-                                 y = log2(assay(tmp_pool, "within_nofill")),
-                                 method = "lm", minVals = 10)
-
-flgs_inj_range <- vapply(mdls_batch, flag_model_inj_range, logical(1),
-                         min_range = diff(range(res_pos$inj_idx)) * req_prop)
 
 ## Plot the distribution of slopes.
 par(mar = c(4, 4.5, 1, 0.5))
 hist(slps_batch, breaks = 128, xlab = "slope", main = "Distribution of slopes")
-if (any(flgs_inj_range_a, na.rm = TRUE))
-    hist(slps_batch[which(flgs_inj_range)], breaks = 128, add = TRUE,
-         col = "#0000ff80")
+if (length(flags_relative_diff))
+    hist(slps_batch[flags_relative_diff], breaks = 128, add = TRUE,
+         col = "#0000ff40")
 abline(v = 0)
 
-## Split into excluded and good mdls
-mdls_inj_range_a <- mdls_batch[which(flgs_inj_range)]
-
-## Remove model fits for the flagged friends.
-mdls_batch[unique(which(flgs_inj_range))] <- NA
-slps_batch[unique(which(flgs_inj_range))] <- NA
-
-
+mdls_batch[flags_relative_diff] <- NA
+slps_batch[flags_relative_diff] <- NA
 ```
 
 
 ```{r features-large-slopes-plots between-batch-normalisation, echo = FALSE, message = FALSE, warning = FALSE}
 dr <- paste0(IMAGE_PATH, "largest_slopes_bbn/")
 dir.create(dr, showWarnings = FALSE)
-fts <- names(mdls_batch)[which(abs(slps_batch) > 0.025)][1:20]
-plot_feature <- function(x, y, model, ...) {
-  plot(x, y, ...)
-  if (length(model) > 1)
-    abline(model)
-  grid()
-}
-plot_slopes <- function() {
-  for (ft in fts) {
-    png(paste0(dr, ft, ".png"), width = 10, height = 5, pointsize = 4,
-        res = 200, units = "cm")
-    plot_feature(x = res_pos$inj_idx,
-                 y = log2(assay(res_pos, "within_filled")[ft, ]),
-                 model = mdls_batch[[ft]],
-                 pch = ifelse(is.na(assay(res_pos, "raw")[ft, ]),
-                              yes = 1, no = 16),
-                 col = col_source[as.character(res_pos$source)], main = ft,
-                 xaxt = "n", xlab = "", ylab = expression(log[2]~abundance))
-    dev.off()
-  }
-}
-plot_slopes()
+fts <- names(sort(abs(slps_batch), decreasing = TRUE))[1:20]
+
+plot_slopes(res_pos, mdls_batch, assay = "within_filled")
 
 ```
 
@@ -1153,10 +1121,72 @@ RSD) which allows to estimate the variance of a feature's signal across
 replicated measurements (across sample pools are for internal standards across
 all samples). To evaluate differences between replicated samples we use the
 Pearson's correlation coefficient and the 90% quantile of (log2) abundance
-differences.
+differences. Prior to the evaluation of the normalization performance we inspect
+also the clustering of samples (and QCs) before and after normalization using
+principal component analysis (PCA).
+
+```{r PCA-raw-normalized, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 12, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches."}
+## Perform data imputation for PCA
+assays(res_pos)$normalized_filled_imputed <-
+                  imputeRowMinRand(assay(res_pos, "normalized_filled"),
+                                   method = "from_to")
+assays(res_pos)$raw_filled_imputed <-
+                  imputeRowMinRand(assay(res_pos, "raw_filled"),
+                                   method = "from_to")
+
+pc_raw <- prcomp(t(log2(assay(res_pos, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm <- prcomp(t(log2(assay(res_pos, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_pos))
+pch[res_pos$batch == "01022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw, bg = paste0(col_source[as.character(res_pos$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw, bg = paste0(col_source[as.character(data_pos$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm, bg = paste0(col_source[as.character(res_pos$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm, bg = paste0(col_source[as.character(data_pos$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+```{r PCA-raw-normalized-IS, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 12, fig.cap = "PCA of raw and normalized feature abundances for internal standards. Circles and rectangles indicate sample different batches."}
+pc_raw <- prcomp(
+    t(log2(assay(res_pos, "raw_filled_imputed")[is_std$feature_id, ])),
+    scale = FALSE, center = TRUE)
+pc_norm <- prcomp(
+    t(log2(assay(res_pos, "normalized_filled_imputed")[is_std$feature_id, ])),
+    scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_pos))
+pch[res_pos$batch == "01022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw, bg = paste0(col_source[as.character(res_pos$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data IS", pch = pch, col = "#00000080")
+legend("bottomleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw, bg = paste0(col_source[as.character(data_pos$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data IS", pch = pch, col = "#00000080")
+plot_pca(pc_norm, bg = paste0(col_source[as.character(res_pos$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data IS",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm, bg = paste0(col_source[as.character(data_pos$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data IS",
+         pch = pch, col = "#00000080")
+
+```
+
+- TODO: discuss these in the next team meeting (get feedback from Nikola?)
 
 
-```{r boxplot-after-within-normalization, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Comparison between abundances (log2) of raw data, median-scaled data and normalized data.", message = FALSE, echo = FALSE}
+```{r boxplot-after-within-normalization, fig.path = IMAGE_PATH, fig.height = 10, fig.width = 8, fig.cap = "Comparison between abundances (log2) of raw data, median-scaled data and normalized data.", message = FALSE, echo = FALSE}
 ##Raw data
 par(mfrow = c(4, 1), mar = c(0.2, 4.5, 4.5, 0.5))
 cols <- col_source[as.character(res_pos$source)]
@@ -1195,7 +1225,7 @@ linear fitting.
 Next, we plot the same boxplots calculated only on the *good* internal
 standards:
 
-```{r boxplot-after-within-norm-good-is, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Comparison between abundances (log2) of raw data, median-scaled data and normalized data of Internal Standards.", message = FALSE, echo = FALSE}
+```{r boxplot-after-within-norm-good-is, fig.path = IMAGE_PATH, fig.height = 10, fig.width = 8, fig.cap = "Comparison between abundances (log2) of raw data, median-scaled data and normalized data of Internal Standards.", message = FALSE, echo = FALSE}
 ##Raw data
 par(mfrow = c(4, 1), mar = c(0.2, 4.5, 4.5, 0.5))
 cols <- col_source[as.character(res_pos$source)]
@@ -1234,7 +1264,7 @@ data normalization (with the exception of two blood cell samples). Normalization
 Next, we plot the RLA of the whole dataset and of the internal standards to
 confirm the current hypotheses:
 
-```{r rla-after-between-normalization, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "RLA of raw data, median-scaled data and normalized data.", message = FALSE, echo = FALSE}
+```{r rla-after-between-normalization, fig.path = IMAGE_PATH, fig.height = 10, fig.width = 8, fig.cap = "RLA of raw data, median-scaled data and normalized data.", message = FALSE, echo = FALSE}
 ## Raw data
 par(mfrow = c(4, 1), mar = c(0.2, 4.5, 4.5, 0.5))
 boxplot(xcms::rowRla(assay(res_pos, "raw_filled"), group = res_pos$sample),
@@ -1270,7 +1300,7 @@ grid(nx = NA, ny = NULL)
 
 
 
-```{r rla-after-within-normalization-is, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Final RLA showing a comparison between raw data and normalized data of Internal Standards.", message = FALSE, echo = FALSE, warning = FALSE}
+```{r rla-after-within-normalization-is, fig.path = IMAGE_PATH, fig.height = 10, fig.width = 8, fig.cap = "Final RLA showing a comparison between raw data and normalized data of Internal Standards.", message = FALSE, echo = FALSE, warning = FALSE}
 ## Raw data
 par(mfrow = c(4, 1), mar = c(1, 4.5, 4.5, 0.5))
 tmp <- assay(res_pos, "raw_filled")
@@ -1372,25 +1402,6 @@ rsd_adj_is_sts <- rowRsd(tmp_is[, res_pos$sample != "POOL"])
 tmp_is <- assay(res_pos, "normalized_filled")[is_std$feature_id, ]
 rsd_bbn_is_sts <- rowRsd(tmp_is[, res_pos$sample != "POOL"])
 
-## Calculate RSD on problematic internal standards in POOL signals
-tmp_is <- assay(res_pos, "raw_filled")[is_std_prob$feature_id, ]
-rsd_raw_is_prob <- rowRsd(tmp_is[, res_pos$sample == "POOL"])
-tmp_is <- assay(res_pos, "median_filled")[is_std_prob$feature_id, ]
-rsd_scl_is_prob <- rowRsd(tmp_is[, res_pos$sample == "POOL"])
-tmp_is <- assay(res_pos, "within_filled")[is_std_prob$feature_id, ]
-rsd_adj_is_prob <- rowRsd(tmp_is[, res_pos$sample == "POOL"])
-tmp_is <- assay(res_pos, "normalized_filled")[is_std_prob$feature_id, ]
-rsd_bbn_is_prob <- rowRsd(tmp_is[, res_pos$sample == "POOL"])
-
-## Calculate RSD on internal standards in study samples
-tmp_is <- assay(res_pos, "raw_filled")[is_std_prob$feature_id, ]
-rsd_raw_is_prob_sts <- rowRsd(tmp_is[, res_pos$sample != "POOL"])
-tmp_is <- assay(res_pos, "median_filled")[is_std_prob$feature_id, ]
-rsd_scl_is_prob_sts <- rowRsd(tmp_is[, res_pos$sample != "POOL"])
-tmp_is <- assay(res_pos, "within_filled")[is_std_prob$feature_id, ]
-rsd_adj_is_prob_sts <- rowRsd(tmp_is[, res_pos$sample != "POOL"])
-tmp_is <- assay(res_pos, "normalized_filled")[is_std_prob$feature_id, ]
-rsd_bbn_is_prob_sts <- rowRsd(tmp_is[, res_pos$sample != "POOL"])
 ```
 
 ```{r norm-rsd-plot, fig.path = IMAGE_PATH, message = FALSE, echo = FALSE, fig.height = 7, fig.width = 7 * phi, fig.cap = "Coefficient Of Variation (RSD)."}
@@ -1433,23 +1444,23 @@ abline(h = 0.3)
 The table below lists the results.
 
 ```{r final-qa-rsd-table, message = FALSE, echo = FALSE, results = "asis", warning = FALSE}
-T <- rbind(`mean RSD` = c(raw = mean(rsd_raw, na.rm = TRUE),
-                          scaled = mean(rsd_scl, na.rm = TRUE),
-                          `within-batch` = mean(rsd_adj, na.rm = TRUE),
-                          `between-batch` = mean(rsd_bbn, na.rm = TRUE),
-                          `raw detected` = mean(rsd_raw_det, na.rm = TRUE),
-                          `scaled detected` = mean(rsd_scl_det, na.rm = TRUE),
-                          `within-batch detected` = mean(rsd_adj_det,
+T <- rbind(`mean RSD` = c(`raw - QC samples` = mean(rsd_raw, na.rm = TRUE),
+                          `scaled - QC samples` = mean(rsd_scl, na.rm = TRUE),
+                          `within-batch - QC samples` = mean(rsd_adj, na.rm = TRUE),
+                          `between-batch - QC samples` = mean(rsd_bbn, na.rm = TRUE),
+                          `raw detected - QC samples` = mean(rsd_raw_det, na.rm = TRUE),
+                          `scaled detected - QC samples` = mean(rsd_scl_det, na.rm = TRUE),
+                          `within-batch detected - QC samples` = mean(rsd_adj_det,
                                                        na.rm = TRUE),
-                          `between-batch detected` = mean(rsd_bbn_det,
+                          `between-batch detected - QC samples` = mean(rsd_bbn_det,
                                                        na.rm = TRUE),
-                          `raw - study samples` = mean(rsd_raw_sts,
+                          `raw - Study samples` = mean(rsd_raw_sts,
                                                        na.rm = TRUE),
-                          `scaled - study samples` = mean(rsd_scl_sts,
+                          `scaled - Study samples` = mean(rsd_scl_sts,
                                                           na.rm = TRUE),
-                          `within-batch - study samples` = mean(rsd_adj_sts,
+                          `within-batch - Study samples` = mean(rsd_adj_sts,
                                                               na.rm = TRUE),
-                          `between-batch - study samples` = mean(rsd_bbn_sts,
+                          `between-batch - Study samples` = mean(rsd_bbn_sts,
                                                               na.rm = TRUE),
                           `raw IS` = mean(rsd_raw_is, na.rm = TRUE),
                           `scaled IS` = mean(rsd_scl_is, na.rm = TRUE),
