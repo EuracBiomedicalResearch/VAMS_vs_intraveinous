@@ -1125,7 +1125,7 @@ differences. Prior to the evaluation of the normalization performance we inspect
 also the clustering of samples (and QCs) before and after normalization using
 principal component analysis (PCA).
 
-```{r PCA-raw-normalized, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 12, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches."}
+```{r PCA-raw-normalized, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
 ## Perform data imputation for PCA
 assays(res_pos)$normalized_filled_imputed <-
                   imputeRowMinRand(assay(res_pos, "normalized_filled"),
@@ -1157,7 +1157,7 @@ plot_pca(pc_norm, bg = paste0(col_source[as.character(data_pos$source)], 80),
 
 ```
 
-```{r PCA-raw-normalized-IS, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 12, fig.cap = "PCA of raw and normalized feature abundances for internal standards. Circles and rectangles indicate sample different batches."}
+```{r PCA-raw-normalized-IS, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances for internal standards. Circles and rectangles indicate sample different batches.", echo = FALSE}
 pc_raw <- prcomp(
     t(log2(assay(res_pos, "raw_filled_imputed")[is_std$feature_id, ])),
     scale = FALSE, center = TRUE)
