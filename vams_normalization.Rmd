@@ -44,7 +44,6 @@ if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
 MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
-MZML_PATH <- "/data/massspec/mzML/"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -401,7 +400,7 @@ We also plot the Relative Log Abundance (RLA) values for the raw data and for
 data after gap filling; these will be later used to assess the efficiency of
 normalization.
 
-```{r r raw-rla-plot, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Relative Log Abundance (RLA) of raw data compared to the filled-in data.", echo = FALSE}
+```{r raw-rla-plot, fig.path = IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Relative Log Abundance (RLA) of raw data compared to the filled-in data.", echo = FALSE}
 ## RLA of raw data
 par(mfrow = c(2, 1), mar = c(0.2, 4.5, 4.5, 0.5))
 boxplot(xcms::rowRla(assay(res_pos, "raw"), group = res_pos$source),
