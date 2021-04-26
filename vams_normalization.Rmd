@@ -43,12 +43,13 @@ RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
+## MZML_PATH <- "/data/massspec/mzML/"
 MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
 ## Get the number of cpus allocated or fall back to 3 
-ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 4)) - 1L
 
 ```
 
@@ -577,9 +578,24 @@ which is thus used below.
 Below we calculate normalization factors based on the the median abundance per
 sample.
 
-```{r estimate-norm-factors, echo = TRUE, message = FALSE}
+```{r estimate-norm-factors, echo = FALSE, message = FALSE, eval = FALSE}
 ## Calculate median and scaling factors
 mdns <- apply(assay(res_pos, "raw_filled"), MARGIN = 2, median, na.rm = TRUE)
+nf_mdn <- mdns / median(mdns)
+```
+
+```{r norm-factors-top-200, echo = TRUE, message = FALSE, eval = TRUE}
+## Calculate normalization factors based on the top x features with highest
+## abundances per sample. Normalization will hence be independent of
+## gap-filling. Assumption is that the intensity of the top x highest
+## intensity features is comparable across samples (independently which
+## compound/metabolite these features might be).
+median_top_x <- function(x, top = 500) {
+    idx <- order(x, decreasing = TRUE)
+    median(x[idx][seq_len(top)], na.rm = TRUE)
+}
+mdns <- apply(assay(res_pos, "raw_filled"), MARGIN = 2,
+              median_top_x, top = 1000)
 nf_mdn <- mdns / median(mdns)
 ```
 
@@ -883,13 +899,15 @@ dir.create(dr, showWarnings = FALSE)
 plot_slopes(tmp_b, mdls_b)
 
 #' Features with very good R2
-fts <- names(sort(abs(adjr_a), decreasing = TRUE))[1:20]
+fts_a <- names(sort(abs(adjr_a), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_a/")
 dir.create(dr, showWarnings = FALSE)
+fts <- fts_a
 plot_slopes(tmp_a, mdls_a)
-fts <- names(sort(abs(adjr_b), decreasing = TRUE))[1:20]
+fts_b <- names(sort(abs(adjr_b), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_b/")
 dir.create(dr, showWarnings = FALSE)
+fts <- fts_b
 plot_slopes(tmp_b, mdls_b)
 #' Mostly fits to data in a single matrix
 ```
@@ -899,12 +917,12 @@ dependent drifts are shown below.
 
 ```{r out.width = "750px", echo = FALSE}
 knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/",
-                               fts[1], ".png"))
+                               fts_a[1], ".png"))
 ```
 
 ```{r out.width = "750px", echo = FALSE}
 knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_b/",
-                              fts[1], ".png"))
+                              fts_b[1], ".png"))
 ```
 
 Next we apply the within batch correction adjusting all feature abundances (also

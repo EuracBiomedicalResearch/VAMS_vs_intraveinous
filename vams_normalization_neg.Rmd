@@ -42,12 +42,13 @@ RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
+## MZML_PATH <- "/data/massspec/mzML/"
 MZML_PATH <- "C:/Users/User/Documents/mzML_neg"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
 ## Get the number of cpus allocated or fall back to 3 
-ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 3))
+ncores <- as.integer(Sys.getenv("SLURM_JOB_CPUS_PER_NODE", 4)) - 1L
 ```
 
 # Introduction
@@ -180,7 +181,8 @@ all complete pairs of values. Ideally, the filled-in signal should be correlated
 to the detected signal.
 
 ```{r correlation-filled-detected, fig.path = IMAGE_PATH, fig.cap = "Correlation of per-feature averaged detected and filled-in signal in QC samples.", echo = FALSE}
-avg_det <- rowMeans(assay(res_neg, "raw")[, res_neg$sample == "POOL"], na.rm = TRUE)
+avg_det <- rowMeans(assay(res_neg, "raw")[, res_neg$sample == "POOL"],
+                    na.rm = TRUE)
 avg_fil <- rowMeans(assay(res_neg, "raw_only_filled")[, res_neg$sample == "POOL"],
                     na.rm = TRUE)
 plot(log2(avg_det), log2(avg_fil), xlab = "detected", ylab = "filled-in",
@@ -203,15 +205,15 @@ samples.
 First, we plot the detected data:
 
 ```{r raw-boxplot-detected, fig.path =IMAGE_PATH, fig.height = 7, fig.width = 7 * phi, fig.cap = "Number of features and log2 abundance of raw detected data.", echo = FALSE}
-dobox <- function(
- x, col = paste0(col_source[as.character(data_neg$source)], "ff"),
- outline = FALSE, notch = TRUE, range = 0,
- border = paste0(col_source[as.character(data_neg$source)], "60"),
- ylab = expression(log[2]~abundance), xaxt = "n", xlab = "",
- ...) {
- boxplot(x, col = col, outline = outline, notch = notch, range = range,
- border = border, ylab = ylab, xaxt = xaxt, xlab = xlab, ...)
- grid(nx = NA, ny = NULL)
+dobox <- function(x,
+                  col = paste0(col_source[as.character(data_neg$source)], "ff"),
+                  outline = FALSE, notch = TRUE, range = 0,
+                  border = paste0(col_source[as.character(data_neg$source)], "60"),
+                  ylab = expression(log[2]~abundance), xaxt = "n", xlab = "",
+                  ...) {
+    boxplot(x, col = col, outline = outline, notch = notch, range = range,
+            border = border, ylab = ylab, xaxt = xaxt, xlab = xlab, ...)
+    grid(nx = NA, ny = NULL)
 }
 
 layout(mat = matrix(1:2, ncol = 1), height = c(0.3, 0.7))
@@ -430,7 +432,6 @@ the other with the *good* ones.
 ```{r subsetting IS}
 is_std_prob <- subset(
     is_info, is_info$name %in% c("L-Cystine (13C6, 99%; 15N2, 99%)",
-                                 "L-Isoleucine (13C6, 99%; 15N, 99%)",
                                  "L-Methionine (13C5, 99%; 15N, 99%)",
                                  "L-Phenylalanine (13C9, 99%; 15N, 99%)",
                                  "L-Proline (13C5, 99%; 15N, 99%)",
@@ -438,8 +439,7 @@ is_std_prob <- subset(
                                  "L-Serine (13C3, 99%; 15N, 99%)",
                                  "L-Tyrosine (13C9, 99%; 15N, 99%)"))
 is_std = subset(
-    is_info, is_info$name %in% c("L-Leucine (13C6, 99%; 15N, 99%)",
-                                 "L-Arginine HCl (13C6, 99%; 15N4, 99%)",
+    is_info, is_info$name %in% c("L-Arginine HCl (13C6, 99%; 15N4, 99%)",
                                  "L-Glutamic acid (13C5, 99%; 15N, 99%)",
                                  "L-Histidine HCl H2O (13C6; 15N3, 99%)",
                                  "L-Lysine 2HCl (13C6, 99%; 15N2, 99%)",
@@ -471,7 +471,6 @@ pandoc.table(is_std_prob[, c("name", "mean_abd", "sd_abd", "RSD")],
              style = "rmarkdown", caption = "*Problematic* internal standards.")
 
 ```
-
 
 
 # Between-sample normalization
@@ -656,6 +655,8 @@ abline(lmod, lty = 2)
 
 ```
 
+TODO: describe
+
 We next *flag* and remove fitted models we consider potentially problematic. In
 particular, we remove models that were fitted to data points not spanning most
 of the injection index range (e.g. models that were fitted to values with
@@ -699,6 +700,8 @@ mdls_b[unique(which(flgs_inj_range_b))] <- NA
 slps_b[unique(which(flgs_inj_range_b))] <- NA
 
 ```
+
+TODO: describe. also, why do we have here slightly positive slopes?
 
 Most of the slopes, that represent the estimated injection order-dependent
 signal drift, are close to 0 suggesting most features not being affected by this
