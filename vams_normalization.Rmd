@@ -1174,6 +1174,150 @@ plot_pca(pc_norm, bg = paste0(col_source[as.character(data_pos$source)], 80),
 
 ```
 
+The PCA plot off all raw data indicates a distinction between the QC samples of 
+batch A and B, therefore we want to have a closer look to all matrices 
+independentely:
+
+```{r PCA-raw-normalized plasma, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+
+tmp_plasma <- res_pos[, res_pos$source == "plasma"]
+
+pc_raw_plasma <- prcomp(t(log2(assay(tmp_plasma, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_plasma <- prcomp(t(log2(assay(tmp_plasma, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_pos))
+pch[tmp_plasma$batch == "01022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+```{r PCA-raw-normalized POOL, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+
+tmp_ppool <- res_pos[, res_pos$source == "all"]
+
+pc_raw_pool <- prcomp(t(log2(assay(tmp_ppool, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_pool <- prcomp(t(log2(assay(tmp_ppool, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_pos))
+pch[tmp_ppool$batch == "01022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+The QC samples show a clear distinction in the PCA plot when looked at them separately.
+
+```{r PCA-raw-normalized venous, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+
+tmp_venous <- res_pos[, res_pos$source == "venous"]
+
+pc_raw_venous <- prcomp(t(log2(assay(tmp_venous, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_venous <- prcomp(t(log2(assay(tmp_venous, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_pos))
+pch[tmp_ppool$batch == "01022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+Also, the raw venous samples show a difference in the variance in batch A and B.
+
+```{r PCA-raw-normalized capillary, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+
+tmp_capillary <- res_pos[, res_pos$source == "capillary"]
+
+pc_raw_capillary <- prcomp(t(log2(assay(tmp_capillary, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_capillary <- prcomp(t(log2(assay(tmp_capillary, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_pos))
+pch[tmp_capillary$batch == "01022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+```{r PCA-raw-normalized RBC, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+
+tmp_rbc <- res_pos[, res_pos$source == "RBC"]
+
+pc_raw_rbc <- prcomp(t(log2(assay(tmp_rbc, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_rbc <- prcomp(t(log2(assay(tmp_rbc, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_pos))
+pch[tmp_rbc$batch == "01022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+
 ```{r PCA-raw-normalized-IS, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances for internal standards. Circles and rectangles indicate sample different batches.", echo = FALSE}
 pc_raw <- prcomp(
     t(log2(assay(res_pos, "raw_filled_imputed")[is_std$feature_id, ])),

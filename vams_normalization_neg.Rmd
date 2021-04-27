@@ -498,6 +498,21 @@ nf_mdn <- mdns / median(mdns)
 
 ```
 
+```{r norm-factors-top-200, echo = TRUE, message = FALSE, eval = TRUE}
+## Calculate normalization factors based on the top x features with highest
+## abundances per sample. Normalization will hence be independent of
+## gap-filling. Assumption is that the intensity of the top x highest
+## intensity features is comparable across samples (independently which
+## compound/metabolite these features might be).
+median_top_x <- function(x, top = 500) {
+    idx <- order(x, decreasing = TRUE)
+    median(x[idx][seq_len(top)], na.rm = TRUE)
+}
+mdns <- apply(assay(res_pos, "raw_filled"), MARGIN = 2,
+              median_top_x, top = 1000)
+nf_mdn <- mdns / median(mdns)
+
+```
 
 We next apply the *median scaling* normalization.
 
@@ -800,13 +815,15 @@ dir.create(dr, showWarnings = FALSE)
 plot_slopes(tmp_b, mdls_b)
 
 #' Features with very good R2
-fts <- names(sort(abs(adjr_a), decreasing = TRUE))[1:20]
+fts_a <- names(sort(abs(adjr_a), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_a/")
 dir.create(dr, showWarnings = FALSE)
+fts <- fts_a
 plot_slopes(tmp_a, mdls_a)
-fts <- names(sort(abs(adjr_b), decreasing = TRUE))[1:20]
+fts_b <- names(sort(abs(adjr_b), decreasing = TRUE))[1:20]
 dr <- paste0(IMAGE_PATH, "highest_R_batch_b/")
 dir.create(dr, showWarnings = FALSE)
+fts <- fts_b
 plot_slopes(tmp_b, mdls_b)
 #' Mostly fits to data in a single matrix
 ```
@@ -816,7 +833,13 @@ dependent drifts are shown below.
 
 ```{r out.width = "750px", echo = FALSE}
 knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_a/",
-                               fts[1], ".png"))
+                               fts_a[1], ".png"))
+```
+
+```{r out.width = "750px", echo = FALSE}
+knitr::include_graphics(paste0(IMAGE_PATH, "highest_R_batch_b/",
+                              fts_b[1], ".png"))
+
 ```
 
 Next we apply the within batch correction adjusting all feature abundances (also
@@ -931,7 +954,6 @@ tab <- rbind(`total features ` = length(mdls_batch),
              `valid models` = sum(!is.na(mdls_batch)))
 colnames(tab) <- "count"
 pandoc.table(tab, style = "rmarkdown", caption = "Number of valid model fits.")
-
 ```
 
 We next evaluate the distribution of slopes and individual plots for features
@@ -984,7 +1006,6 @@ tmp[is.na(assay(res_neg, "raw"))] <- NA
 assays(res_neg)$normalized_nofill <- tmp
 rm(tmp)
 ```
-
 
 # Final evaluation
 
@@ -1040,7 +1061,7 @@ pc_norm <- prcomp(t(log2(assay(res_neg, "normalized_filled_imputed"))),
                   scale = FALSE, center = TRUE)
 
 pch <- rep(21, ncol(res_neg))
-pch[res_neg$batch == "01022018"] <- 22
+pch[res_neg$batch == "2018_02/07022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw, bg = paste0(col_source[as.character(res_neg$source)], 80),
          pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
@@ -1056,6 +1077,174 @@ plot_pca(pc_norm, bg = paste0(col_source[as.character(data_neg$source)], 80),
          pch = pch, col = "#00000080")
 
 ```
+
+```{r PCA-raw-normalized POOL, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+## Perform data imputation for PCA
+tmp_pool <- res_neg[, res_neg$source == "all"]
+
+pc_raw_pool <- prcomp(t(log2(assay(tmp_pool, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_pool <- prcomp(t(log2(assay(tmp_pool, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_neg))
+pch[tmp_rbc$batch == "2018_02/07022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_pool, bg = paste0(col_source[as.character(tmp_pool$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_pool, bg = paste0(col_source[as.character(tmp_pool$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_pool, bg = paste0(col_source[as.character(tmp_pool$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_pool, bg = paste0(col_source[as.character(tmp_pool$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+
+```{r PCA-raw-normalized plasma, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+## Perform data imputation for PCA
+tmp_plasma <- res_neg[, res_neg$source == "plasma"]
+
+pc_raw_plasma <- prcomp(t(log2(assay(tmp_plasma, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_plasma <- prcomp(t(log2(assay(tmp_plasma, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_neg))
+pch[tmp_plasma$batch == "2018_02/07022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+
+```{r PCA-raw-normalized venous, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+## Perform data imputation for PCA
+tmp_venous <- res_neg[, res_neg$source == "venous"]
+
+pc_raw_venous <- prcomp(t(log2(assay(tmp_venous, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_venous <- prcomp(t(log2(assay(tmp_venous, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_neg))
+pch[tmp_venous$batch == "2018_02/07022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+
+```{r PCA-raw-normalized capillary, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+## Perform data imputation for PCA
+tmp_capillary <- res_neg[, res_neg$source == "capillary"]
+
+pc_raw_capillary <- prcomp(t(log2(assay(tmp_capillary, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_capillary <- prcomp(t(log2(assay(tmp_capillary, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_neg))
+pch[tmp_capillary$batch == "2018_02/07022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+
+```{r PCA-raw-normalized RBC, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+## Perform data imputation for PCA
+tmp_rbc <- res_neg[, res_neg$source == "RBC"]
+
+pc_raw_rbc <- prcomp(t(log2(assay(tmp_rbc, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_rbc <- prcomp(t(log2(assay(tmp_rbc, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_neg))
+pch[tmp_rbc$batch == "2018_02/07022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
+
+```{r PCA-raw-normalized RBC, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+
+tmp_rbc <- res_pos[, res_pos$source == "RBC"]
+
+pc_raw_rbc <- prcomp(t(log2(assay(tmp_rbc, "raw_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+pc_norm_rbc <- prcomp(t(log2(assay(tmp_rbc, "normalized_filled_imputed"))),
+                  scale = FALSE, center = TRUE)
+
+pch <- rep(21, ncol(res_pos))
+pch[tmp_rbc$batch == "2018_02/07022018"] <- 22
+par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
+plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 1, pc_y = 2, main = "normalized data",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data",
+         pch = pch, col = "#00000080")
+
+```
+
 
 ```{r PCA-raw-normalized-IS, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances for internal standards. Circles and rectangles indicate sample different batches.", echo = FALSE}
 pc_raw <- prcomp(
