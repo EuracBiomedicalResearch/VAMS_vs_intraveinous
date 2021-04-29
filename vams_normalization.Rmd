@@ -43,8 +43,8 @@ RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
-## MZML_PATH <- "/data/massspec/mzML/"
-MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
+MZML_PATH <- "/data/massspec/mzML/"
+## MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -1178,7 +1178,7 @@ The PCA plot off all raw data indicates a distinction between the QC samples of
 batch A and B, therefore we want to have a closer look to all matrices 
 independentely:
 
-```{r PCA-raw-normalized plasma, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-plasma, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_plasma <- res_pos[, res_pos$source == "plasma"]
 
@@ -1202,10 +1202,9 @@ plot_pca(pc_norm_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)]
 plot_pca(pc_norm_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
          pc_x = 3, pc_y = 4, main = "normalized data",
          pch = pch, col = "#00000080")
-
 ```
 
-```{r PCA-raw-normalized POOL, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-POOL, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_ppool <- res_pos[, res_pos$source == "all"]
 
@@ -1234,7 +1233,7 @@ plot_pca(pc_norm_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 8
 
 The QC samples show a clear distinction in the PCA plot when looked at them separately.
 
-```{r PCA-raw-normalized venous, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-venous, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_venous <- res_pos[, res_pos$source == "venous"]
 
@@ -1263,7 +1262,7 @@ plot_pca(pc_norm_venous, bg = paste0(col_source[as.character(tmp_venous$source)]
 
 Also, the raw venous samples show a difference in the variance in batch A and B.
 
-```{r PCA-raw-normalized capillary, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-capillary, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_capillary <- res_pos[, res_pos$source == "capillary"]
 
@@ -1290,7 +1289,7 @@ plot_pca(pc_norm_capillary, bg = paste0(col_source[as.character(tmp_capillary$so
 
 ```
 
-```{r PCA-raw-normalized RBC, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-RBC, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_rbc <- res_pos[, res_pos$source == "RBC"]
 
