@@ -486,7 +486,10 @@ metabolites. Methods robust against such a bias, like the median ratio method
 (MRM [@Anders:2010fu]) or the trimmed mean of M-values (TMM [@Robinson:2010dd])
 used in RNAseq data normalization could be used instead. In previous analyses
 these methods had however a lower performance than the simple *median scaling*
-which is thus used below.
+which is thus used below.As this median scaling approach tend to be biased by 
+the low intensities of metabolites calculated in the gap-filling process, only 
+the top 1000 features with highest abundances per sample were used for median 
+scaling.
 
 Below we calculate normalization factors based on the the median abundance per
 sample.
@@ -498,17 +501,19 @@ nf_mdn <- mdns / median(mdns)
 
 ```
 
+The normalization factores are calculated on the top x features with highest
+abundance per sample. The normalization will hence be independent of gap-filling.
+We assume that the intensities of the top x highest intensity features is 
+comparable across samples (independently which compound/metabolite these 
+features might be).
+
 ```{r norm-factors-top-200, echo = TRUE, message = FALSE, eval = TRUE}
-## Calculate normalization factors based on the top x features with highest
-## abundances per sample. Normalization will hence be independent of
-## gap-filling. Assumption is that the intensity of the top x highest
-## intensity features is comparable across samples (independently which
-## compound/metabolite these features might be).
+
 median_top_x <- function(x, top = 500) {
     idx <- order(x, decreasing = TRUE)
     median(x[idx][seq_len(top)], na.rm = TRUE)
 }
-mdns <- apply(assay(res_pos, "raw_filled"), MARGIN = 2,
+mdns <- apply(assay(res_neg, "raw_filled"), MARGIN = 2,
               median_top_x, top = 1000)
 nf_mdn <- mdns / median(mdns)
 
@@ -603,14 +608,9 @@ find the better fit, based on the relative standard deviation (RSD). More
 precisely, we tried to fit only the intensities of the detected features in the
 POOL samples, then we tried to fit all the features of the POOL samples
 (detected and filled-in) and finally we fit all the collected signals (i.e. POOL
-and study samples). The best result was obtained using only the detected POOL
-subset, which has been therefore used for further normalizing the data. Since
-abundances in POOL samples are not expected to differ between injections, we can
-also safely assume that any changes seen on them are due to technical
-variance. We are thus estimating the signal drift on the POOL samples and
-adjusting the study samples accordingly, assuming that the same bias affects
-their feature abundance.
-
+and study samples). The best result was obtained using all the detected signals
+from Pool and study samples (only detected and without the filled-ins), 
+which has been therefore used for further normalizing the data. 
 We also define below the variable `req_prop` to set the minimum range that the
 injection indices must span to consider a fitting valid.
 
@@ -670,7 +670,9 @@ abline(lmod, lty = 2)
 
 ```
 
-TODO: describe
+Not unexpectedly, there is only a relatively low correlation of the slopes 
+between the batches suggesting that the injection dependent signal drift is for 
+the most part batch dependent.
 
 We next *flag* and remove fitted models we consider potentially problematic. In
 particular, we remove models that were fitted to data points not spanning most
@@ -1088,7 +1090,7 @@ pc_norm_pool <- prcomp(t(log2(assay(tmp_pool, "normalized_filled_imputed"))),
                   scale = FALSE, center = TRUE)
 
 pch <- rep(21, ncol(res_neg))
-pch[tmp_rbc$batch == "2018_02/07022018"] <- 22
+pch[tmp_pool$batch == "2018_02/07022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw_pool, bg = paste0(col_source[as.character(tmp_pool$source)], 80),
          pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
@@ -1200,34 +1202,6 @@ pc_norm_rbc <- prcomp(t(log2(assay(tmp_rbc, "normalized_filled_imputed"))),
                   scale = FALSE, center = TRUE)
 
 pch <- rep(21, ncol(res_neg))
-pch[tmp_rbc$batch == "2018_02/07022018"] <- 22
-par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
-plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
-         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
-legend("topleft", col = col_source, legend = names(col_source), pch = 16,
-       cex = 0.4)
-plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
-         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
-plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
-         pc_x = 1, pc_y = 2, main = "normalized data",
-         pch = pch, col = "#00000080")
-plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
-         pc_x = 3, pc_y = 4, main = "normalized data",
-         pch = pch, col = "#00000080")
-
-```
-
-
-```{r PCA-raw-normalized RBC, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
-
-tmp_rbc <- res_pos[, res_pos$source == "RBC"]
-
-pc_raw_rbc <- prcomp(t(log2(assay(tmp_rbc, "raw_filled_imputed"))),
-                 scale = FALSE, center = TRUE)
-pc_norm_rbc <- prcomp(t(log2(assay(tmp_rbc, "normalized_filled_imputed"))),
-                  scale = FALSE, center = TRUE)
-
-pch <- rep(21, ncol(res_pos))
 pch[tmp_rbc$batch == "2018_02/07022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
