@@ -573,7 +573,10 @@ metabolites. Methods robust against such a bias, like the median ratio method
 (MRM [@Anders:2010fu]) or the trimmed mean of M-values (TMM [@Robinson:2010dd])
 used in RNAseq data normalization could be used instead. In previous analyses
 these methods had however a lower performance than the simple *median scaling*
-which is thus used below.
+which is thus used below. As this median scaling approach tends to be biased by 
+the low intensities of metabolites calculated in the gap-filling process, the
+median was calculated only on the top 1000 features with highest abundances per
+sample (which are assumed to have on average the same abundance in all samples).
 
 Below we calculate normalization factors based on the the median abundance per
 sample.
@@ -585,11 +588,6 @@ nf_mdn <- mdns / median(mdns)
 ```
 
 ```{r norm-factors-top-200, echo = TRUE, message = FALSE, eval = TRUE}
-## Calculate normalization factors based on the top x features with highest
-## abundances per sample. Normalization will hence be independent of
-## gap-filling. Assumption is that the intensity of the top x highest
-## intensity features is comparable across samples (independently which
-## compound/metabolite these features might be).
 median_top_x <- function(x, top = 500) {
     idx <- order(x, decreasing = TRUE)
     median(x[idx][seq_len(top)], na.rm = TRUE)
@@ -1142,7 +1140,7 @@ differences. Prior to the evaluation of the normalization performance we inspect
 also the clustering of samples (and QCs) before and after normalization using
 principal component analysis (PCA).
 
-```{r PCA-raw-normalized, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized, fig.path = IMAGE_PATH, fig.width = 9, fig.height = 9, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
 ## Perform data imputation for PCA
 assays(res_pos)$normalized_filled_imputed <-
                   imputeRowMinRand(assay(res_pos, "normalized_filled"),
@@ -1178,7 +1176,7 @@ The PCA plot off all raw data indicates a distinction between the QC samples of
 batch A and B, therefore we want to have a closer look to all matrices 
 independentely:
 
-```{r PCA-raw-normalized plasma, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-plasma, fig.path = IMAGE_PATH, fig.width = 9, fig.height = 9, fig.cap = "PCA of raw and normalized feature abundances for plasma samples. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_plasma <- res_pos[, res_pos$source == "plasma"]
 
@@ -1191,21 +1189,20 @@ pch <- rep(21, ncol(res_pos))
 pch[tmp_plasma$batch == "01022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
-         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+         pc_x = 1, pc_y = 2, main = "raw data, plasma", pch = pch, col = "#00000080")
 legend("topleft", col = col_source, legend = names(col_source), pch = 16,
        cex = 0.4)
 plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
-         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
+         pc_x = 3, pc_y = 4, main = "raw data, plasma", pch = pch, col = "#00000080")
 plot_pca(pc_norm_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
-         pc_x = 1, pc_y = 2, main = "normalized data",
+         pc_x = 1, pc_y = 2, main = "normalized data, plasma",
          pch = pch, col = "#00000080")
 plot_pca(pc_norm_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
-         pc_x = 3, pc_y = 4, main = "normalized data",
+         pc_x = 3, pc_y = 4, main = "normalized data, plasma",
          pch = pch, col = "#00000080")
-
 ```
 
-```{r PCA-raw-normalized POOL, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-POOL, fig.path = IMAGE_PATH, fig.width = 9, fig.height = 9, fig.cap = "PCA of raw and normalized feature abundances for sample pools. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_ppool <- res_pos[, res_pos$source == "all"]
 
@@ -1218,23 +1215,26 @@ pch <- rep(21, ncol(res_pos))
 pch[tmp_ppool$batch == "01022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
-         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+         pc_x = 1, pc_y = 2, main = "raw data, pool",
+         pch = pch, col = "#00000080")
 legend("topleft", col = col_source, legend = names(col_source), pch = 16,
        cex = 0.4)
 plot_pca(pc_raw_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
-         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
-plot_pca(pc_norm_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
-         pc_x = 1, pc_y = 2, main = "normalized data",
+         pc_x = 3, pc_y = 4, main = "raw data, pool",
          pch = pch, col = "#00000080")
 plot_pca(pc_norm_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
-         pc_x = 3, pc_y = 4, main = "normalized data",
+         pc_x = 1, pc_y = 2, main = "normalized data, pool",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_pool, bg = paste0(col_source[as.character(tmp_ppool$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data, pool",
          pch = pch, col = "#00000080")
 
 ```
 
-The QC samples show a clear distinction in the PCA plot when looked at them separately.
+The QC samples show a clear distinction in the PCA plot when looked at them
+separately.
 
-```{r PCA-raw-normalized venous, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-venous, fig.path = IMAGE_PATH, fig.width = 9, fig.height = 9, fig.cap = "PCA of raw and normalized feature abundances for venous blood samples. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_venous <- res_pos[, res_pos$source == "venous"]
 
@@ -1247,23 +1247,25 @@ pch <- rep(21, ncol(res_pos))
 pch[tmp_ppool$batch == "01022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
-         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+         pc_x = 1, pc_y = 2, main = "raw data, venous",
+         pch = pch, col = "#00000080")
 legend("topleft", col = col_source, legend = names(col_source), pch = 16,
        cex = 0.4)
 plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
-         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
-plot_pca(pc_norm_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
-         pc_x = 1, pc_y = 2, main = "normalized data",
+         pc_x = 3, pc_y = 4, main = "raw data, venous",
          pch = pch, col = "#00000080")
 plot_pca(pc_norm_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
-         pc_x = 3, pc_y = 4, main = "normalized data",
+         pc_x = 1, pc_y = 2, main = "normalized data, venous",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data, venous",
          pch = pch, col = "#00000080")
 
 ```
 
 Also, the raw venous samples show a difference in the variance in batch A and B.
 
-```{r PCA-raw-normalized capillary, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-capillary, fig.path = IMAGE_PATH, fig.width = 9, fig.height = 9, fig.cap = "PCA of raw and normalized feature abundances for capillary blood samples. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_capillary <- res_pos[, res_pos$source == "capillary"]
 
@@ -1276,21 +1278,23 @@ pch <- rep(21, ncol(res_pos))
 pch[tmp_capillary$batch == "01022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
-         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+         pc_x = 1, pc_y = 2, main = "raw data, capillary",
+         pch = pch, col = "#00000080")
 legend("topleft", col = col_source, legend = names(col_source), pch = 16,
        cex = 0.4)
 plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
-         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
-plot_pca(pc_norm_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
-         pc_x = 1, pc_y = 2, main = "normalized data",
+         pc_x = 3, pc_y = 4, main = "raw data, capillary",
          pch = pch, col = "#00000080")
 plot_pca(pc_norm_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
-         pc_x = 3, pc_y = 4, main = "normalized data",
+         pc_x = 1, pc_y = 2, main = "normalized data, capillary",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data, capillary",
          pch = pch, col = "#00000080")
 
 ```
 
-```{r PCA-raw-normalized RBC, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-RBC, fig.path = IMAGE_PATH, fig.width = 9, fig.height = 9, fig.cap = "PCA of raw and normalized feature abundances for RBC samples. Circles and rectangles indicate sample different batches.", echo = FALSE}
 
 tmp_rbc <- res_pos[, res_pos$source == "RBC"]
 
@@ -1303,22 +1307,24 @@ pch <- rep(21, ncol(res_pos))
 pch[tmp_rbc$batch == "01022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
-         pc_x = 1, pc_y = 2, main = "raw data", pch = pch, col = "#00000080")
+         pc_x = 1, pc_y = 2, main = "raw data, RBC",
+         pch = pch, col = "#00000080")
 legend("topleft", col = col_source, legend = names(col_source), pch = 16,
        cex = 0.4)
 plot_pca(pc_raw_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
-         pc_x = 3, pc_y = 4, main = "raw data", pch = pch, col = "#00000080")
-plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
-         pc_x = 1, pc_y = 2, main = "normalized data",
+         pc_x = 3, pc_y = 4, main = "raw data, RBC",
          pch = pch, col = "#00000080")
 plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
-         pc_x = 3, pc_y = 4, main = "normalized data",
+         pc_x = 1, pc_y = 2, main = "normalized data, RBC",
+         pch = pch, col = "#00000080")
+plot_pca(pc_norm_rbc, bg = paste0(col_source[as.character(tmp_rbc$source)], 80),
+         pc_x = 3, pc_y = 4, main = "normalized data, RBC",
          pch = pch, col = "#00000080")
 
 ```
 
 
-```{r PCA-raw-normalized-IS, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "PCA of raw and normalized feature abundances for internal standards. Circles and rectangles indicate sample different batches.", echo = FALSE}
+```{r PCA-raw-normalized-IS, fig.path = IMAGE_PATH, fig.width = 9, fig.height = 9, fig.cap = "PCA of raw and normalized feature abundances for internal standards. Circles and rectangles indicate sample different batches.", echo = FALSE}
 pc_raw <- prcomp(
     t(log2(assay(res_pos, "raw_filled_imputed")[is_std$feature_id, ])),
     scale = FALSE, center = TRUE)
@@ -1343,8 +1349,6 @@ plot_pca(pc_norm, bg = paste0(col_source[as.character(data_pos$source)], 80),
          pch = pch, col = "#00000080")
 
 ```
-
-- TODO: discuss these in the next team meeting (get feedback from Nikola?)
 
 
 ```{r boxplot-after-within-normalization, fig.path = IMAGE_PATH, fig.height = 10, fig.width = 8, fig.cap = "Comparison between abundances (log2) of raw data, median-scaled data and normalized data.", message = FALSE, echo = FALSE}
@@ -1515,19 +1519,6 @@ rsd_adj <- rowRsd(
 rsd_bbn <- rowRsd(
     assay(res_pos, "normalized_filled")[, res_pos$sample == "POOL"])
 
-## Calculate RSD only on detected POOL signals
-tmp <- assay(res_pos, "raw_filled")
-tmp[is.na(assay(res_pos, "raw"))] <- NA
-rsd_raw_det <- rowRsd(tmp[, res_pos$sample == "POOL"])
-tmp <- assay(res_pos, "median_filled")
-tmp[is.na(assay(res_pos, "raw"))] <- NA
-rsd_scl_det <- rowRsd(tmp[, res_pos$sample == "POOL"])
-tmp <- assay(res_pos, "within_filled")
-tmp[is.na(assay(res_pos, "raw"))] <- NA
-rsd_adj_det <- rowRsd(tmp[, res_pos$sample == "POOL"])
-tmp <- assay(res_pos, "normalized_filled")
-tmp[is.na(assay(res_pos, "raw"))] <- NA
-rsd_bbn_det <- rowRsd(tmp[, res_pos$sample == "POOL"])
 ```
 
 ```{r RSD-study-samples, message = FALSE, echo = FALSE, warning = FALSE}
@@ -1566,38 +1557,30 @@ rsd_bbn_is_sts <- rowRsd(tmp_is[, res_pos$sample != "POOL"])
 ```
 
 ```{r norm-rsd-plot, fig.path = IMAGE_PATH, message = FALSE, echo = FALSE, fig.height = 7, fig.width = 7 * phi, fig.cap = "Coefficient Of Variation (RSD)."}
-par(mfrow = c(2, 3))
+par(mfrow = c(2, 2))
 boxplot(list(raw = rsd_raw, scaled = rsd_scl, within = rsd_adj, 
              normalized = rsd_bbn),
-        main = "All signals - POOL samples")
-grid(nx = NA, ny = NULL)
-abline(h = 0.3)
-
-boxplot(list(raw = rsd_raw_det, scaled = rsd_scl_det, within = rsd_adj_det,
-             normalized = rsd_bbn_det),
-        main = "Detected signals - POOL samples")
+        main = "All features - POOL samples")
 grid(nx = NA, ny = NULL)
 abline(h = 0.3)
 
 boxplot(list(raw = rsd_raw_sts, scaled = rsd_scl_sts, within = rsd_adj_sts, 
              normalized = rsd_bbn_sts),
-        main = "All signals - Study samples")
+        main = "All features - Study samples")
 grid(nx = NA, ny = NULL)
 abline(h = 0.3)
 
 boxplot(list(raw = rsd_raw_is, scaled = rsd_scl_is, within = rsd_adj_is,
              normalized = rsd_bbn_is),
-        main = "IS - POOL samples")
+        main = "IS features - POOL samples")
 grid(nx = NA, ny = NULL)
 abline(h = 0.3)
 
 boxplot(list(raw = rsd_raw_is_sts, scaled = rsd_scl_is_sts,
              within = rsd_adj_is_sts, normalized = rsd_bbn_is_sts),
-        main = "IS - Study samples")
+        main = "IS features - Study samples")
 grid(nx = NA, ny = NULL)
 abline(h = 0.3)
-
-
 
 ```
 
@@ -1605,68 +1588,50 @@ abline(h = 0.3)
 The table below lists the results.
 
 ```{r final-qa-rsd-table, message = FALSE, echo = FALSE, results = "asis", warning = FALSE}
-T <- rbind(`mean RSD` = c(`raw - QC samples` = mean(rsd_raw, na.rm = TRUE),
-                          `scaled - QC samples` = mean(rsd_scl, na.rm = TRUE),
-                          `within-batch - QC samples` = mean(rsd_adj, na.rm = TRUE),
-                          `between-batch - QC samples` = mean(rsd_bbn, na.rm = TRUE),
-                          `raw detected - QC samples` = mean(rsd_raw_det, na.rm = TRUE),
-                          `scaled detected - QC samples` = mean(rsd_scl_det, na.rm = TRUE),
-                          `within-batch detected - QC samples` = mean(rsd_adj_det,
-                                                       na.rm = TRUE),
-                          `between-batch detected - QC samples` = mean(rsd_bbn_det,
-                                                       na.rm = TRUE),
-                          `raw - Study samples` = mean(rsd_raw_sts,
-                                                       na.rm = TRUE),
-                          `scaled - Study samples` = mean(rsd_scl_sts,
-                                                          na.rm = TRUE),
-                          `within-batch - Study samples` = mean(rsd_adj_sts,
-                                                              na.rm = TRUE),
-                          `between-batch - Study samples` = mean(rsd_bbn_sts,
-                                                              na.rm = TRUE),
-                          `raw IS` = mean(rsd_raw_is, na.rm = TRUE),
-                          `scaled IS` = mean(rsd_scl_is, na.rm = TRUE),
-                          `within-batch IS` = mean(rsd_adj_is, na.rm = TRUE),
-                          `between-batch IS` = mean(rsd_bbn_is, na.rm = TRUE),
-                          `raw IS - Study samples` = mean(rsd_raw_is_sts,
-                                                          na.rm = TRUE),
-                          `scaled IS - Study samples` = mean(rsd_scl_is_sts,
-                                                             na.rm = TRUE),
-                          `within-batch IS - Study samples` = mean(rsd_adj_is_sts,
-                                                                 na.rm = TRUE),
-                          `between-batch IS - Study samples` = mean(rsd_bbn_is_sts,
-                                                                 na.rm = TRUE)),
-           
-           `% RSD > 0.3` = c(c(sum(rsd_raw > 0.3, na.rm = TRUE),
-                               sum(rsd_scl > 0.3, na.rm = TRUE),
-                               sum(rsd_adj > 0.3, na.rm = TRUE),
-                               sum(rsd_bbn > 0.3, na.rm = TRUE)) *
-                                   100 / length(rsd_raw),
-                             c(sum(rsd_raw_det > 0.3, na.rm = TRUE),
-                             sum(rsd_scl_det > 0.3, na.rm = TRUE),
-                             sum(rsd_adj_det > 0.3, na.rm = TRUE),
-                             sum(rsd_bbn_det > 0.3, na.rm = TRUE)) *
-                                 100 / length(rsd_raw_det),
-                             c(sum(rsd_raw_sts > 0.3, na.rm = TRUE),
-                             sum(rsd_scl_sts > 0.3, na.rm = TRUE),
-                             sum(rsd_adj_sts > 0.3, na.rm = TRUE),
-                             sum(rsd_bbn_sts > 0.3, na.rm = TRUE)) *
-                                 100 / length(rsd_raw_sts),
-                             c(sum(rsd_raw_is > 0.3, na.rm = TRUE),
-                             sum(rsd_scl_is > 0.3, na.rm = TRUE),
-                             sum(rsd_adj_is > 0.3, na.rm = TRUE),
-                             sum(rsd_bbn_is > 0.3, na.rm = TRUE)) *
-                                 100 / length(rsd_raw_is),
-                             c(sum(rsd_raw_is_sts > 0.3, na.rm = TRUE),
-                             sum(rsd_scl_is_sts > 0.3, na.rm = TRUE),
-                             sum(rsd_adj_is_sts > 0.3, na.rm = TRUE),
-                             sum(rsd_bbn_is_sts > 0.3, na.rm = TRUE)) *
-                                 100 / length(rsd_raw_is_sts)))
+T <- rbind(
+    `QC samples, RSD` = c(raw = mean(rsd_raw, na.rm = TRUE),
+                          scaled = mean(rsd_scl, na.rm = TRUE),
+                          `within-batch` = mean(rsd_adj, na.rm = TRUE),
+                          `between-batch` = mean(rsd_bbn, na.rm = TRUE)),
+    `study samples, RSD` = c(raw = mean(rsd_raw_sts, na.rm = TRUE),
+                             scaled = mean(rsd_scl_sts, na.rm = TRUE),
+                             `within-batch` = mean(rsd_adj_sts, na.rm = TRUE),
+                             `between-batch` = mean(rsd_bbn_sts, na.rm = TRUE)),
+    `IS QC, RSD` = c(raw = mean(rsd_raw_is, na.rm = TRUE),
+                     scaled = mean(rsd_scl_is, na.rm = TRUE),
+                     `within-batch` = mean(rsd_adj_is, na.rm = TRUE),
+                     `between-batch` = mean(rsd_bbn_is, na.rm = TRUE)),
+    `IS study, RSD` = c(raw = mean(rsd_raw_is_sts, na.rm = TRUE),
+                        scaled = mean(rsd_scl_is_sts, na.rm = TRUE),
+                        `within-batch` = mean(rsd_adj_is_sts, na.rm = TRUE),
+                        `between-batch` = mean(rsd_bbn_is_sts, na.rm = TRUE)),
+    `QC samples, %RSD > 0.3` = c(sum(rsd_raw > 0.3, na.rm = TRUE),
+                                 sum(rsd_scl > 0.3, na.rm = TRUE),
+                                 sum(rsd_adj > 0.3, na.rm = TRUE),
+                                 sum(rsd_bbn > 0.3, na.rm = TRUE)) *
+        100 / length(rsd_raw),
+    `study samples, %RSD > 0.3` = c(sum(rsd_raw_sts > 0.3, na.rm = TRUE),
+                                    sum(rsd_scl_sts > 0.3, na.rm = TRUE),
+                                    sum(rsd_adj_sts > 0.3, na.rm = TRUE),
+                                    sum(rsd_bbn_sts > 0.3, na.rm = TRUE)) *
+        100 / length(rsd_raw_sts),
+    `IS QC, %RSD > 0.3` = c(sum(rsd_raw_is > 0.3, na.rm = TRUE),
+                            sum(rsd_scl_is > 0.3, na.rm = TRUE),
+                            sum(rsd_adj_is > 0.3, na.rm = TRUE),
+                            sum(rsd_bbn_is > 0.3, na.rm = TRUE)) *
+        100 / length(rsd_raw_is),
+    `IS study, %RSD > 0.3` = c(sum(rsd_raw_is_sts > 0.3, na.rm = TRUE),
+                               sum(rsd_scl_is_sts > 0.3, na.rm = TRUE),
+                               sum(rsd_adj_is_sts > 0.3, na.rm = TRUE),
+                               sum(rsd_bbn_is_sts > 0.3, na.rm = TRUE)) *
+        100 / length(rsd_raw_is_sts)
+)
 cpt <- paste0("Summary of RSD calculations. We show how the RSD changes among ",
               "different groups: all features in POOL samples, only detected ",
               "signals in POOL samples, all features in study samples, ",
               "internal standards in POOL samples and internal standards in ",
               "study samples.")
-pandoc.table(t(T), caption = cpt, style = "rmarkdown")
+pandoc.table(T, caption = cpt, style = "rmarkdown")
 ```
 
 From what we see, there is an improvement in RSD from raw to normalized data in
@@ -1744,16 +1709,13 @@ grid(nx = NA, ny = NULL)
 ## table for above
 tab <- rbind(
     raw = colMeans(repl_raw[, c("R", "90% log2FC")]),
-    median = colMeans(repl_med[, c("R", "90% log2FC")]),
-    within = colMeans(repl_within[, c("R", "90% log2FC")]),
-    normalized = colMeans(repl_between[, c("R", "90% log2FC")])
+    scaled = colMeans(repl_med[, c("R", "90% log2FC")]),
+    `within-batch` = colMeans(repl_within[, c("R", "90% log2FC")]),
+    `between-batch` = colMeans(repl_between[, c("R", "90% log2FC")])
 )
-pandoc.table(tab, style = "rmarkdown",
+pandoc.table(t(tab), style = "rmarkdown",
              caption = "Evaluation of replicated measurements.")
 ```
-
-TODO: discuss.
-
 
 At last missing values were imputed and the result object saved.
 
@@ -1763,6 +1725,19 @@ assays(res_pos)$normalized_filled_imputed <-
                                    method = "from_to")
 save(res_pos, file = paste0(RDATA_PATH, "res_pos.RData"))
 ```
+
+## Conclusion
+
+- From the PCA analysis and also from the within and between-batch normalization
+  it seems that a large batch effect seems to be present in the pooled samples
+  (QC samples), which does not seem to be present in study samples.
+- As a consequence, within-batch normalization was performed on all study
+  samples instead of estimating the drift on pooled samples only.
+- For downstream analyses we might rely on the between-sample and within-batch
+  normalized data and will ignore the between-batch normalized data.
+- Internal standards can not be used to assess performance (or variance) of
+  sample collection and extraction from the Mitra tips. Hence, they can not be
+  used for quality assessment of the data.
 
 # Session information
 
