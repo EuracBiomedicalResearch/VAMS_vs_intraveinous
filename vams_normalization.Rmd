@@ -970,7 +970,7 @@ mdls_batch <- xcms:::rowFitModel(y ~ batch,
 We remove model fits that are based on less than 4 values per batch.
 
 ```{r}
-#' Flag models for features with less than 6 values per batch.
+#' Flag models for features with less than 4 values per batch.
 flags_cat_count <- vapply(mdls_batch, flag_model_cat_count, logical(1),
                           variable = "batch", min_count = 4)
 mdls_batch[which(flags_cat_count)] <- NA
