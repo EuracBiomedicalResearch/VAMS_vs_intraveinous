@@ -1240,7 +1240,7 @@ pc_norm <- prcomp(
     scale = FALSE, center = TRUE)
 
 pch <- rep(21, ncol(res_neg))
-pch[res_neg$batch == "01022018"] <- 22
+pch[res_neg$batch == "2018_02/07022018"] <- 22
 par(mfrow = c(2, 2), mar = c(4, 4, 1, 0.5))
 plot_pca(pc_raw, bg = paste0(col_source[as.character(res_neg$source)], 80),
          pc_x = 1, pc_y = 2, main = "raw data IS", pch = pch, col = "#00000080")
