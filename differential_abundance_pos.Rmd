@@ -117,6 +117,9 @@ col_sex <- brewer.pal(8, name = "Set1") [c(4, 7, 3)]
 names(col_sex) <- c("F",           # purple
                     "M",           # brown
                     "POOL")        # green
+
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
 ```
 
 The samples used in this analysis are listed below.
@@ -182,7 +185,7 @@ tmp <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
 for (i in seq_len(nrow(std_info))) {
     fts <- featureDefinitions(tmp, mz = std_info$mz_ion[i],
                               rt = std_info$RT[i] + c(-30, 30),
-                              ppm = 50)
+                              ppm = 10)
     if (nrow(fts)) {
         fl <- std_info$name[i]
         chrs <- featureChromatograms(tmp, features = rownames(fts),
@@ -216,24 +219,30 @@ range and it is very close to the theoretical retention time.
 ##   time and a single peak present in the wider rt range) assign it.
 std_info$feature <- NA
 
-std_info$feature[std_info$name == "1-Methyluric acid"] <- "FT0332"
+std_info$feature[std_info$name == "1-Methylhistidine"] <- "FT0293"
+std_info$feature[std_info$name == "3-Methylhistidine"] <- "FT0293" # same as 1-Methylhistidine
+std_info$feature[std_info$name == "5-Oxoproline"] <- "FT0154"
 std_info$feature[std_info$name == "Acetylcarnitine"] <- "FT0415"
+std_info$feature[std_info$name == "Acetylglucosamine"] <- "FT0518"
 std_info$feature[std_info$name == "Acetylhistidine"] <- "FT0384"
 std_info$feature[std_info$name == "ADMA"] <- "FT0407"
 std_info$feature[std_info$name == "Alanine"] <- "FT0051"
+std_info$feature[std_info$name == "alpha-Aminoadipic acid"] <- "FT0268"
+std_info$feature[std_info$name == "AMP"] <- "FT1197"
 std_info$feature[std_info$name == "Arginine"] <- "FT0307"
 std_info$feature[std_info$name == "Asparagine"] <- "FT0162"
 ## std_info$feature[std_info$name == "Betaine"] <- "FT0111/FT0112"
-##std_info$feature[std_info$name == "C4 Carnitine"] <- "FT0486"
+std_info$feature[std_info$name == "C4 Carnitine"] <- "FT0486"
 ## std_info$feature[std_info$name == "C5 Carnitine"] <- "FT0527/FT0526"
 std_info$feature[std_info$name == "Caffeine"] <- "FT0378"
 std_info$feature[std_info$name == "Carnosine"] <- "FT0472"
-## std_info$feature[std_info$name == "Choline"] <- "FT0072/FT0073"
+std_info$feature[std_info$name == "Choline"] <- "FT0072"
 std_info$feature[std_info$name == "Citrulline"] <- "FT0312"
 ## std_info$feature[std_info$name == "Corticosterone"] <- "FT1192/FT1193"
 ##std_info$feature[std_info$name == "Creatine"] <- "FT0159/FT0160"
 ##std_info$feature[std_info$name == "Creatinine"] <- "FT0099/FT0100"
 std_info$feature[std_info$name == "Cystine"] <- "FT0507"
+std_info$feature[std_info$name == "dGMP"] <- "FT1198"
 std_info$feature[std_info$name == "Fructose"] <- "FT0402" # same as glucose and mannose
 std_info$feature[std_info$name == "Galactitol"] <- "FT0420" # same as sorbitol
 std_info$feature[std_info$name == "Gluconic acid"] <- "FT0460"
@@ -252,7 +261,7 @@ std_info$feature[std_info$name == "L-Aspartic Acid"] <- "FT0168" # or FT0169
 std_info$feature[std_info$name == "L-Carnitine"] <- "FT0270" 
 std_info$feature[std_info$name == "L-Cysteine"] <- "FT0123"
 std_info$feature[std_info$name == "Leucine"] <- "FT0161"
-std_info$feature[std_info$name == "Levodopa"] <- "FT0384"
+##std_info$feature[std_info$name == "Levodopa"] <- "FT0384" # found with ppm = 50
 std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT0220"
 std_info$feature[std_info$name == "Lysine"] <- "FT0216"
 std_info$feature[std_info$name == "Mannose"] <- "FT0402" # same as Fructose and Glucose
@@ -260,10 +269,10 @@ std_info$feature[std_info$name == "Methionine"] <- "FT0226"
 std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT0280" 
 ## std_info$feature[std_info$name == "Myoinositol"] <- "FT0402" # detected as FT0820 and FT0821 - same as fructose, glucose and mannose
 std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT0306"
-##std_info$feature[std_info$name == "NAD"] <- "FT3776"
+std_info$feature[std_info$name == "NAD"] <- "FT3776"
 std_info$feature[std_info$name == "Niacinamide"] <- "FT0134"
 std_info$feature[std_info$name == "Ornithine"] <- "FT0165"
-std_info$feature[std_info$name == "Palmitoylcarnitine"] <- "FT1588"
+std_info$feature[std_info$name == "Palmitoylcarnitine"] <- "FT1588" # or FT1589
 std_info$feature[std_info$name == "Phenylalanine"] <- "FT0281"
 ##std_info$feature[std_info$name == "Phenylethylamine"] <- "FT0129"
 ##std_info$feature[std_info$name == "Phosphocreatine"] <- "FT0436"
@@ -277,13 +286,14 @@ std_info$feature[std_info$name == "SAH"] <- "FT1481"
 std_info$feature[std_info$name == "SDMA"] <- "FT0407"
 std_info$feature[std_info$name == "Serine"] <- "FT0079"
 std_info$feature[std_info$name == "Sorbitol"] <- "FT0420" # same as galactitol
+std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT1451"
 std_info$feature[std_info$name == "Sphingosine"] <- "FT0843"
 std_info$feature[std_info$name == "Sucrose"] <- "FT1331" 
 std_info$feature[std_info$name == "Taurine"] <- "FT0146"
 std_info$feature[std_info$name == "Threonine"] <- "FT0117"
 std_info$feature[std_info$name == "Tryptophan"] <- "FT0422"
 std_info$feature[std_info$name == "Tyrosine"] <- "FT0328"
-##std_info$feature[std_info$name == "Valine"] <- "FT0111/FT0112"
+std_info$feature[std_info$name == "Valine"] <- "FT0112"
 
 std_info <- std_info[!is.na(std_info$feature), ]
 
@@ -316,9 +326,7 @@ and are subsetted in the `std_res` object.
 
 ```{r std-subset, echo = FALSE}
 std_res <- res_pos[rownames(res_pos) %in% std_info$feature, ]
-rowData(std_res) <- rowData(std_res)[, !(colnames(rowData(std_res)) %in%
-                                         c("coef", "pvalue", "adjp", "avg.ARVD",
-                                           "avg.CTRL", "significant"))]
+
 rowData(std_res) <- cbind(rowData(std_res),
                           std_info[rownames(std_res), c("name", "HMDB.code")])
 ```
@@ -360,5 +368,89 @@ pandoc.table(as.data.frame(tab), style = "rmarkdown",
              caption = "samples: PC2<-5")
 ```
 
-In the PC3 plot, all the samples merge in one big cluster and no distinction
-can be made between the different experimental groups.
+We then create a data set for each sample source:
+
+```{r source-subset, echo = FALSE}
+res_cap = std_res[, std_res$source == "capillary"]
+res_ven = std_res[, std_res$source == "venous"]
+res_plas = std_res[, std_res$source == "plasma"]
+
+```
+
+Next, we want to see the clustering for each data set. Male and female samples
+are represented by different colors.
+
+```{r PCA-std-capillary, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for capillary blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
+
+tmp_capillary <- res_cap
+
+pc_raw_capillary <- prcomp(t(log2(assay(tmp_capillary, "normalized_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+
+
+pch <- rep(21, ncol(res_cap))
+pch[res_cap$sex == "M"] <- 22
+par(mfrow = c(1, 2))
+plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 1, pc_y = 2, main = "capillary samples, M/F",
+         pch = pch, col = "#00000080")
+plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pc_x = 3, pc_y = 4, main = "capillary samples, M/F",
+         pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+
+
+```
+
+gg
+
+```{r PCA-std-venous, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for venous blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
+
+tmp_venous <- res_ven
+
+pc_raw_venous <- prcomp(t(log2(assay(tmp_venous, "normalized_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+
+
+pch <- rep(21, ncol(res_cap))
+pch[res_ven$sex == "M"] <- 22
+par(mfrow = c(1, 2))
+plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 1, pc_y = 2, main = "venous samples, M/F",
+         pch = pch, col = "#00000080")
+plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pc_x = 3, pc_y = 4, main = "venous samples, M/F",
+         pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+
+
+```
+
+gg
+
+```{r PCA-std-plasma, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for plasma blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
+
+tmp_plasma <- res_plas
+
+pc_raw_plasma <- prcomp(t(log2(assay(tmp_plasma, "normalized_filled_imputed"))),
+                 scale = FALSE, center = TRUE)
+
+
+pch <- rep(21, ncol(res_plas))
+pch[res_plas$sex == "M"] <- 22
+par(mfrow = c(1, 2))
+plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 1, pc_y = 2, main = "plasma samples, M/F",
+         pch = pch, col = "#00000080")
+plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pc_x = 3, pc_y = 4, main = "plasma samples, M/F",
+         pch = pch, col = "#00000080")
+legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+       cex = 0.4)
+
+
+```
+
+xx
