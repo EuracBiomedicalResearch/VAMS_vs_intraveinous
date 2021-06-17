@@ -353,7 +353,8 @@ legend("topleft", col = col_source, legend = names(col_source),
 ```
 
 In the PC1 plot, capillary and RBC samples cluster together. Plasma samples 
-clusters independently of all other sample sources.
+clusters independently of all other sample sources. In PC3 one can not 
+differentiate between the matrices.
 
 
 ```{r std_id-samples, echo = FALSE, results = "asis"}
@@ -378,7 +379,7 @@ res_plas = std_res[, std_res$source == "plasma"]
 ```
 
 Next, we want to see the clustering for each data set. Male and female samples
-are represented by different colors.
+are represented by rectangles and circles. We start with the capillary set:
 
 ```{r PCA-std-capillary, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for capillary blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
 
@@ -403,7 +404,10 @@ legend("topleft", col = col_source, legend = names(col_source), pch = 16,
 
 ```
 
-gg
+In the capillary samples, we see some differences between male and female 
+samples. Also, the replicates cluster nearly together in the PC1.
+
+We then generate the PCA for the venous data set:
 
 ```{r PCA-std-venous, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for venous blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
 
@@ -428,7 +432,10 @@ legend("topleft", col = col_source, legend = names(col_source), pch = 16,
 
 ```
 
-gg
+In the venous dataset, a differentiation between male and female samples is not 
+observed.The replicates cannot be assigned to each other.
+
+Lastly, we generate the PCA for the plasma samples:
 
 ```{r PCA-std-plasma, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for plasma blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
 
@@ -453,4 +460,5 @@ legend("topleft", col = col_source, legend = names(col_source), pch = 16,
 
 ```
 
-xx
+In the plasma samples, we do not see a clustering effect between male and female
+samples.
