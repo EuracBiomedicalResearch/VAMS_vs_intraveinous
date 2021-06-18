@@ -1,5 +1,5 @@
 ---
-title: "Differential abundance analysis"
+title: "Differential abundance analysis, semi-targeted approach"
 subtitle: "Positive polarity"
 author: "Christa Malfertheiner"
 date: "15 June 2021"
@@ -40,7 +40,7 @@ set.seed(123)
 ## Setting golden ratio to save images
 phi <- (1+sqrt(5))/2
 
-FILE_NAME <- "diff_analysis_pos"
+FILE_NAME <- "differential_abundance_pos"
 
 ## Define paths:
 IMAGE_PATH <- paste0("images/", FILE_NAME, "/")
@@ -90,6 +90,7 @@ library(CompMetaboTools)
 library(pander)
 
 load("data/RData/vams_normalization_pos/res_pos.RData")
+res_pos$sample_pair <- paste0(res_pos$source, ".", res_pos$sample)
 ```
 
 It is important now to remove the `POOL` samples from the dataset, because the
@@ -113,9 +114,9 @@ names(col_source) <- c("RBC",           #' red
                        "capillary",     #' purple
                        "venous")        #' orange
 
-col_sex <- brewer.pal(8, name = "Set1") [c(4, 7, 3)]
-names(col_sex) <- c("F",           # purple
-                    "M",           # brown
+col_sex <- brewer.pal(4, name = "Set1") [c(1, 2, 3)]
+names(col_sex) <- c("F",           # red
+                    "M",           # blue
                     "POOL")        # green
 
 ## Setting golden ratio to save images
@@ -130,7 +131,7 @@ pandoc.table(as.data.frame(tab), style = "rmarkdown",
              caption = "Samples used in this analysis")
 ```
 
-# semi-targeted analysis
+# Semi-targeted analysis
 
 First, we restrict the analysis to a set of known compounds, whose mass-to-charge
 ratio and retention time have been previously measured from the pure standards.
@@ -165,9 +166,10 @@ for (i in seq(nrow(std_info))) {
     }
     ## Calculate also the m/z
     std_info$mz_ion[i] <- mass2mz(
-        std_info$mzneut[i], adduct = std_info[i, "POS"])[[1]]
+        std_info$mzneut[i], adduct = std_info[i, "POS"])[1, 1]
 }
 std_info <- std_info[!is.na(std_info$mz_ion), ]
+std_info <- std_info[order(std_info$name), ]
 
 dr <- paste0(IMAGE_PATH, "/standards/")
 dir.create(dr, recursive = TRUE, showWarnings = FALSE)
@@ -182,6 +184,7 @@ tmp <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
                   keepFeatures = TRUE)
 
 ## Try to identify all features potentially matching these.
+sample_colors <- col_source[tmp$source]
 for (i in seq_len(nrow(std_info))) {
     fts <- featureDefinitions(tmp, mz = std_info$mz_ion[i],
                               rt = std_info$RT[i] + c(-30, 30),
@@ -193,9 +196,13 @@ for (i in seq_len(nrow(std_info))) {
         #chrs <- chrs[, colnames(res)]
         chrs <- chrs[, seq_len(ncol(res_pos))]
         for (j in seq_len(nrow(fts))) {
+            chr <- chrs[j, ]
+            pks <- chromPeaks(chr)
             png(paste0(dr, fl, "-", rownames(fts)[j], ".png"),
                 width = 10, height = 8, units = "cm", res = 300, pointsize = 6)
-            plot(chrs[j, ])
+            plot(chr, col = "#00000040",
+                 peakCol = paste0(sample_colors[pks[, "column"]], 50),
+                 peakBg = paste0(sample_colors[pks[, "column"]], 10))
             abline(v = std_info$RT[i])
             legend("topleft", legend = c(rownames(fts)[j], fl,
                                          paste0("rt: ", std_info$RT[i]),
@@ -223,29 +230,30 @@ std_info$feature[std_info$name == "1-Methylhistidine"] <- "FT0293"
 std_info$feature[std_info$name == "3-Methylhistidine"] <- "FT0293" # same as 1-Methylhistidine
 std_info$feature[std_info$name == "5-Oxoproline"] <- "FT0154"
 std_info$feature[std_info$name == "Acetylcarnitine"] <- "FT0415"
-std_info$feature[std_info$name == "Acetylglucosamine"] <- "FT0518"
+std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT0518"
 std_info$feature[std_info$name == "Acetylhistidine"] <- "FT0384"
 std_info$feature[std_info$name == "ADMA"] <- "FT0407"
 std_info$feature[std_info$name == "Alanine"] <- "FT0051"
 std_info$feature[std_info$name == "alpha-Aminoadipic acid"] <- "FT0268"
+std_info$feature[std_info$name == "alpha-Lactose"] <- "FT1330" # or FT1331
 std_info$feature[std_info$name == "AMP"] <- "FT1197"
 std_info$feature[std_info$name == "Arginine"] <- "FT0307"
 std_info$feature[std_info$name == "Asparagine"] <- "FT0162"
 ## std_info$feature[std_info$name == "Betaine"] <- "FT0111/FT0112"
 std_info$feature[std_info$name == "C4 Carnitine"] <- "FT0486"
-## std_info$feature[std_info$name == "C5 Carnitine"] <- "FT0527/FT0526"
+std_info$feature[std_info$name == "C5 Carnitine"] <- "FT0527" # rt shifted 10s
 std_info$feature[std_info$name == "Caffeine"] <- "FT0378"
 std_info$feature[std_info$name == "Carnosine"] <- "FT0472"
-std_info$feature[std_info$name == "Choline"] <- "FT0072"
+## std_info$feature[std_info$name == "Choline"] <- "FT0072"
 std_info$feature[std_info$name == "Citrulline"] <- "FT0312"
-## std_info$feature[std_info$name == "Corticosterone"] <- "FT1192/FT1193"
+## std_info$feature[std_info$name == "Corticosterone"] <- "FT1193" # rt shifted 10s
 ##std_info$feature[std_info$name == "Creatine"] <- "FT0159/FT0160"
 ##std_info$feature[std_info$name == "Creatinine"] <- "FT0099/FT0100"
 std_info$feature[std_info$name == "Cystine"] <- "FT0507"
 std_info$feature[std_info$name == "dGMP"] <- "FT1198"
 std_info$feature[std_info$name == "Fructose"] <- "FT0402" # same as glucose and mannose
 std_info$feature[std_info$name == "Galactitol"] <- "FT0420" # same as sorbitol
-std_info$feature[std_info$name == "Gluconic acid"] <- "FT0460"
+std_info$feature[std_info$name == "Gluconic Acid"] <- "FT0460"
 std_info$feature[std_info$name == "Glucose"] <- "FT0402" # same as Fructose
 std_info$feature[std_info$name == "Glutamine"] <- "FT0215"
 std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT3342" # same as Glu. Reduced
@@ -279,16 +287,16 @@ std_info$feature[std_info$name == "Phenylalanine"] <- "FT0281"
 std_info$feature[std_info$name == "Phosphorylcholine"] <- "FT0338"
 std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT0201"
 ##std_info$feature[std_info$name == "Pipecolic acid"] <- "FT0155"
-std_info$feature[std_info$name == "Proline"] <- "FT0107"
+## std_info$feature[std_info$name == "Proline"] <- "FT0107/FT106"
 ##std_info$feature[std_info$name == "Putrescine"] <- "FT0024"
 std_info$feature[std_info$name == "SAH"] <- "FT1481"
-##std_info$feature[std_info$name == "SAME"] <- "FT1583"
+std_info$feature[std_info$name == "SAMe"] <- "FT1583"
 std_info$feature[std_info$name == "SDMA"] <- "FT0407"
 std_info$feature[std_info$name == "Serine"] <- "FT0079"
 std_info$feature[std_info$name == "Sorbitol"] <- "FT0420" # same as galactitol
 std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT1451"
 std_info$feature[std_info$name == "Sphingosine"] <- "FT0843"
-std_info$feature[std_info$name == "Sucrose"] <- "FT1331" 
+std_info$feature[std_info$name == "Sucrose"] <- "FT1331" # or FT1330
 std_info$feature[std_info$name == "Taurine"] <- "FT0146"
 std_info$feature[std_info$name == "Threonine"] <- "FT0117"
 std_info$feature[std_info$name == "Tryptophan"] <- "FT0422"
@@ -383,24 +391,20 @@ are represented by rectangles and circles. We start with the capillary set:
 
 ```{r PCA-std-capillary, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for capillary blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
 
-tmp_capillary <- res_cap
-
-pc_raw_capillary <- prcomp(t(log2(assay(tmp_capillary, "normalized_filled_imputed"))),
-                 scale = FALSE, center = TRUE)
-
+pc_raw_capillary <- prcomp(t(log2(assay(res_cap, "normalized_filled_imputed"))),
+                           scale = FALSE, center = TRUE)
 
 pch <- rep(21, ncol(res_cap))
 pch[res_cap$sex == "M"] <- 22
 par(mfrow = c(1, 2))
-plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+plot_pca(pc_raw_capillary, col = paste0(col_sex[as.character(res_cap$sex)], 80),
          pc_x = 1, pc_y = 2, main = "capillary samples, M/F",
-         pch = pch, col = "#00000080")
-plot_pca(pc_raw_capillary, bg = paste0(col_source[as.character(tmp_capillary$source)], 80),
+         pch = pch, labels = res_cap$sample)
+plot_pca(pc_raw_capillary, col = paste0(col_sex[as.character(res_cap$sex)], 80),
          pc_x = 3, pc_y = 4, main = "capillary samples, M/F",
-         pch = pch, col = "#00000080")
-legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+         pch = pch, labels = res_cap$sample)
+legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
        cex = 0.4)
-
 
 ```
 
@@ -411,22 +415,19 @@ We then generate the PCA for the venous data set:
 
 ```{r PCA-std-venous, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for venous blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
 
-tmp_venous <- res_ven
-
-pc_raw_venous <- prcomp(t(log2(assay(tmp_venous, "normalized_filled_imputed"))),
-                 scale = FALSE, center = TRUE)
-
+pc_raw_venous <- prcomp(t(log2(assay(res_ven, "normalized_filled_imputed"))),
+                        scale = FALSE, center = TRUE)
 
 pch <- rep(21, ncol(res_cap))
 pch[res_ven$sex == "M"] <- 22
 par(mfrow = c(1, 2))
-plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+plot_pca(pc_raw_venous, col = paste0(col_sex[as.character(res_ven$sex)], 80),
          pc_x = 1, pc_y = 2, main = "venous samples, M/F",
-         pch = pch, col = "#00000080")
-plot_pca(pc_raw_venous, bg = paste0(col_source[as.character(tmp_venous$source)], 80),
+         pch = pch, labels = res_ven$sample)
+plot_pca(pc_raw_venous, col = paste0(col_sex[as.character(res_ven$sex)], 80),
          pc_x = 3, pc_y = 4, main = "venous samples, M/F",
-         pch = pch, col = "#00000080")
-legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+         pch = pch, labels = res_ven$sample)
+legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
        cex = 0.4)
 
 
@@ -439,22 +440,19 @@ Lastly, we generate the PCA for the plasma samples:
 
 ```{r PCA-std-plasma, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for plasma blood samples. Circles and rectangles indicate male or female samples.", echo = FALSE}
 
-tmp_plasma <- res_plas
-
-pc_raw_plasma <- prcomp(t(log2(assay(tmp_plasma, "normalized_filled_imputed"))),
-                 scale = FALSE, center = TRUE)
-
+pc_raw_plasma <- prcomp(t(log2(assay(res_plas, "normalized_filled_imputed"))),
+                        scale = FALSE, center = TRUE)
 
 pch <- rep(21, ncol(res_plas))
 pch[res_plas$sex == "M"] <- 22
 par(mfrow = c(1, 2))
-plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+plot_pca(pc_raw_plasma, col = paste0(col_sex[as.character(res_plas$sex)], 80),
          pc_x = 1, pc_y = 2, main = "plasma samples, M/F",
-         pch = pch, col = "#00000080")
-plot_pca(pc_raw_plasma, bg = paste0(col_source[as.character(tmp_plasma$source)], 80),
+         pch = pch, labels = res_plas$sample)
+plot_pca(pc_raw_plasma, col = paste0(col_sex[as.character(res_plas$sex)], 80),
          pc_x = 3, pc_y = 4, main = "plasma samples, M/F",
-         pch = pch, col = "#00000080")
-legend("topleft", col = col_source, legend = names(col_source), pch = 16,
+         pch = pch, labels = res_plas$sample)
+legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
        cex = 0.4)
 
 
@@ -462,3 +460,41 @@ legend("topleft", col = col_source, legend = names(col_source), pch = 16,
 
 In the plasma samples, we do not see a clustering effect between male and female
 samples.
+
+Next we merge the technical replicates.
+
+```{r}
+
+#' Average 
+averageSE <- function(x, column = character(), mainAssay = character()) {
+    if (!column %in% colnames(colData(x)))
+        stop("Column '", "' not found in 'colData' of 'x'")
+    f <- factor(colData(x)[, column], levels = unique(colData(x)[, column]))
+    ## new colData: take the first element for each replicate.
+    cd <- colData(x)[match(levels(f), f), ]
+    ## loop over the assays and average them.
+    a <- lapply(assays(x), function(z) {
+        z <- split.data.frame(t(z), f = f)
+        z <- do.call(cbind, lapply(z, colMeans, na.rm = TRUE))
+        z[is.na(z)] <- NA
+        z
+    })
+    if (length(mainAssay)) {
+        tmp <- split.data.frame(t(assay(x, mainAssay)), f = f)
+        tmp <- do.call(cbind, lapply(tmp, function(y) {
+            apply(y, MARGIN = 2, FUN = sd, na.rm = TRUE)
+        }))
+        tmp[is.na(tmp)] <- NA
+        a[[paste0(mainAssay, "_sd")]] <- tmp
+    }
+    SummarizedExperiment(assays = a, rowData = rowData(x),
+                         colData = cd, metadata = metadata(x))
+}
+
+## Average technical replicates:
+res_pos <- averageSE(res_pos, column = "sample_pair",
+                     mainAssay = "normalized_filled")
+
+
+
+```
