@@ -1,8 +1,8 @@
 ---
 title: "Differential abundance analysis, semi-targeted approach"
-subtitle: "Positive polarity"
+subtitle: "Negative polarity"
 author: "Christa Malfertheiner"
-date: "15 June 2021"
+date: "06 July 2021"
 output:
   BiocStyle::html_document:
     toc: true
@@ -24,14 +24,9 @@ BiocStyle::markdown()
 knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 ```
 
-<!--
-**Modified**: `r file.info("differential_abundance_pos.Rmd")$mtime`<br />
-**Compiled**: `r date()`
--->
-
 ```{r parameters, echo = FALSE, warning = FALSE}
 ## Set general parameters
-polarity <- "POS" # specify "POS" or "NEG"
+polarity <- "NEG" # specify "POS" or "NEG"
 p.cut <- 0.05     # cut-off for significance.
 m.cut <- 0.7      # cut-off for log2 fold change
 
@@ -40,7 +35,7 @@ set.seed(123)
 ## Setting golden ratio to save images
 phi <- (1+sqrt(5))/2
 
-FILE_NAME <- "differential_abundance_pos"
+FILE_NAME <- "differential_abundance_neg"
 
 ## Define paths:
 IMAGE_PATH <- paste0("images/", FILE_NAME, "/")
@@ -89,8 +84,8 @@ library(MsFeatures)
 library(CompMetaboTools)
 library(pander)
 
-load("data/RData/vams_normalization_pos/res_pos.RData")
-res_pos$sample_pair <- paste0(res_pos$source, ".", res_pos$sample)
+load("data/RData/vams_normalization_neg/res_neg.RData")
+res_neg$sample_pair <- paste0(res_neg$source, ".", res_neg$sample)
 ```
 
 It is important now to remove the `POOL` samples from the dataset, because the
@@ -102,10 +97,10 @@ accessed when needed.
 We also assign the colours as seen before.
 
 ```{r split-qc, echo = TRUE}
-res_qc <- res_pos[, res_pos$source == "all"]
-res_pos <- res_pos[, res_pos$source != "all"]
-res_pos$source <- factor(as.character(res_pos$source))
-res_pos$sex <- factor(as.character(res_pos$sex))
+res_qc <- res_neg[, res_neg$source == "all"]
+res_neg <- res_neg[, res_neg$source != "all"]
+res_neg$source <- factor(as.character(res_neg$source))
+res_neg$sex <- factor(as.character(res_neg$sex))
 
 col_source <- brewer.pal(5, name = "Set1")
 names(col_source) <- c("RBC",           #' red
@@ -126,7 +121,7 @@ phi <- (1+sqrt(5))/2
 The samples used in this analysis are listed below.
 
 ```{r, echo = FALSE, results = "asis"}
-tab <- colData(res_pos)[, c("source", "sex", "age")]
+tab <- colData(res_neg)[, c("source", "sex", "age")]
 pandoc.table(as.data.frame(tab), style = "rmarkdown",
              caption = "Samples used in this analysis")
 ```
@@ -174,13 +169,13 @@ std_info <- std_info[order(std_info$name), ]
 dr <- paste0(IMAGE_PATH, "/standards/")
 dir.create(dr, recursive = TRUE, showWarnings = FALSE)
 
-##load data_pos
+##load data_neg
 
-load("data/RData/vams_normalization_pos/data_pos_filled.RData")
-pData(data_pos) <- as.data.frame(pData(data_pos))
+load("data/RData/vams_normalization_neg/data_neg_filled.RData")
+pData(data_neg) <- as.data.frame(pData(data_neg))
 
 ## Subset to the samples we're currently analyzing.
-tmp <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
+tmp <- filterFile(data_neg, match(res_neg$mzML_file, data_neg$mzML_file),
                   keepFeatures = TRUE)
 
 ## Try to identify all features potentially matching these.
@@ -194,7 +189,7 @@ for (i in seq_len(nrow(std_info))) {
         chrs <- featureChromatograms(tmp, features = rownames(fts),
                                      expandRt = 7, filled = TRUE)
         #chrs <- chrs[, colnames(res)]
-        chrs <- chrs[, seq_len(ncol(res_pos))]
+        chrs <- chrs[, seq_len(ncol(res_neg))]
         for (j in seq_len(nrow(fts))) {
             chr <- chrs[j, ]
             pks <- chromPeaks(chr)
@@ -226,82 +221,88 @@ range and it is very close to the theoretical retention time.
 ##   time and a single peak present in the wider rt range) assign it.
 std_info$feature <- NA
 
-std_info$feature[std_info$name == "1-Methylhistidine"] <- "FT0293"
-std_info$feature[std_info$name == "3-Methylhistidine"] <- "FT0293" # same as 1-Methylhistidine
-std_info$feature[std_info$name == "5-Oxoproline"] <- "FT0154"
-std_info$feature[std_info$name == "Acetylcarnitine"] <- "FT0415"
-std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT0518"
-std_info$feature[std_info$name == "Acetylhistidine"] <- "FT0384"
-std_info$feature[std_info$name == "ADMA"] <- "FT0407"
-std_info$feature[std_info$name == "Alanine"] <- "FT0051"
-std_info$feature[std_info$name == "alpha-Aminoadipic acid"] <- "FT0268"
-std_info$feature[std_info$name == "alpha-Lactose"] <- "FT1330" # or FT1331
-std_info$feature[std_info$name == "AMP"] <- "FT1197"
-std_info$feature[std_info$name == "Arginine"] <- "FT0307"
-std_info$feature[std_info$name == "Asparagine"] <- "FT0162"
+#std_info$feature[std_info$name == "1-Methylhistidine"] <- "FT0293"
+#std_info$feature[std_info$name == "3-Methylhistidine"] <- "FT0293" # same as 1-Methylhistidine
+#std_info$feature[std_info$name == "5-Oxoproline"] <- "FT0154"
+std_info$feature[std_info$name == "Acetylmethionine"] <- "FT00754"
+#std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT0518"
+#std_info$feature[std_info$name == "Acetylhistidine"] <- "FT0384"
+#std_info$feature[std_info$name == "ADMA"] <- "FT0407"
+#std_info$feature[std_info$name == "Alanine"] <- "FT0051"
+#std_info$feature[std_info$name == "alpha-Aminoadipic acid"] <- "FT0268"
+std_info$feature[std_info$name == "alpha-Lactose"] <- "FT03796" # or FT1331
+#std_info$feature[std_info$name == "AMP"] <- "FT1197"
+#std_info$feature[std_info$name == "Arginine"] <- "FT0307"
+std_info$feature[std_info$name == "Ascorbic acid"] <- "FT00587"
 ## std_info$feature[std_info$name == "Betaine"] <- "FT0111/FT0112"
-std_info$feature[std_info$name == "C4 Carnitine"] <- "FT0486"
-std_info$feature[std_info$name == "C5 Carnitine"] <- "FT0527" # rt shifted 10s
-std_info$feature[std_info$name == "Caffeine"] <- "FT0378"
-std_info$feature[std_info$name == "Carnosine"] <- "FT0472"
+#std_info$feature[std_info$name == "C4 Carnitine"] <- "FT0486"
+std_info$feature[std_info$name == "cGMP"] <- "FT03357" # rt shifted 15s
+#std_info$feature[std_info$name == "Caffeine"] <- "FT0378"
+#std_info$feature[std_info$name == "Carnosine"] <- "FT0472"
 ## std_info$feature[std_info$name == "Choline"] <- "FT0072"
-std_info$feature[std_info$name == "Citrulline"] <- "FT0312"
-## std_info$feature[std_info$name == "Corticosterone"] <- "FT1193" # rt shifted 10s
+#std_info$feature[std_info$name == "Citrulline"] <- "FT0312"
+std_info$feature[std_info$name == "Corticosterone"] <- "FT03395" # rt shifted 10s
 ##std_info$feature[std_info$name == "Creatine"] <- "FT0159/FT0160"
 ##std_info$feature[std_info$name == "Creatinine"] <- "FT0099/FT0100"
-std_info$feature[std_info$name == "Cystine"] <- "FT0507"
-std_info$feature[std_info$name == "dGMP"] <- "FT1198"
-std_info$feature[std_info$name == "Fructose"] <- "FT0402" # same as glucose and mannose
-std_info$feature[std_info$name == "Galactitol"] <- "FT0420" # same as sorbitol
-std_info$feature[std_info$name == "Gluconic Acid"] <- "FT0460"
-std_info$feature[std_info$name == "Glucose"] <- "FT0402" # same as Fructose
-std_info$feature[std_info$name == "Glutamine"] <- "FT0215"
-std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT3342" # same as Glu. Reduced
-std_info$feature[std_info$name == "Glutathione Reduced"] <- "FT3342" # same as Glu. Oxidized
-std_info$feature[std_info$name == "Glycero-phosphocholine"] <- "FT0581"
-std_info$feature[std_info$name == "Glycine"] <- "FT0031"
-std_info$feature[std_info$name == "Histidine"] <- "FT0249"
-std_info$feature[std_info$name == "Homocysteine"] <- "FT0178"
-std_info$feature[std_info$name == "Hydroxyproline"] <- "FT0158"
-std_info$feature[std_info$name == "Hypoxanthine"] <- "FT0182"
-std_info$feature[std_info$name == "Isoleucine"] <- "FT0161"
-std_info$feature[std_info$name == "L-Aspartic Acid"] <- "FT0168" # or FT0169
-std_info$feature[std_info$name == "L-Carnitine"] <- "FT0270" 
-std_info$feature[std_info$name == "L-Cysteine"] <- "FT0123"
-std_info$feature[std_info$name == "Leucine"] <- "FT0161"
+#std_info$feature[std_info$name == "Cystine"] <- "FT0507"
+#std_info$feature[std_info$name == "dGMP"] <- "FT1198"
+#std_info$feature[std_info$name == "Fructose"] <- "FT0402" # same as glucose and mannose
+#std_info$feature[std_info$name == "Galactitol"] <- "FT0420" # same as sorbitol
+std_info$feature[std_info$name == "Gluconic Acid"] <- "FT01072"
+std_info$feature[std_info$name == "Glucoronic Acid"] <- "FT01050"
+#std_info$feature[std_info$name == "Glucose"] <- "FT0402" # same as Fructose
+#std_info$feature[std_info$name == "Glutamine"] <- "FT0215"
+#std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT3342" # same as Glu. Reduced
+#std_info$feature[std_info$name == "Glutathione Reduced"] <- "FT3342" # same as Glu. Oxidized
+#std_info$feature[std_info$name == "Glycero-phosphocholine"] <- "FT0581"
+#std_info$feature[std_info$name == "Glycine"] <- "FT0031"
+#std_info$feature[std_info$name == "Histidine"] <- "FT0249"
+#std_info$feature[std_info$name == "Homocysteine"] <- "FT0178"
+#std_info$feature[std_info$name == "Hydroxyproline"] <- "FT0158"
+#std_info$feature[std_info$name == "Hypoxanthine"] <- "FT0182"
+#std_info$feature[std_info$name == "Isoleucine"] <- "FT0161"
+std_info$feature[std_info$name == "IMP"] <- "FT03439"
+std_info$feature[std_info$name == "Ketoleucine"] <- "FT00190"
+#std_info$feature[std_info$name == "L-Aspartic Acid"] <- "FT0168" # or FT0169
+#std_info$feature[std_info$name == "L-Carnitine"] <- "FT0270" 
+#std_info$feature[std_info$name == "L-Cysteine"] <- "FT0123"
+#std_info$feature[std_info$name == "Leucine"] <- "FT0161"
 ##std_info$feature[std_info$name == "Levodopa"] <- "FT0384" # found with ppm = 50
-std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT0220"
-std_info$feature[std_info$name == "Lysine"] <- "FT0216"
-std_info$feature[std_info$name == "Mannose"] <- "FT0402" # same as Fructose and Glucose
-std_info$feature[std_info$name == "Methionine"] <- "FT0226"
-std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT0280" 
+#std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT0220"
+#std_info$feature[std_info$name == "Lysine"] <- "FT0216"
+#std_info$feature[std_info$name == "Mannose"] <- "FT0402" # same as Fructose and Glucose
+#std_info$feature[std_info$name == "Methionine"] <- "FT0226"
+#std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT0280" 
+#std_info$feature[std_info$name == "Mevalonic acid"] <- "FT00190" # is Ketoleucine
 ## std_info$feature[std_info$name == "Myoinositol"] <- "FT0402" # detected as FT0820 and FT0821 - same as fructose, glucose and mannose
-std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT0306"
-std_info$feature[std_info$name == "NAD"] <- "FT3776"
-std_info$feature[std_info$name == "Niacinamide"] <- "FT0134"
-std_info$feature[std_info$name == "Ornithine"] <- "FT0165"
-std_info$feature[std_info$name == "Palmitoylcarnitine"] <- "FT1588" # or FT1589
-std_info$feature[std_info$name == "Phenylalanine"] <- "FT0281"
+#std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT0306"
+std_info$feature[std_info$name == "NAD"] <- "FT10247"
+#std_info$feature[std_info$name == "Niacinamide"] <- "FT0134"
+std_info$feature[std_info$name == "N-Formyl-L-methionine"] <- "FT00592"
+#std_info$feature[std_info$name == "Ornithine"] <- "FT0165"
+std_info$feature[std_info$name == "PABA"] <- "FT00261" 
+#std_info$feature[std_info$name == "Phenylalanine"] <- "FT0281"
 ##std_info$feature[std_info$name == "Phenylethylamine"] <- "FT0129"
 ##std_info$feature[std_info$name == "Phosphocreatine"] <- "FT0436"
-std_info$feature[std_info$name == "Phosphorylcholine"] <- "FT0338"
-std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT0201"
+std_info$feature[std_info$name == "Phosphoenolpyruvic Acid"] <- "FT00490"
+#std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT0201"
 ##std_info$feature[std_info$name == "Pipecolic acid"] <- "FT0155"
-## std_info$feature[std_info$name == "Proline"] <- "FT0107/FT106"
+std_info$feature[std_info$name == "Proline"] <- "FT00111"
 ##std_info$feature[std_info$name == "Putrescine"] <- "FT0024"
-std_info$feature[std_info$name == "SAH"] <- "FT1481"
-std_info$feature[std_info$name == "SAMe"] <- "FT1583"
-std_info$feature[std_info$name == "SDMA"] <- "FT0407"
-std_info$feature[std_info$name == "Serine"] <- "FT0079"
-std_info$feature[std_info$name == "Sorbitol"] <- "FT0420" # same as galactitol
-std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT1451"
-std_info$feature[std_info$name == "Sphingosine"] <- "FT0843"
-std_info$feature[std_info$name == "Sucrose"] <- "FT1331" # or FT1330
-std_info$feature[std_info$name == "Taurine"] <- "FT0146"
-std_info$feature[std_info$name == "Threonine"] <- "FT0117"
-std_info$feature[std_info$name == "Tryptophan"] <- "FT0422"
-std_info$feature[std_info$name == "Tyrosine"] <- "FT0328"
-std_info$feature[std_info$name == "Valine"] <- "FT0112"
+std_info$feature[std_info$name == "Quinolinic acid"] <- "FT00482"
+#std_info$feature[std_info$name == "SAH"] <- "FT1481"
+#std_info$feature[std_info$name == "SAMe"] <- "FT1583"
+#std_info$feature[std_info$name == "SDMA"] <- "FT0407"
+#std_info$feature[std_info$name == "Serine"] <- "FT0079"
+#std_info$feature[std_info$name == "Sorbitol"] <- "FT0420" # same as galactitol
+std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT04147"
+#std_info$feature[std_info$name == "Sphingosine"] <- "FT0843"
+std_info$feature[std_info$name == "Sucrose"] <- "FT03796" 
+#std_info$feature[std_info$name == "Taurine"] <- "FT0146"
+#std_info$feature[std_info$name == "Threonine"] <- "FT0117"
+#std_info$feature[std_info$name == "Tryptophan"] <- "FT0422"
+#std_info$feature[std_info$name == "Tyrosine"] <- "FT0328"
+#std_info$feature[std_info$name == "Valine"] <- "FT0112"
 
 std_info <- std_info[!is.na(std_info$feature), ]
 
@@ -333,7 +334,7 @@ Next, only the features assigned to the standards are taken into consideration
 and are subsetted in the `std_res` object.
 
 ```{r std-subset, echo = FALSE}
-std_res <- res_pos[rownames(res_pos) %in% std_info$feature, ]
+std_res <- res_neg[rownames(res_neg) %in% std_info$feature, ]
 
 rowData(std_res) <- cbind(rowData(std_res),
                           std_info[rownames(std_res), c("name", "HMDB.code")])
@@ -435,6 +436,8 @@ legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
 
 ```
 
+
+
 In the venous data set, a differentiation between male and female samples is not 
 observed.The replicates are clustered farer away, then we saw in the capillary
 data set.
@@ -495,7 +498,7 @@ averageSE <- function(x, column = character(), mainAssay = character()) {
 }
 
 ## Average technical replicates:
-res_pos <- averageSE(res_pos, column = "sample_pair",
+res_neg <- averageSE(res_neg, column = "sample_pair",
                      mainAssay = "normalized_filled")
 
 
@@ -507,7 +510,7 @@ For completeness, we recreate the PCA plots using data from the merged
 technical replicates. First, we re-subset the data sets:
 
 ```{r}
-std_res <- res_pos[rownames(res_pos) %in% std_info$feature, ]
+std_res <- res_neg[rownames(res_neg) %in% std_info$feature, ]
 
 rowData(std_res) <- cbind(rowData(std_res),
                           std_info[rownames(std_res), c("name", "HMDB.code")])
@@ -596,7 +599,6 @@ control of the false discovery rate), the average intensity of signals in plasma
 samples, capillary and venous blood samples and whether or not a feature is to 
 be considered significant.
 This data frame is then added to the `rowData` of the `res_cap` object.
-We start the analysis for the capillary blood samples:
 
 ```{r standards-analysis, echo = FALSE}
 sex <- factor(res_cap$sex)
@@ -625,8 +627,7 @@ tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
 rowData(res_cap) <- cbind(rowData(res_cap), tmp)
 ```
 
-We plot then the distribution of p-values of the capillary blood samples, both 
-raw and adjusted.
+We plot then the distribution of p-values, both raw and adjusted.
 
 ```{r standards-histogram, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "Distribution of raw (left) and adjusted p-values (right)."}
 par(mfrow = c(1, 2))
@@ -645,8 +646,7 @@ the bar with the highest frequency is found near 0, the second highest is near
 to 1, while few other values are scarcely represented.
 
 The volcano plot is now plotted to evaluate whether significant features are
-still present or not. First, we plot data belonging to the capillary blood 
-samples:
+still present or not.
 
 ```{r standards-volcano, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
 par(mfrow = c(1, 1))
@@ -664,12 +664,12 @@ if (any(rowData(res_cap)$significant)) {
 }
 ```
 
-In total `r sum(rowData(res_cap)$significant)` feature we do not find a
+In total `r sum(rowData(res_cap)$significant)` feature were found to have a
 significant difference in abundances between the two groups. The table below
 lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
-```{r significant-standards-result-table capillary, echo = FALSE, results = "asis"}
+```{r significant-standards-result-table, echo = FALSE, results = "asis"}
 ## Write result table
 if (any(rowData(res_cap)$significant)) {
     tab <- rowData(res_cap)[rowData(res_cap)$significant,
@@ -690,17 +690,18 @@ if (any(rowData(res_cap)$significant)) {
 }
 ```
 
-**SAH** shows the smallest p-value, which is already described as being different in
-concentration when male and female are compared. The second identifies metbolite
-with a small p-value  is **Citrulline**: this is an amino acid that is produced 
-from arginine during the process of nitrogen monoxide (NO) synthesis.
-This biological messenger plays an important role in mechanical and chemical
-signal transduction, especially in cardiomyocytes.**L-Aspartic acid** is an amino 
-acid, which plays a major role in the production in antibodies. As the immune 
-response is stronger in female compared to male, also the higher abundance of
-this AA may be expected.
+We then plot the heatmap with features with lowest p-values:
 
-We than look for significant features in venous blood samples: 
+```{r standards-heatmap, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 5, fig.cap = "Heatmap of features.", echo = FALSE, eval = nrow(tab) > 1}
+tmp <- log2(assay(res_cap, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+ann <- as.data.frame(colData(res_cap)[, c("sex")])
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res_cap),
+               annotation_color = list(sex = col_sex))
+tmp <- data.frame(
+heatmap = pm$tree_row$order
+)
+```
 
 ```{r standards-analysis venous, echo = FALSE}
 sex <- factor(res_ven$sex)
@@ -739,8 +740,6 @@ hist(rowData(res_ven)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
 
-Next, we generate a volcano plot for the significant features found in venous
-blood samples:
 
 ```{r standards-volcano venous, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
 par(mfrow = c(1, 1))
@@ -758,12 +757,12 @@ if (any(rowData(res_ven)$significant)) {
 }
 ```
 
-In total `r sum(rowData(res_ven)$significant)` feature were found to have a
+In total `r sum(rowData(res_cap)$significant)` feature were found to have a
 significant difference in abundances between the two groups. The table below
 lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
-```{r significant-standards-result-table venous, echo = FALSE, results = "asis"}
+```{r significant-standards-result-table, echo = FALSE, results = "asis"}
 ## Write result table
 if (any(rowData(res_ven)$significant)) {
     tab <- rowData(res_ven)[rowData(res_ven)$significant,
@@ -783,10 +782,6 @@ if (any(rowData(res_ven)$significant)) {
         caption = "Top 20 features with the smallest p-values.")
 }
 ```
-
-Only 2 features show a p-value lower than 0.5, which are **L-Aspartic acid** and
-Carnitin, former also being found significant between male and female samples in
-the capillary blood samples.
 
 We then analyse the features for plasma samples:
 
@@ -817,7 +812,7 @@ tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
 rowData(res_plas) <- cbind(rowData(res_plas), tmp)
 ```
 
-We plot the distribution of p-values, both raw and adjusted.
+We plot then the distribution of p-values, both raw and adjusted.
 
 ```{r standards-histogram plasma, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "Distribution of raw (left) and adjusted p-values (right)."}
 par(mfrow = c(1, 2))
@@ -848,7 +843,7 @@ significant difference in abundances between the two groups. The table below
 lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
-```{r significant-standards-result-table plasma, echo = FALSE, results = "asis"}
+```{r significant-standards-result-table, echo = FALSE, results = "asis"}
 ## Write result table
 if (any(rowData(res_plas)$significant)) {
     tab <- rowData(res_plas)[rowData(res_plas)$significant,
@@ -869,20 +864,4 @@ if (any(rowData(res_plas)$significant)) {
 }
 ```
 
-Also in the plasma samples, we did not find a features which is significantly 
-different in concentration when male and female samples are compared. 
-**Homocysteine** shows the lowest p-value here.
-
-```{r}
-save(res_pos, file = paste0(RDATA_PATH, "res_pos.RData"))
-```
-
-# Session information
-
-The versions of R and the individually used packges are listed below.
-
-```{r}
-sessionInfo()
-```
-
-# References
+xx
