@@ -221,8 +221,8 @@ range and it is very close to the theoretical retention time.
 ##   time and a single peak present in the wider rt range) assign it.
 std_info$feature <- NA
 
-#std_info$feature[std_info$name == "1-Methylhistidine"] <- "FT0293"
-#std_info$feature[std_info$name == "3-Methylhistidine"] <- "FT0293" # same as 1-Methylhistidine
+std_info$feature[std_info$name == "2-Methylcitrid acid"] <- "FT01200"
+std_info$feature[std_info$name == "3-Nitrotyrosine"] <- "FT01166" 
 #std_info$feature[std_info$name == "5-Oxoproline"] <- "FT0154"
 std_info$feature[std_info$name == "Acetylmethionine"] <- "FT00754"
 #std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT0518"
@@ -500,9 +500,6 @@ averageSE <- function(x, column = character(), mainAssay = character()) {
 ## Average technical replicates:
 res_neg <- averageSE(res_neg, column = "sample_pair",
                      mainAssay = "normalized_filled")
-
-
-
 ```
 
 
@@ -636,14 +633,6 @@ hist(rowData(res_cap)$pvalue, breaks = 64, xlab = "p value",
 hist(rowData(res_cap)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
-
-The distribution of the raw p-values reflects what was expected: the tallest bar
-is close to 0 and the other p-values are randomly distributed. Also, we notice
-that there are several p-values that are not represented at all in the dataset.
-
-The distribution of the adjusted p-values also follows the trend we predicted:
-the bar with the highest frequency is found near 0, the second highest is near
-to 1, while few other values are scarcely represented.
 
 The volcano plot is now plotted to evaluate whether significant features are
 still present or not.
