@@ -785,7 +785,7 @@ if (any(rowData(res_ven)$significant)) {
 ```
 
 Only 2 features show a p-value lower than 0.5, which are **L-Aspartic acid** and
-Carnitin, former also being found significant between male and female samples in
+**Carnitine**, former also being found significant between male and female samples in
 the capillary blood samples.
 
 We then analyse the features for plasma samples:

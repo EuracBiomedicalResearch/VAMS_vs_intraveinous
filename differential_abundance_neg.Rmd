@@ -679,19 +679,6 @@ if (any(rowData(res_cap)$significant)) {
 }
 ```
 
-We then plot the heatmap with features with lowest p-values:
-
-```{r standards-heatmap, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 5, fig.cap = "Heatmap of features.", echo = FALSE, eval = nrow(tab) > 1}
-tmp <- log2(assay(res_cap, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
-tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
-ann <- as.data.frame(colData(res_cap)[, c("sex")])
-pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res_cap),
-               annotation_color = list(sex = col_sex))
-tmp <- data.frame(
-heatmap = pm$tree_row$order
-)
-```
-
 ```{r standards-analysis venous, echo = FALSE}
 sex <- factor(res_ven$sex)
 dsgn <- model.matrix(~ 0 + sex)
@@ -746,7 +733,7 @@ if (any(rowData(res_ven)$significant)) {
 }
 ```
 
-In total `r sum(rowData(res_cap)$significant)` feature were found to have a
+In total `r sum(rowData(res_ven)$significant)` feature were found to have a
 significant difference in abundances between the two groups. The table below
 lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).

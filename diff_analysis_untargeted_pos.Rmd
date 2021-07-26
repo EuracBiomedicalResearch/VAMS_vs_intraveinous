@@ -120,9 +120,6 @@ pandoc.table(as.data.frame(tab), style = "rmarkdown",
 ```
 
 
-#are the technical replictes merged? then proceed...
-
-
 # Feature pre-filtering
 
 Feature pre-filtering is an important step of data analysis that aims to
@@ -191,9 +188,7 @@ plot(log2(rsds), log2(dratios), xlab = expression(log[2]~RSD),
 abline(v = log2(0.3), col = "red", lty = 2)
 abline(h = log2(0.5), col = "red", lty = 2)
 ```
-
-
-The plot shows high correlation between RSD and D-ratios, though the two methods
+The plot shows a correlation between RSD and D-ratios, though the two methods
 are not interchangeable. Pre-filtering with RSD, in fact, could lead to the
 removal of potentially significant features. Thus, pre-filtering based on the 
 D-ratio is preferable in this case and will be performed in this analysis.
@@ -880,6 +875,8 @@ high abundances for the significant features. In these samples MS/MS spectra can
 then be generated to further characterize the significant LC-MS features. We
 thus first rank all samples by abundance for each feature.
 
+We start with the analysis of the **capillary** blood samples:
+
 ```{r sample-ranks}
 abundance_mat <- assay(res_cap, "normalized_filled_imputed")[rownames(tab), ]
 sample_ranks <- t(apply(-abundance_mat, MARGIN = 1, rank))
@@ -916,7 +913,6 @@ pandoc.table(
     M_table, style = "rmarkdown",
     caption = "Samples with highest intensities in male-specific features.")
 ```
-xxx
 
 ## Feature grouping
 
@@ -1178,4 +1174,516 @@ tmp <- rowData(res_cap)
 tmp <- cbind(feature = rownames(tmp), tmp)
 write_xlsx(as.data.frame(tmp),
            path = paste0(RESULT_PATH, FILE_NAME, "-res_cap.xlsx"))
+```
+
+# We now proceed with the analysis of the **venous** blood samples:
+
+```{r sample-ranks ven}
+abundance_mat <- assay(res_ven, "normalized_filled_imputed")[rownames(tab), ]
+sample_ranks <- t(apply(-abundance_mat, MARGIN = 1, rank))
+```
+
+Next we sum the ranks for each sample across features to identify samples that
+have on general higher abundances for most features. This is performed
+separately for features with positive or negative coefficients.
+
+```{r sample-ranks-average ven}
+sample_ranks_F <- sample_ranks[tab$coef > 0, ]
+sample_ranks_M <- sample_ranks[tab$coef < 0, ]
+sample_ranks_F_sum <- colSums(sample_ranks_F)
+sample_ranks_M_sum <- colSums(sample_ranks_M)
+```
+
+The table below lists the intensities for the individual features in the
+samples with the rank sum.
+
+```{r sample-ranks-cap-table ven, echo = FALSE, results = "asis"}
+F_table <- abundance_mat[rownames(sample_ranks_F),
+                           order(sample_ranks_F_sum)]
+F_table <- F_table[, 1:6]
+pandoc.table(
+    F_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in female-specific features.")
+```
+
+```{r sample-ranks-M-table ven, echo = FALSE, results = "asis"}
+M_table <- abundance_mat[rownames(sample_ranks_M),
+                           order(sample_ranks_M_sum)]
+M_table <- M_table[, 1:6]
+pandoc.table(
+    M_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in male-specific features.")
+```
+
+## Feature grouping
+
+The next step in the analysis is to group the significant features that come
+from the same ion into a *feature group*. To find the different groups, proceed
+in 3 phases: first the features are grouped according to the retention time,
+then the features are separated within the groups on the basis of the previously
+calculated coefficients, which indicate the abundance of each feature present in
+the samples. In the end, the division into groups is finalized by observing the
+shape of the detected peaks, which should be similar for fragments deriving from
+the same compound (the profile depends on the elution pattern of the metabolite
+during the chromatography step). The process is iterative and each step improves
+the grouping of the features, until the final feature groups are defined.
+
+First we create a subset that includes only the study samples; then, the first
+group of features is initialized by assigning all the significant features to a
+single group, so that the algorithm considers only these for subsequent
+analyses.
+
+```{r initial-feature-groups ven}
+data_study <- filterFile(data_pos, match(res_ven$mzML_file, data_pos$mzML_file),
+                         keepFeatures = TRUE)
+
+## Define the initial feature groups, i.e. assign all significant features
+## to "FG" keeping all others to NA
+fgs <- rep(NA_character_, nrow(featureDefinitions(data_study)))
+names(fgs) <- rownames(featureDefinitions(data_study))
+fgs[rownames(rowData(res_ven))[rowData(res_ven)$significant]] <- "FG"
+featureGroups(data_study) <- fgs
+
+```
+
+The first grouping is based on the retention times: all features that elute with
+a retention time that is smaller than 5 seconds are placed in the same feature
+group.
+
+```{r}
+data_study <- groupFeatures(data_study, param = SimilarRtimeParam(5))
+```
+
+The significant features were grouped into in total
+`r length(table(featureGroups(data_study)))` groups. The plot below visualizes
+the grouped features in the rt-m/z plane.
+
+```{r feature-grouping-retention-time ven, fig.path = IMAGE_PATH, fig.cap = "Feature grouping result based on similar retention time.", echo = FALSE, fig.width = 5 * phi, fig.height = 5}
+plotFeatureGroups(data_study)
+grid()
+```
+
+The table below shows the significant features and their assigned feature group.
+
+```{r VBS, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_ven)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Retention time-based feature grouping results.")
+```
+
+At this point it must be considered that the features grouped so far still come
+from different metabolites: we can recognize this from the fact that the
+coefficients computed above differ a lot among certain features. We now look at
+the heatmap which shows the pairwise correlation between each feature in each
+group; the raw abundances are used to compute the correlation.
+
+```{r feature-grouping-cormat ven, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of feature abundances across samples.", echo = FALSE, fig.height = 10, fig.width = 10}
+fvals <- log2(featureValues(
+    data_study, filled = TRUE, method = "sum")[rownames(tab), ])
+
+cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+ann <- tab[, "fgroup", drop = FALSE]
+
+hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+               cluster_cols = TRUE)
+
+```
+
+As expected, the feature groups are further divided into smaller clusters, when
+the abundances are taken into account. The following code allows us to perform
+the feature grouping based on these correlations. The `threshold` has been put
+to 0.5, which was defined based on the heatmap above.
+
+```{r abundance-correlation ven}
+#data_study <- groupFeatures(
+#    data_study, AbundanceSimilarityParam(threshold = 0.5, filled = TRUE,
+#                                          method = "sum"))
+```
+
+The table below shows the significant features and their assigned feature group.
+In total `r length(table(featureGroups(data_study)))` groups have been found at
+this point.
+
+```{r venous, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_ven)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Feature abundance-based feature grouping results.")
+```
+
+
+The threshold we determined above allowed us to correctly separate the features
+based on the coefficients, however the shape of the detected peaks still remains
+to be verified. This step, in fact, could further separate the feature groups,
+in such a way as to obtain refined groups containing the signals originating
+from a single metabolite. To evaluate the shape of the peaks, we observe the
+extracted ion chromatograms (EICs); since the process of extraction and
+evaluation of the correlation is computationally very expensive, this operation
+is carried out only on the 10 samples that have the highest intensity for a
+certain feature. If the correlation is greater than 0.7, the peaks are assigned
+to the same feature group. Parameter `clean` ensures that the correlation will
+be only performed on the data points being part of the actually detected
+chromatographic peaks.
+
+```{r eic-correlation ven, message = FALSE, warning = FALSE}
+data_study <- groupFeatures(
+    data_study, EicCorrelationParam(threshold = 0.7, n = 10, clean = TRUE))
+```
+
+The table below shows the significant features and their assigned feature group.
+In the end, the features have been split into
+`r length(table(featureGroups(data_study)))` groups.
+
+```{r ven, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_ven)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "EIC correlation-based feature grouping results.")
+```
+
+At last, we create overview plots for all feature groups (code hidden).
+
+```{r feature-grouping-overview-plots ven, echo = FALSE}
+fgs <- unique(featureGroups(data_study))
+fgs <- fgs[!is.na(fgs)]
+
+dr <- paste0(IMAGE_PATH, "feature_groups_ven/")
+dir.create(dr, showWarnings = FALSE)
+for (fg in fgs) {
+    fts_idx <- which(featureGroups(data_study) == fg)
+    eics <- featureChromatograms(data_study, features = fts_idx,
+                                 expandRt = 2, filled = TRUE, n = 2)
+    png(paste0(dr, fg, ".png"), width = 12, height = 6, units = "cm",
+        res = 300, pointsize = 4)
+    par(mfrow = c(2, 2))
+    ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
+    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[1]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[2]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    if (nrow(eics) > 1) {
+        mz_y <- joyPlot(eics[, 1, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+        mz_y <- joyPlot(eics[, 2, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+    }
+    dev.off()
+    if (nrow(eics) > 1) {
+        fvals <- log2(featureValues(data_study, filled = TRUE)[fts_idx, ])
+        cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+        ann <- data.frame(fgroup = featureGroups(data_study)[fts_idx])
+        rownames(ann) <- rownames(cormat)
+        hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+                       cluster_cols = TRUE,
+                       filename = paste0(dr, fg, "_heatmap.png"))
+    }
+}
+```
+
+Finally, we also add the feature groups to the result table and export it (code
+not shown).
+
+```{r export-result, echo = FALSE}
+fgs <- featureGroups(data_study)
+names(fgs) <- rownames(featureDefinitions(data_study))
+
+rowData(res_ven)$feature_group <- fgs[rownames(rowData(res_ven))]
+save(res_ven, file = paste0(RDATA_PATH, "res_ven.RData"))
+
+tmp <- rowData(res_ven)
+tmp <- cbind(feature = rownames(tmp), tmp)
+write_xlsx(as.data.frame(tmp),
+           path = paste0(RESULT_PATH, FILE_NAME, "-res_ven.xlsx"))
+```
+
+# Finally, we perform the analysis of the **plasma** samples:
+
+```{r sample-ranks plasma}
+abundance_mat <- assay(res_plas, "normalized_filled_imputed")[rownames(tab), ]
+sample_ranks <- t(apply(-abundance_mat, MARGIN = 1, rank))
+```
+
+Next we sum the ranks for each sample across features to identify samples that
+have on general higher abundances for most features. This is performed
+separately for features with positive or negative coefficients.
+
+```{r sample-ranks-average}
+sample_ranks_F <- sample_ranks[tab$coef > 0, ]
+sample_ranks_M <- sample_ranks[tab$coef < 0, ]
+sample_ranks_F_sum <- colSums(sample_ranks_F)
+sample_ranks_M_sum <- colSums(sample_ranks_M)
+```
+
+The table below lists the intensities for the individual features in the
+samples with the rank sum.
+
+```{r sample-ranks-cap-table plasma, echo = FALSE, results = "asis"}
+F_table <- abundance_mat[rownames(sample_ranks_F),
+                           order(sample_ranks_F_sum)]
+F_table <- F_table[, 1:6]
+pandoc.table(
+    F_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in female-specific features.")
+```
+
+```{r sample-ranks-M-table plasma, echo = FALSE, results = "asis"}
+M_table <- abundance_mat[rownames(sample_ranks_M),
+                           order(sample_ranks_M_sum)]
+M_table <- M_table[, 1:6]
+pandoc.table(
+    M_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in male-specific features.")
+```
+
+## Feature grouping
+
+The next step in the analysis is to group the significant features that come
+from the same ion into a *feature group*. To find the different groups, proceed
+in 3 phases: first the features are grouped according to the retention time,
+then the features are separated within the groups on the basis of the previously
+calculated coefficients, which indicate the abundance of each feature present in
+the samples. In the end, the division into groups is finalized by observing the
+shape of the detected peaks, which should be similar for fragments deriving from
+the same compound (the profile depends on the elution pattern of the metabolite
+during the chromatography step). The process is iterative and each step improves
+the grouping of the features, until the final feature groups are defined.
+
+First we create a subset that includes only the study samples; then, the first
+group of features is initialized by assigning all the significant features to a
+single group, so that the algorithm considers only these for subsequent
+analyses.
+
+```{r initial-feature-groups plasma}
+data_study <- filterFile(data_pos, match(res_plas$mzML_file, data_pos$mzML_file),
+                         keepFeatures = TRUE)
+
+## Define the initial feature groups, i.e. assign all significant features
+## to "FG" keeping all others to NA
+fgs <- rep(NA_character_, nrow(featureDefinitions(data_study)))
+names(fgs) <- rownames(featureDefinitions(data_study))
+fgs[rownames(rowData(res_cap))[rowData(res_plas)$significant]] <- "FG"
+featureGroups(data_study) <- fgs
+
+```
+
+The first grouping is based on the retention times: all features that elute with
+a retention time that is smaller than 5 seconds are placed in the same feature
+group.
+
+```{r}
+data_study <- groupFeatures(data_study, param = SimilarRtimeParam(5))
+```
+
+The significant features were grouped into in total
+`r length(table(featureGroups(data_study)))` groups. The plot below visualizes
+the grouped features in the rt-m/z plane.
+
+```{r feature-grouping-retention-time plssma, fig.path = IMAGE_PATH, fig.cap = "Feature grouping result based on similar retention time.", echo = FALSE, fig.width = 5 * phi, fig.height = 5}
+plotFeatureGroups(data_study)
+grid()
+```
+
+The table below shows the significant features and their assigned feature group.
+
+```{r plasma, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_plas)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Retention time-based feature grouping results.")
+```
+
+At this point it must be considered that the features grouped so far still come
+from different metabolites: we can recognize this from the fact that the
+coefficients computed above differ a lot among certain features. We now look at
+the heatmap which shows the pairwise correlation between each feature in each
+group; the raw abundances are used to compute the correlation.
+
+```{r feature-grouping-cormat plas, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of feature abundances across samples.", echo = FALSE, fig.height = 10, fig.width = 10}
+fvals <- log2(featureValues(
+    data_study, filled = TRUE, method = "sum")[rownames(tab), ])
+
+cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+ann <- tab[, "fgroup", drop = FALSE]
+
+hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+               cluster_cols = TRUE)
+
+```
+
+As expected, the feature groups are further divided into smaller clusters, when
+the abundances are taken into account. The following code allows us to perform
+the feature grouping based on these correlations. The `threshold` has been put
+to 0.5, which was defined based on the heatmap above.
+
+```{r abundance-correlation plas}
+#data_study <- groupFeatures(
+#    data_study, AbundanceSimilarityParam(threshold = 0.5, filled = TRUE,
+#                                          method = "sum"))
+```
+
+The table below shows the significant features and their assigned feature group.
+In total `r length(table(featureGroups(data_study)))` groups have been found at
+this point.
+
+```{r, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_plas)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Feature abundance-based feature grouping results.")
+```
+
+
+The threshold we determined above allowed us to correctly separate the features
+based on the coefficients, however the shape of the detected peaks still remains
+to be verified. This step, in fact, could further separate the feature groups,
+in such a way as to obtain refined groups containing the signals originating
+from a single metabolite. To evaluate the shape of the peaks, we observe the
+extracted ion chromatograms (EICs); since the process of extraction and
+evaluation of the correlation is computationally very expensive, this operation
+is carried out only on the 10 samples that have the highest intensity for a
+certain feature. If the correlation is greater than 0.7, the peaks are assigned
+to the same feature group. Parameter `clean` ensures that the correlation will
+be only performed on the data points being part of the actually detected
+chromatographic peaks.
+
+```{r eic-correlation plas, message = FALSE, warning = FALSE}
+data_study <- groupFeatures(
+    data_study, EicCorrelationParam(threshold = 0.7, n = 10, clean = TRUE))
+```
+
+The table below shows the significant features and their assigned feature group.
+In the end, the features have been split into
+`r length(table(featureGroups(data_study)))` groups.
+
+```{r, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_plas)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "EIC correlation-based feature grouping results.")
+```
+
+We create overview plots for all feature groups (code hidden).
+
+```{r feature-grouping-overview-plots plasma, echo = FALSE}
+fgs <- unique(featureGroups(data_study))
+fgs <- fgs[!is.na(fgs)]
+
+dr <- paste0(IMAGE_PATH, "feature_groups_plas/")
+dir.create(dr, showWarnings = FALSE)
+for (fg in fgs) {
+    fts_idx <- which(featureGroups(data_study) == fg)
+    eics <- featureChromatograms(data_study, features = fts_idx,
+                                 expandRt = 2, filled = TRUE, n = 2)
+    png(paste0(dr, fg, ".png"), width = 12, height = 6, units = "cm",
+        res = 300, pointsize = 4)
+    par(mfrow = c(2, 2))
+    ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
+    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[1]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[2]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    if (nrow(eics) > 1) {
+        mz_y <- joyPlot(eics[, 1, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+        mz_y <- joyPlot(eics[, 2, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+    }
+    dev.off()
+    if (nrow(eics) > 1) {
+        fvals <- log2(featureValues(data_study, filled = TRUE)[fts_idx, ])
+        cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+        ann <- data.frame(fgroup = featureGroups(data_study)[fts_idx])
+        rownames(ann) <- rownames(cormat)
+        hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+                       cluster_cols = TRUE,
+                       filename = paste0(dr, fg, "_heatmap.png"))
+    }
+}
+```
+
+Finally, we also add the feature groups to the result table and export it (code
+not shown).
+
+```{r export-result plas, echo = FALSE}
+fgs <- featureGroups(data_study)
+names(fgs) <- rownames(featureDefinitions(data_study))
+
+rowData(res_plas)$feature_group <- fgs[rownames(rowData(res_plas))]
+save(res_cap, file = paste0(RDATA_PATH, "res_plas.RData"))
+
+tmp <- rowData(res_plas)
+tmp <- cbind(feature = rownames(tmp), tmp)
+write_xlsx(as.data.frame(tmp),
+           path = paste0(RESULT_PATH, FILE_NAME, "-res_plas.xlsx"))
 ```
