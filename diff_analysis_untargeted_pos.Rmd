@@ -274,7 +274,7 @@ pandoc.table(as.data.frame(tab), style = "rmarkdown",
 All plasma samples are clustered together far apart from the other matrices.
 
 
-# Differential abundance analysis
+# Differential abundance analysis: **capillary* blood samples
 
 In this section, we perform a differential abundance analysis to identify
 features that have significantly different abundances between ARVD samples and
@@ -517,7 +517,7 @@ for (i in seq_len(nrow(chrs))) {
 
 We then take a look at the venous blood samples:
 
-```{r venous}
+```{r vbs}
 #We first have a look at the capillary blood samples
 ## Factor sample source and sex
 sex <- factor(res_ven$sex)
@@ -619,7 +619,7 @@ if (any(rowData(res_ven)$significant)) {
         as.data.frame(tab), style = "rmarkdown",
         caption = "Features with significant differences in abundances.")
 } else {
-    tab <- rowData(res_ven)[order(rowData(res_cap)$pvalue),
+    tab <- rowData(res_ven)[order(rowData(res_ven)$pvalue),
                         c("mzmed", "rtmed", "coef", "adjp",
                           "avg.F", "avg.M", "RSD_QC", "Dratio")]
     tab <- tab[1:20, ]
@@ -694,7 +694,7 @@ for (i in seq_len(nrow(chrs))) {
 
 Lastly, we look at the plasma samples:
 
-```{r plasma}
+```{r plasma samples}
 
 ## Factor sample source and sex
 sex <- factor(res_plas$sex)
@@ -877,7 +877,7 @@ thus first rank all samples by abundance for each feature.
 
 We start with the analysis of the **capillary** blood samples:
 
-```{r sample-ranks}
+```{r sample-ranks, capillary blood samples}
 abundance_mat <- assay(res_cap, "normalized_filled_imputed")[rownames(tab), ]
 sample_ranks <- t(apply(-abundance_mat, MARGIN = 1, rank))
 ```
@@ -886,7 +886,7 @@ Next we sum the ranks for each sample across features to identify samples that
 have on general higher abundances for most features. This is performed
 separately for features with positive or negative coefficients.
 
-```{r sample-ranks-average}
+```{r sample-ranks-average, capillary blood samples}
 sample_ranks_F <- sample_ranks[tab$coef > 0, ]
 sample_ranks_M <- sample_ranks[tab$coef < 0, ]
 sample_ranks_F_sum <- colSums(sample_ranks_F)
@@ -1163,7 +1163,7 @@ for (fg in fgs) {
 Finally, we also add the feature groups to the result table and export it (code
 not shown).
 
-```{r export-result, echo = FALSE}
+```{r export-result capillarz blood samples, echo = FALSE}
 fgs <- featureGroups(data_study)
 names(fgs) <- rownames(featureDefinitions(data_study))
 
@@ -1176,7 +1176,7 @@ write_xlsx(as.data.frame(tmp),
            path = paste0(RESULT_PATH, FILE_NAME, "-res_cap.xlsx"))
 ```
 
-# We now proceed with the analysis of the **venous** blood samples:
+# Differential abundance analysis: **venous** blood samples
 
 ```{r sample-ranks ven}
 abundance_mat <- assay(res_ven, "normalized_filled_imputed")[rownames(tab), ]
@@ -1432,7 +1432,7 @@ write_xlsx(as.data.frame(tmp),
            path = paste0(RESULT_PATH, FILE_NAME, "-res_ven.xlsx"))
 ```
 
-# Finally, we perform the analysis of the **plasma** samples:
+# Differential abudance analysis: **plasma** samples
 
 ```{r sample-ranks plasma}
 abundance_mat <- assay(res_plas, "normalized_filled_imputed")[rownames(tab), ]

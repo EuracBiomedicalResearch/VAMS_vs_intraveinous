@@ -600,7 +600,7 @@ We start the analysis for the capillary blood samples:
 
 ```{r standards-analysis, echo = FALSE}
 sex <- factor(res_cap$sex)
-dsgn <- model.matrix(~ 0 + sex)
+dsgn <- model.matrix(~ 0 + age + sex)
 fit <- lmFit(log2(assay(res_cap, "normalized_filled_imputed")), design = dsgn)
 
 ## Fit the actual contrasts of interest
@@ -704,7 +704,7 @@ We than look for significant features in venous blood samples:
 
 ```{r standards-analysis venous, echo = FALSE}
 sex <- factor(res_ven$sex)
-dsgn <- model.matrix(~ 0 + sex)
+dsgn <- model.matrix(~ 0 + age + sex)
 fit <- lmFit(log2(assay(res_ven, "normalized_filled_imputed")), design = dsgn)
 
 ## Fit the actual contrasts of interest
@@ -792,7 +792,7 @@ We then analyse the features for plasma samples:
 
 ```{r standards-analysis plasma, echo = FALSE}
 sex <- factor(res_plas$sex)
-dsgn <- model.matrix(~ 0 + sex)
+dsgn <- model.matrix(~ 0 + age + sex)
 fit <- lmFit(log2(assay(res_plas, "normalized_filled_imputed")), design = dsgn)
 
 ## Fit the actual contrasts of interest
