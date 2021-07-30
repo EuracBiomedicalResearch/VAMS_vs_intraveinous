@@ -87,7 +87,6 @@ load("data/RData/vams_normalization_pos/res_pos.RData")
 ```
 
 We assign the colours as seen before.
-#need to remove pool or already removed by using diff_abundance file?
 
 ```{r split-qc, echo = TRUE}
 res_qc <- res_pos[, res_pos$source == "all"]
@@ -159,13 +158,32 @@ is no technical variance in the observed measurements, whereas a D-ratio of
 100% represents only noise and no biological variance detected. A common cut-off
 for the D-ratio is 0.5, aiming at keeping features whose variation in study
 samples is twice as large as the one in QC samples
-[@broadhurstGuidelinesConsiderationsUse2018].
+[@broadhurstGuidelinesConsiderationsUse2018]. For the present dataset we should
+calculate the D-ratio **separately** for each source (sample matrix) because the
+variance between sample matrices is expected to be very large. For each feature
+we use then the smallest D-ratio from the 4 sample matrices.
 
-```{r filter-rsd}
+```{r filter-rsd, warning = FALSE}
 rsds <- rowRsd(assay(res_qc, "normalized_filled"))
-dratios <- apply(
+dratios_ven <- apply(
     log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
-    apply(log2(assay(res_pos, "normalized_filled")), 1, sd, na.rm = TRUE)
+    apply(log2(assay(res_pos[, res_pos$source == "venous"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_rbc <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "RBC"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_cap <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "capillary"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_pla <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "plasma"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios <- apply(cbind(dratios_ven, dratios_rbc, dratios_cap, dratios_pla),
+                 MARGIN = 1, min, na.rm = TRUE)
+dratios[is.infinite(dratios)] <- NA
 ```
 
 The distribution of RSD values and D-ratio is shown in the plot below:
@@ -188,10 +206,9 @@ plot(log2(rsds), log2(dratios), xlab = expression(log[2]~RSD),
 abline(v = log2(0.3), col = "red", lty = 2)
 abline(h = log2(0.5), col = "red", lty = 2)
 ```
+
 The plot shows a correlation between RSD and D-ratios, though the two methods
-are not interchangeable. Pre-filtering with RSD, in fact, could lead to the
-removal of potentially significant features. Thus, pre-filtering based on the 
-D-ratio is preferable in this case and will be performed in this analysis.
+are not interchangeable. Below we pre-filter the data using the D-ratio.
 
 ```{r do-filter}
 res <- res_pos[which(dratios < 0.5), ]
@@ -202,8 +219,8 @@ Next, we discard the features that have not been identified in at least 30% of
 the samples in any of the sample groups.
 
 ```{r filter-proportion}
-keep <- moreAreValidThan(assay(res_pos, "raw"), f = res_pos$source, prop = 0.3)
-res <- res_pos[keep, ]
+keep <- moreAreValidThan(assay(res, "raw"), f = res$source, prop = 0.3)
+res <- res[keep, ]
 ```
 
 The dataset has been reduced from `r length(rsds)` to `r nrow(res)` features:
@@ -219,7 +236,7 @@ possible similarities among the samples, based on the measured metabolite
 intensities.
 
 ```{r pca-all}
-pc <- prcomp(t(log2(assay(res_pos, "normalized_filled_imputed"))),
+pc <- prcomp(t(log2(assay(res, "normalized_filled_imputed"))),
                  center = TRUE, scale. = FALSE)
 ```
 
@@ -233,45 +250,9 @@ legend("topleft", col = col_source, legend = names(col_source),
        title = "phenotype", pch = 16, ncol = 2)
 ```
 
-We identify the problematic samples:
-
-```{r id-samples, echo = FALSE, results = "asis"}
-idx <- pc$x[, 1] > 150
-tab <- colData(res)[which(idx), c("sample", "source", "age", "sex")]
-pandoc.table(as.data.frame(tab), style = "rmarkdown",
-             caption = "Samples: PC1 > 150")
-```
-
-Also, some RBC samples are out of bound, which are:
-
-```{r id-samples-2, echo = FALSE, results = "asis"}
-idx <- pc$x[, 1] > 25 & pc$x[, 1] < 100
-tab <- colData(res)[which(idx), c("sample", "source", "age", "sex")]
-pandoc.table(as.data.frame(tab), style = "rmarkdown",
-             caption = "Samples: 25 < PC1 < 100")
-```
-
-There are other RBC and capillary blood samples that are found detached from the
-main cluster, at PC2 values higher than 100:
-
-```{r id-samples-3, echo = FALSE, results = "asis"}
-idx <- pc$x[, 2] > 100
-tab <- colData(res)[which(idx), c("sample", "source", "age", "sex")]
-pandoc.table(as.data.frame(tab), style = "rmarkdown",
-             caption = "Samples: PC2 > 100")
-```
-
-Some capillary samples show a much higher value of PC3 and we identified them in
-the table below:
-
-```{r id-samples-5, echo = FALSE, results = "asis"}
-idx <- pc$x[, 3] > 100
-tab <- colData(res)[which(idx), c("sample", "source", "age", "sex")]
-pandoc.table(as.data.frame(tab), style = "rmarkdown",
-             caption = "Samples: PC3 > 100")
-```
-
-All plasma samples are clustered together far apart from the other matrices.
+We see a clear separation by sample matrix. Also, a higher variability of RBC
+and capillary samples is visible. All plasma samples are clustered together far
+apart from the other matrices.
 
 
 # Differential abundance analysis: **capillary* blood samples
@@ -357,7 +338,6 @@ fit <- eBayes(fit)
 
 ```
 
-
 The next step involves creating a data frame that contains the results obtained
 in the code chunk above. Also, we determine whether or not a feature can be
 considered significant based on the p-value (the adjusted p-value must be below
@@ -367,24 +347,27 @@ coefficients calculated with `lmFit` must be higher than `r m.cut`).
 The data frame is then added to the `rowData` of the `res_cap` object.
 
 ```{r result-data-frame, echo = FALSE}
-## Generate result data frame
-tmp <- data.frame(
-    coef = fit$coefficient[, "MvsF"],
-    pvalue = fit$p.value[, "MvsF"],
-    adjp = p.adjust(fit$p.value[, "MvsF"], method = "BH"),
-    avg.M = rowMeans(
-        log2(assay(res_cap, "normalized_filled_imputed")[, res_cap$sex == "M"])),
-    avg.F = rowMeans(
-        log2(assay(res_cap, "normalized_filled_imputed")[, res_cap$sex == "F"]))
+add_result <- function(x) {
+    ## Generate result data frame
+    tmp <- data.frame(
+        coef = fit$coefficient[, "MvsF"],
+        pvalue = fit$p.value[, "MvsF"],
+        adjp = p.adjust(fit$p.value[, "MvsF"], method = "BH"),
+        avg.M = rowMeans(
+            log2(assay(x, "normalized_filled_imputed")[, x$sex == "M"])),
+        avg.F = rowMeans(
+            log2(assay(x, "normalized_filled_imputed")[, x$sex == "F"]))
     )
+    ## Evaluate which features are significant
+    tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
+    tmp$RSD_QC <- rsds[rownames(rowData(x))]
+    tmp$Dratio <- dratios[rownames(rowData(x))]
+    ## Add data frame to res
+    rowData(x) <- cbind(rowData(x), tmp)
+    x
+}
 
-## Evaluate which features are significant
-tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
-tmp$RSD_QC <- rsds[rownames(rowData(res_cap))]
-tmp$Dratio <- dratios[rownames(rowData(res_cap))]
-
-## Add data frame to res
-rowData(res_cap) <- cbind(rowData(res_cap), tmp)
+res_cap <- add_result(res_cap)
 ```
 
 We plot then the distribution of p-values, both raw and adjusted.
@@ -397,7 +380,6 @@ hist(rowData(res_cap)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
 
-
 The plot shows that there is an enrichment of p-values close to 0: this
 indicates that some significant features are present in the dataset. The other
 features have p-values that are mostly randomly spread across the x-axis.
@@ -409,19 +391,22 @@ display a significant difference in signal intensity between ARVD and CTRL
 samples.
 
 ```{r volcano, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
-par(mfrow = c(1, 1))
-plot(rowData(res_cap)$coef, -log10(rowData(res_cap)$adjp),
-     xlab = expression(log[2]~difference),
-     ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
-rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
-     border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
-     border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-if (any(rowData(res_cap)$significant)) {
-    points(rowData(res_cap)$coef[rowData(res_cap)$significant],
-           -log10(rowData(res_cap)$adjp[rowData(res_cap)$significant]),
-           col = "#0000ffcc")
+plot_volcano <- function(x) {
+    par(mfrow = c(1, 1))
+    plot(rowData(x)$coef, -log10(rowData(x)$adjp),
+         xlab = expression(log[2]~difference),
+         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
+    rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+    rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+    if (any(rowData(x)$significant)) {
+        points(rowData(x)$coef[rowData(x)$significant],
+               -log10(rowData(x)$adjp[rowData(x)$significant]),
+               col = "#0000ffcc")
+    }
 }
+plot_volcano(res_cap)
 ```
 
 In total `r sum(rowData(res_cap)$significant)` features were found to have a
@@ -430,24 +415,27 @@ lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
 ```{r result-table, echo = FALSE, results = "asis"}
-## Write result table
-if (any(rowData(res_cap)$significant)) {
-    tab <- rowData(res_cap)[rowData(res_cap)$significant,
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.M", "avg.F", "RSD_QC", "Dratio")]
-    tab <- tab[order(tab$adjp, abs(tab$coef)), ]
-    pandoc.table(
-        as.data.frame(tab), style = "rmarkdown",
-        caption = "Features with significant differences in abundances.")
-} else {
-    tab <- rowData(res_cap)[order(rowData(res_cap)$pvalue),
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.F", "avg.M", "RSD_QC", "Dratio")]
-    tab <- tab[1:20, ]
-    pandoc.table(
-        as.data.frame(tab), style = "rmarkdown",
-        caption = "Top 20 features with the smallest p-values.")
+res_table <- function(x) {
+    ## Write result table
+    if (any(rowData(x)$significant)) {
+        tab <- rowData(x)[rowData(x)$significant,
+                                c("mzmed", "rtmed", "coef", "adjp",
+                                  "avg.M", "avg.F", "RSD_QC", "Dratio")]
+        tab <- tab[order(tab$adjp, abs(tab$coef)), ]
+        pandoc.table(
+            as.data.frame(tab), style = "rmarkdown",
+            caption = "Features with significant differences in abundances.")
+    } else {
+        tab <- rowData(x)[order(rowData(x)$pvalue),
+                                c("mzmed", "rtmed", "coef", "adjp",
+                                  "avg.F", "avg.M", "RSD_QC", "Dratio")]
+        tab <- tab[1:20, ]
+        pandoc.table(
+            as.data.frame(tab), style = "rmarkdown",
+            caption = "Top 20 features with the smallest p-values.")
+    }
 }
+res_table(res_cap)
 ```
 
 Next, we generate a heatmap containing only the signals from the features
@@ -475,7 +463,7 @@ tmp <- data.frame(
 
 Finally, we extract EICs for all these features and save them.
 
-```{r peak-shape, echo = FALSE}
+```{r peak-shape, echo = FALSE, eval = FALSE}
 load("data/RData/vams_normalization_pos/data_pos_filled.RData")
 pData(data_pos) <- as.data.frame(pData(data_pos))
 
@@ -515,9 +503,11 @@ for (i in seq_len(nrow(chrs))) {
 }
 ```
 
-We then take a look at the venous blood samples:
+We then take a look at the venous blood samples. Since the code to perform the
+analysis is essentially identical to the one for capillary samples it is not
+shown again.
 
-```{r vbs}
+```{r venous, echo = FALSE}
 #We first have a look at the capillary blood samples
 ## Factor sample source and sex
 sex <- factor(res_ven$sex)
@@ -534,37 +524,7 @@ contr_mat <- makeContrasts(
   levels = dsgn)
 fit <- contrasts.fit(fit, contrasts = contr_mat)
 fit <- eBayes(fit)
-
-```
-
-
-The next step involves creating a data frame that contains the results obtained
-in the code chunk above. Also, we determine whether or not a feature can be
-considered significant based on the p-value (the adjusted p-value must be below
-the threshold of `r p.cut`) and on the log2 fold change (the (absolute)
-coefficients calculated with `lmFit` must be higher than `r m.cut`).
-
-The data frame is then added to the `rowData` of the `res_ven` object.
-
-```{r result-data-frame VBS, echo = FALSE}
-## Generate result data frame
-tmp <- data.frame(
-    coef = fit$coefficient[, "MvsF"],
-    pvalue = fit$p.value[, "MvsF"],
-    adjp = p.adjust(fit$p.value[, "MvsF"], method = "BH"),
-    avg.M = rowMeans(
-        log2(assay(res_ven, "normalized_filled_imputed")[, res_ven$sex == "M"])),
-    avg.F = rowMeans(
-        log2(assay(res_ven, "normalized_filled_imputed")[, res_ven$sex == "F"]))
-    )
-
-## Evaluate which features are significant
-tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
-tmp$RSD_QC <- rsds[rownames(rowData(res_ven))]
-tmp$Dratio <- dratios[rownames(rowData(res_ven))]
-
-## Add data frame to res
-rowData(res_ven) <- cbind(rowData(res_ven), tmp)
+res_ven <- add_result(res_ven)
 ```
 
 We plot then the distribution of p-values, both raw and adjusted.
@@ -588,19 +548,7 @@ display a significant difference in signal intensity between male an female
 samples in venous blood.
 
 ```{r volcano VBS, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
-par(mfrow = c(1, 1))
-plot(rowData(res_ven)$coef, -log10(rowData(res_ven)$adjp),
-     xlab = expression(log[2]~difference),
-     ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
-rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
-     border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
-     border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-if (any(rowData(res_ven)$significant)) {
-    points(rowData(res_ven)$coef[rowData(res_ven)$significant],
-           -log10(rowData(res_ven)$adjp[rowData(res_ven)$significant]),
-           col = "#0000ffcc")
-}
+plot_volcano(res_ven)
 ```
 
 In total `r sum(rowData(res_ven)$significant)` features were found to have a
@@ -609,24 +557,7 @@ lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
 ```{r result-table VBS, echo = FALSE, results = "asis"}
-## Write result table
-if (any(rowData(res_ven)$significant)) {
-    tab <- rowData(res_ven)[rowData(res_ven)$significant,
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.M", "avg.F", "RSD_QC", "Dratio")]
-    tab <- tab[order(tab$adjp, abs(tab$coef)), ]
-    pandoc.table(
-        as.data.frame(tab), style = "rmarkdown",
-        caption = "Features with significant differences in abundances.")
-} else {
-    tab <- rowData(res_ven)[order(rowData(res_ven)$pvalue),
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.F", "avg.M", "RSD_QC", "Dratio")]
-    tab <- tab[1:20, ]
-    pandoc.table(
-        as.data.frame(tab), style = "rmarkdown",
-        caption = "Top 20 features with the smallest p-values.")
-}
+res_table(res_ven)
 ```
 
 Next, we generate a heatmap containing only the signals from the features
@@ -643,7 +574,6 @@ ann <- as.data.frame(colData(res_ven)[, c("source", "sex")])
 #                                   sex = col_sex))
 
 pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
-               breaks = seq(-5, 5, length.out = 101),
                annotation_color = list(source = col_source,
                                    sex = col_sex))
 
@@ -652,7 +582,7 @@ tmp <- data.frame(
 )
 ```
 
-```{r peak-shape VBS, echo = FALSE}
+```{r peak-shape VBS, echo = FALSE, eval = FALSE}
 load("data/RData/vams_normalization_pos/data_pos_filled.RData")
 pData(data_pos) <- as.data.frame(pData(data_pos))
 
@@ -694,8 +624,7 @@ for (i in seq_len(nrow(chrs))) {
 
 Lastly, we look at the plasma samples:
 
-```{r plasma samples}
-
+```{r plasma, echo = FALSE}
 ## Factor sample source and sex
 sex <- factor(res_plas$sex)
 age <- res_plas$age
@@ -704,44 +633,14 @@ age <- res_plas$age
 dsgn <- model.matrix(~ 0 + sex)
 fit <- lmFit(log2(assay(res_plas, "normalized_filled_imputed")), design = dsgn)
 
-
 ## Fit the actual contrasts of interest
 contr_mat <- makeContrasts(
   MvsF = sexM - sexF,
   levels = dsgn)
 fit <- contrasts.fit(fit, contrasts = contr_mat)
 fit <- eBayes(fit)
+res_plas <- add_result(res_plas)
 
-```
-
-
-The next step involves creating a data frame that contains the results obtained
-in the code chunk above. Also, we determine whether or not a feature can be
-considered significant based on the p-value (the adjusted p-value must be below
-the threshold of `r p.cut`) and on the log2 fold change (the (absolute)
-coefficients calculated with `lmFit` must be higher than `r m.cut`).
-
-The data frame is then added to the `rowData` of the `res_plas` object.
-
-```{r result-data-frame plasma, echo = FALSE}
-## Generate result data frame
-tmp <- data.frame(
-    coef = fit$coefficient[, "MvsF"],
-    pvalue = fit$p.value[, "MvsF"],
-    adjp = p.adjust(fit$p.value[, "MvsF"], method = "BH"),
-    avg.M = rowMeans(
-        log2(assay(res_plas, "normalized_filled_imputed")[, res_plas$sex == "M"])),
-    avg.F = rowMeans(
-        log2(assay(res_plas, "normalized_filled_imputed")[, res_plas$sex == "F"]))
-    )
-
-## Evaluate which features are significant
-tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
-tmp$RSD_QC <- rsds[rownames(rowData(res_plas))]
-tmp$Dratio <- dratios[rownames(rowData(res_plas))]
-
-## Add data frame to res
-rowData(res_plas) <- cbind(rowData(res_plas), tmp)
 ```
 
 We plot then the distribution of p-values, both raw and adjusted.
@@ -765,19 +664,7 @@ display a significant difference in signal intensity between male and female
 samples in plasma.
 
 ```{r volcano plasma, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
-par(mfrow = c(1, 1))
-plot(rowData(res_plas)$coef, -log10(rowData(res_plas)$adjp),
-     xlab = expression(log[2]~difference),
-     ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
-rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
-     border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
-     border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-if (any(rowData(res_plas)$significant)) {
-    points(rowData(res_plas)$coef[rowData(res_plas)$significant],
-           -log10(rowData(res_plas)$adjp[rowData(res_plas)$significant]),
-           col = "#0000ffcc")
-}
+plot_volcano(res_plas)
 ```
 
 In total `r sum(rowData(res_plas)$significant)` features were found to have a
@@ -786,24 +673,7 @@ lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
 ```{r result-table plasma, echo = FALSE, results = "asis"}
-## Write result table
-if (any(rowData(res_plas)$significant)) {
-    tab <- rowData(res_plas)[rowData(res_plas)$significant,
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.M", "avg.F", "RSD_QC", "Dratio")]
-    tab <- tab[order(tab$adjp, abs(tab$coef)), ]
-    pandoc.table(
-        as.data.frame(tab), style = "rmarkdown",
-        caption = "Features with significant differences in abundances.")
-} else {
-    tab <- rowData(res_plas)[order(rowData(res_plas)$pvalue),
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.F", "avg.M", "RSD_QC", "Dratio")]
-    tab <- tab[1:20, ]
-    pandoc.table(
-        as.data.frame(tab), style = "rmarkdown",
-        caption = "Top 20 features with the smallest p-values.")
-}
+res_table(res_plas)
 ```
 
 Next, we generate a heatmap containing only the signals from the features
@@ -820,7 +690,6 @@ ann <- as.data.frame(colData(res_plas)[, c("source", "sex")])
 #                                   sex = col_sex))
 
 pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
-               breaks = seq(-5, 5, length.out = 101),
                annotation_color = list(source = col_source,
                                    sex = col_sex))
 
@@ -829,7 +698,7 @@ tmp <- data.frame(
 )
 ```
 
-```{r peak-shape plasma, echo = FALSE}
+```{r peak-shape plasma, echo = FALSE, eval = FALSE}
 load("data/RData/vams_normalization_pos/data_pos_filled.RData")
 pData(data_pos) <- as.data.frame(pData(data_pos))
 
@@ -869,6 +738,25 @@ for (i in seq_len(nrow(chrs))) {
 }
 ```
 
+**STOP HERE**
+
+TODO: we want to know how similar the results found in the 3 sample matrices
+are. We're less interested in actually identifying the metabolites that are
+different between male/female, but we want to know if we would get similar
+results when analyzing whole blood (venous), plasma or capillary samples.
+
+- compare the list of significant features. (using the `UpSetR` package).
+- compare the list of top 100 features with smallest p-value.
+- directly plot (compare) coefficients? Plot coefficients of all features from
+  venous against coefficients of all features in capillary and the same between
+  venous and plasma and capillary and plasma.
+- potential problem: can not expect the same features in all 3 matrices - maybe
+  reduce to metabolites present in ~ 50% of samples for **each** matrix and
+  repeat the diff abundance analysis?
+- Use different ways to pre-filter the data? How does this affect the results
+  (number of significant features) and the overlap of significant features?
+  - rsds < 0.3
+  - dratio < 0.5 in all matrices
 
 For the feature annotation process we need also to identify samples which have
 high abundances for the significant features. In these samples MS/MS spectra can
