@@ -148,7 +148,7 @@ library(Rdisop)
 std_info <- read.table(
     "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/data/standards_dilution.txt",
     sep = "\t", header = TRUE, as.is = TRUE)
-std_info <- std_info[!is.na(std_info[, "POS"]), ]
+std_info <- std_info[!is.na(std_info[, "NEG"]), ]
 rownames(std_info) <- 1:nrow(std_info)
 std_info$mzneut = NA
 std_info$mz_ion = NA
@@ -161,7 +161,7 @@ for (i in seq(nrow(std_info))) {
     }
     ## Calculate also the m/z
     std_info$mz_ion[i] <- mass2mz(
-        std_info$mzneut[i], adduct = std_info[i, "POS"])[1, 1]
+        std_info$mzneut[i], adduct = std_info[i, "NEG"])[1, 1]
 }
 std_info <- std_info[!is.na(std_info$mz_ion), ]
 std_info <- std_info[order(std_info$name), ]
@@ -172,7 +172,6 @@ dir.create(dr, recursive = TRUE, showWarnings = FALSE)
 ##load data_neg
 
 load("data/RData/vams_normalization_neg/data_neg_filled.RData")
-pData(data_neg) <- as.data.frame(pData(data_neg))
 
 ## Subset to the samples we're currently analyzing.
 tmp <- filterFile(data_neg, match(res_neg$mzML_file, data_neg$mzML_file),
@@ -221,88 +220,83 @@ range and it is very close to the theoretical retention time.
 ##   time and a single peak present in the wider rt range) assign it.
 std_info$feature <- NA
 
-std_info$feature[std_info$name == "2-Methylcitrid acid"] <- "FT01200"
-std_info$feature[std_info$name == "3-Nitrotyrosine"] <- "FT01166" 
-#std_info$feature[std_info$name == "5-Oxoproline"] <- "FT0154"
-std_info$feature[std_info$name == "Acetylmethionine"] <- "FT00754"
-#std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT0518"
-#std_info$feature[std_info$name == "Acetylhistidine"] <- "FT0384"
-#std_info$feature[std_info$name == "ADMA"] <- "FT0407"
-#std_info$feature[std_info$name == "Alanine"] <- "FT0051"
-#std_info$feature[std_info$name == "alpha-Aminoadipic acid"] <- "FT0268"
-std_info$feature[std_info$name == "alpha-Lactose"] <- "FT03796" # or FT1331
-#std_info$feature[std_info$name == "AMP"] <- "FT1197"
-#std_info$feature[std_info$name == "Arginine"] <- "FT0307"
-std_info$feature[std_info$name == "Ascorbic acid"] <- "FT00587"
-## std_info$feature[std_info$name == "Betaine"] <- "FT0111/FT0112"
-#std_info$feature[std_info$name == "C4 Carnitine"] <- "FT0486"
-std_info$feature[std_info$name == "cGMP"] <- "FT03357" # rt shifted 15s
-#std_info$feature[std_info$name == "Caffeine"] <- "FT0378"
-#std_info$feature[std_info$name == "Carnosine"] <- "FT0472"
-## std_info$feature[std_info$name == "Choline"] <- "FT0072"
-#std_info$feature[std_info$name == "Citrulline"] <- "FT0312"
-std_info$feature[std_info$name == "Corticosterone"] <- "FT03395" # rt shifted 10s
-##std_info$feature[std_info$name == "Creatine"] <- "FT0159/FT0160"
-##std_info$feature[std_info$name == "Creatinine"] <- "FT0099/FT0100"
-#std_info$feature[std_info$name == "Cystine"] <- "FT0507"
-#std_info$feature[std_info$name == "dGMP"] <- "FT1198"
-#std_info$feature[std_info$name == "Fructose"] <- "FT0402" # same as glucose and mannose
-#std_info$feature[std_info$name == "Galactitol"] <- "FT0420" # same as sorbitol
-std_info$feature[std_info$name == "Gluconic Acid"] <- "FT01072"
-std_info$feature[std_info$name == "Glucoronic Acid"] <- "FT01050"
-#std_info$feature[std_info$name == "Glucose"] <- "FT0402" # same as Fructose
-#std_info$feature[std_info$name == "Glutamine"] <- "FT0215"
-#std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT3342" # same as Glu. Reduced
-#std_info$feature[std_info$name == "Glutathione Reduced"] <- "FT3342" # same as Glu. Oxidized
-#std_info$feature[std_info$name == "Glycero-phosphocholine"] <- "FT0581"
-#std_info$feature[std_info$name == "Glycine"] <- "FT0031"
-#std_info$feature[std_info$name == "Histidine"] <- "FT0249"
-#std_info$feature[std_info$name == "Homocysteine"] <- "FT0178"
-#std_info$feature[std_info$name == "Hydroxyproline"] <- "FT0158"
-#std_info$feature[std_info$name == "Hypoxanthine"] <- "FT0182"
-#std_info$feature[std_info$name == "Isoleucine"] <- "FT0161"
-std_info$feature[std_info$name == "IMP"] <- "FT03439"
-std_info$feature[std_info$name == "Ketoleucine"] <- "FT00190"
-#std_info$feature[std_info$name == "L-Aspartic Acid"] <- "FT0168" # or FT0169
-#std_info$feature[std_info$name == "L-Carnitine"] <- "FT0270" 
-#std_info$feature[std_info$name == "L-Cysteine"] <- "FT0123"
-#std_info$feature[std_info$name == "Leucine"] <- "FT0161"
-##std_info$feature[std_info$name == "Levodopa"] <- "FT0384" # found with ppm = 50
-#std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT0220"
-#std_info$feature[std_info$name == "Lysine"] <- "FT0216"
-#std_info$feature[std_info$name == "Mannose"] <- "FT0402" # same as Fructose and Glucose
-#std_info$feature[std_info$name == "Methionine"] <- "FT0226"
-#std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT0280" 
-#std_info$feature[std_info$name == "Mevalonic acid"] <- "FT00190" # is Ketoleucine
-## std_info$feature[std_info$name == "Myoinositol"] <- "FT0402" # detected as FT0820 and FT0821 - same as fructose, glucose and mannose
-#std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT0306"
-std_info$feature[std_info$name == "NAD"] <- "FT10247"
-#std_info$feature[std_info$name == "Niacinamide"] <- "FT0134"
-std_info$feature[std_info$name == "N-Formyl-L-methionine"] <- "FT00592"
-#std_info$feature[std_info$name == "Ornithine"] <- "FT0165"
-std_info$feature[std_info$name == "PABA"] <- "FT00261" 
-#std_info$feature[std_info$name == "Phenylalanine"] <- "FT0281"
-##std_info$feature[std_info$name == "Phenylethylamine"] <- "FT0129"
-##std_info$feature[std_info$name == "Phosphocreatine"] <- "FT0436"
-std_info$feature[std_info$name == "Phosphoenolpyruvic Acid"] <- "FT00490"
-#std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT0201"
-##std_info$feature[std_info$name == "Pipecolic acid"] <- "FT0155"
-std_info$feature[std_info$name == "Proline"] <- "FT00111"
-##std_info$feature[std_info$name == "Putrescine"] <- "FT0024"
-std_info$feature[std_info$name == "Quinolinic acid"] <- "FT00482"
-#std_info$feature[std_info$name == "SAH"] <- "FT1481"
-#std_info$feature[std_info$name == "SAMe"] <- "FT1583"
-#std_info$feature[std_info$name == "SDMA"] <- "FT0407"
-#std_info$feature[std_info$name == "Serine"] <- "FT0079"
-#std_info$feature[std_info$name == "Sorbitol"] <- "FT0420" # same as galactitol
-std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT04147"
-#std_info$feature[std_info$name == "Sphingosine"] <- "FT0843"
-std_info$feature[std_info$name == "Sucrose"] <- "FT03796" 
-#std_info$feature[std_info$name == "Taurine"] <- "FT0146"
-#std_info$feature[std_info$name == "Threonine"] <- "FT0117"
-#std_info$feature[std_info$name == "Tryptophan"] <- "FT0422"
-#std_info$feature[std_info$name == "Tyrosine"] <- "FT0328"
-#std_info$feature[std_info$name == "Valine"] <- "FT0112"
+## Note: some features have quite a large m/z range!
+std_info$feature[std_info$name == "1-Methylhistidine"] <- "FT00485"
+std_info$feature[std_info$name == "1,5-anhydro D-glucitol"] <- "FT00948"
+std_info$feature[std_info$name == "2-Hydroxybutyric acid"] <- "FT00066"
+std_info$feature[std_info$name == "3-Hydroxybutyric Acid"] <- "FT00066"
+std_info$feature[std_info$name == "3-Methylhistidine"] <- "FT00485"
+std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT01695"
+std_info$feature[std_info$name == "Acetylmethionine"] <- "FT00723"
+std_info$feature[std_info$name == "Alanine"] <- "FT00377"
+std_info$feature[std_info$name == "Allantoin"] <- "FT00383"
+std_info$feature[std_info$name == "Alpha-ketoisovaleric acid"] <- "FT00105"
+std_info$feature[std_info$name == "alpha-Lactose"] <- "FT04310"
+std_info$feature[std_info$name == "AMP"] <- "FT10798"
+std_info$feature[std_info$name == "Arginine"] <- "FT00537"
+std_info$feature[std_info$name == "Asparagine"] <- "FT00188"
+std_info$feature[std_info$name == "Aspirin"] <- "FT00603"
+std_info$feature[std_info$name == "Carnosine"] <- "FT01143"
+std_info$feature[std_info$name == "CDP-choline"] <- "FT07627"
+std_info$feature[std_info$name == "CDP-ethanolamine"] <- "FT05598"
+std_info$feature[std_info$name == "CDP"] <- "FT04651"
+std_info$feature[std_info$name == "Citrulline"] <- "FT00554"
+std_info$feature[std_info$name == "Cystine"] <- "FT01310"
+std_info$feature[std_info$name == "Dihydroxyacetone phosphate"] <- "FT03172"
+std_info$feature[std_info$name == "Dimethylglycine"] <- "FT00061"
+std_info$feature[std_info$name == "Fructose"] <- "FT00604"
+std_info$feature[std_info$name == "Galactitol"] <- "FT00629"
+std_info$feature[std_info$name == "Gluconic Acid"] <- "FT00785"
+std_info$feature[std_info$name == "Glucose"] <- "FT01139"
+std_info$feature[std_info$name == "Glutamine"] <- "FT00287"
+std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT09247"
+std_info$feature[std_info$name == "Glutathione Reduced"] <- "FT09247"
+std_info$feature[std_info$name == "Glycolic acid"] <- "FT00071"
+std_info$feature[std_info$name == "Glycero-phosphocholine"] <- "FT02155"
+std_info$feature[std_info$name == "Histidine"] <- "FT00362"
+std_info$feature[std_info$name == "homovanillic acid"] <- "FT00628"
+std_info$feature[std_info$name == "Hydroxyproline"] <- "FT00177"
+std_info$feature[std_info$name == "Hypoxanthine"] <- "FT00236"
+std_info$feature[std_info$name == "Inosine"] <- "FT01712"
+std_info$feature[std_info$name == "Isocitric Acid"] <- "FT00737"
+std_info$feature[std_info$name == "Isoleucine"] <- "FT00181"
+std_info$feature[std_info$name == "Ketoleucine"] <- "FT00172"
+std_info$feature[std_info$name == "L-Aspartic Acid"] <- "FT00195"
+std_info$feature[std_info$name == "L-Cysteine"] <- "FT00132"
+std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT00294"
+std_info$feature[std_info$name == "Leucine"] <- "FT00181"
+std_info$feature[std_info$name == "Lysine"] <- "FT00289"
+std_info$feature[std_info$name == "Mannose"] <- "FT01139"
+std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT00439"
+std_info$feature[std_info$name == "Myo-Inositol"] <- "FT01141"
+std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT00535"
+std_info$feature[std_info$name == "NAD"] <- "FT10209"
+std_info$feature[std_info$name == "Ornithine"] <- "FT00191"
+std_info$feature[std_info$name == "p-Hydroxyphenylacetic acid"] <- "FT00334"
+std_info$feature[std_info$name == "PABA"] <- "FT00247"
+std_info$feature[std_info$name == "Pantothenic Acid"] <- "FT01063"
+std_info$feature[std_info$name == "Phenylalanine"] <- "FT00442"
+std_info$feature[std_info$name == "Phosphoenolpyruvic Acid"] <- "FT00474"
+std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT01944"
+std_info$feature[std_info$name == "Pyruvic Acid"] <- "FT00028"
+std_info$feature[std_info$name == "Ribose"] <- "FT00323"
+std_info$feature[std_info$name == "SAH"] <- "FT04216"
+std_info$feature[std_info$name == "Salicylic acid"] <- "FT00253"
+std_info$feature[std_info$name == "Serine"] <- "FT00067"
+std_info$feature[std_info$name == "Sorbitol"] <- "FT00629"
+std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT04105"
+std_info$feature[std_info$name == "Sphingosine"] <- "FT03306"
+std_info$feature[std_info$name == "Suberic Acid"] <- "FT00534"
+std_info$feature[std_info$name == "Succinic Acid"] <- "FT00118"
+std_info$feature[std_info$name == "Succinylacetone"] <- "FT00384"
+std_info$feature[std_info$name == "Sucrose"] <- "FT04311"
+std_info$feature[std_info$name == "Taurine"] <- "FT00145"
+std_info$feature[std_info$name == "Threonic Acid"] <- "FT00236"
+std_info$feature[std_info$name == "Threonine"] <- "FT00123"
+std_info$feature[std_info$name == "Tryptophan"] <- "FT00891"
+std_info$feature[std_info$name == "Tyrosine"] <- "FT00612"
+std_info$feature[std_info$name == "Uridine"] <- "FT02088"
+std_info$feature[std_info$name == "Xanthine"] <- "FT00333"
 
 std_info <- std_info[!is.na(std_info$feature), ]
 
