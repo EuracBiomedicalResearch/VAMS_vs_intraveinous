@@ -148,7 +148,7 @@ library(Rdisop)
 std_info <- read.table(
     "https://raw.githubusercontent.com/EuracBiomedicalResearch/lcms-standards/master/data/standards_dilution.txt",
     sep = "\t", header = TRUE, as.is = TRUE)
-std_info <- std_info[!is.na(std_info[, "POS"]), ]
+std_info <- std_info[!is.na(std_info[, "NEG"]), ]
 rownames(std_info) <- 1:nrow(std_info)
 std_info$mzneut = NA
 std_info$mz_ion = NA
@@ -161,7 +161,7 @@ for (i in seq(nrow(std_info))) {
     }
     ## Calculate also the m/z
     std_info$mz_ion[i] <- mass2mz(
-        std_info$mzneut[i], adduct = std_info[i, "POS"])[1, 1]
+        std_info$mzneut[i], adduct = std_info[i, "NEG"])[1, 1]
 }
 std_info <- std_info[!is.na(std_info$mz_ion), ]
 std_info <- std_info[order(std_info$name), ]
@@ -172,7 +172,6 @@ dir.create(dr, recursive = TRUE, showWarnings = FALSE)
 ##load data_neg
 
 load("data/RData/vams_normalization_neg/data_neg_filled.RData")
-pData(data_neg) <- as.data.frame(pData(data_neg))
 
 ## Subset to the samples we're currently analyzing.
 tmp <- filterFile(data_neg, match(res_neg$mzML_file, data_neg$mzML_file),
@@ -221,88 +220,83 @@ range and it is very close to the theoretical retention time.
 ##   time and a single peak present in the wider rt range) assign it.
 std_info$feature <- NA
 
-std_info$feature[std_info$name == "2-Methylcitrid acid"] <- "FT01200"
-std_info$feature[std_info$name == "3-Nitrotyrosine"] <- "FT01166" 
-#std_info$feature[std_info$name == "5-Oxoproline"] <- "FT0154"
-std_info$feature[std_info$name == "Acetylmethionine"] <- "FT00754"
-#std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT0518"
-#std_info$feature[std_info$name == "Acetylhistidine"] <- "FT0384"
-#std_info$feature[std_info$name == "ADMA"] <- "FT0407"
-#std_info$feature[std_info$name == "Alanine"] <- "FT0051"
-#std_info$feature[std_info$name == "alpha-Aminoadipic acid"] <- "FT0268"
-std_info$feature[std_info$name == "alpha-Lactose"] <- "FT03796" # or FT1331
-#std_info$feature[std_info$name == "AMP"] <- "FT1197"
-#std_info$feature[std_info$name == "Arginine"] <- "FT0307"
-std_info$feature[std_info$name == "Ascorbic acid"] <- "FT00587"
-## std_info$feature[std_info$name == "Betaine"] <- "FT0111/FT0112"
-#std_info$feature[std_info$name == "C4 Carnitine"] <- "FT0486"
-std_info$feature[std_info$name == "cGMP"] <- "FT03357" # rt shifted 15s
-#std_info$feature[std_info$name == "Caffeine"] <- "FT0378"
-#std_info$feature[std_info$name == "Carnosine"] <- "FT0472"
-## std_info$feature[std_info$name == "Choline"] <- "FT0072"
-#std_info$feature[std_info$name == "Citrulline"] <- "FT0312"
-std_info$feature[std_info$name == "Corticosterone"] <- "FT03395" # rt shifted 10s
-##std_info$feature[std_info$name == "Creatine"] <- "FT0159/FT0160"
-##std_info$feature[std_info$name == "Creatinine"] <- "FT0099/FT0100"
-#std_info$feature[std_info$name == "Cystine"] <- "FT0507"
-#std_info$feature[std_info$name == "dGMP"] <- "FT1198"
-#std_info$feature[std_info$name == "Fructose"] <- "FT0402" # same as glucose and mannose
-#std_info$feature[std_info$name == "Galactitol"] <- "FT0420" # same as sorbitol
-std_info$feature[std_info$name == "Gluconic Acid"] <- "FT01072"
-std_info$feature[std_info$name == "Glucoronic Acid"] <- "FT01050"
-#std_info$feature[std_info$name == "Glucose"] <- "FT0402" # same as Fructose
-#std_info$feature[std_info$name == "Glutamine"] <- "FT0215"
-#std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT3342" # same as Glu. Reduced
-#std_info$feature[std_info$name == "Glutathione Reduced"] <- "FT3342" # same as Glu. Oxidized
-#std_info$feature[std_info$name == "Glycero-phosphocholine"] <- "FT0581"
-#std_info$feature[std_info$name == "Glycine"] <- "FT0031"
-#std_info$feature[std_info$name == "Histidine"] <- "FT0249"
-#std_info$feature[std_info$name == "Homocysteine"] <- "FT0178"
-#std_info$feature[std_info$name == "Hydroxyproline"] <- "FT0158"
-#std_info$feature[std_info$name == "Hypoxanthine"] <- "FT0182"
-#std_info$feature[std_info$name == "Isoleucine"] <- "FT0161"
-std_info$feature[std_info$name == "IMP"] <- "FT03439"
-std_info$feature[std_info$name == "Ketoleucine"] <- "FT00190"
-#std_info$feature[std_info$name == "L-Aspartic Acid"] <- "FT0168" # or FT0169
-#std_info$feature[std_info$name == "L-Carnitine"] <- "FT0270" 
-#std_info$feature[std_info$name == "L-Cysteine"] <- "FT0123"
-#std_info$feature[std_info$name == "Leucine"] <- "FT0161"
-##std_info$feature[std_info$name == "Levodopa"] <- "FT0384" # found with ppm = 50
-#std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT0220"
-#std_info$feature[std_info$name == "Lysine"] <- "FT0216"
-#std_info$feature[std_info$name == "Mannose"] <- "FT0402" # same as Fructose and Glucose
-#std_info$feature[std_info$name == "Methionine"] <- "FT0226"
-#std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT0280" 
-#std_info$feature[std_info$name == "Mevalonic acid"] <- "FT00190" # is Ketoleucine
-## std_info$feature[std_info$name == "Myoinositol"] <- "FT0402" # detected as FT0820 and FT0821 - same as fructose, glucose and mannose
-#std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT0306"
-std_info$feature[std_info$name == "NAD"] <- "FT10247"
-#std_info$feature[std_info$name == "Niacinamide"] <- "FT0134"
-std_info$feature[std_info$name == "N-Formyl-L-methionine"] <- "FT00592"
-#std_info$feature[std_info$name == "Ornithine"] <- "FT0165"
-std_info$feature[std_info$name == "PABA"] <- "FT00261" 
-#std_info$feature[std_info$name == "Phenylalanine"] <- "FT0281"
-##std_info$feature[std_info$name == "Phenylethylamine"] <- "FT0129"
-##std_info$feature[std_info$name == "Phosphocreatine"] <- "FT0436"
-std_info$feature[std_info$name == "Phosphoenolpyruvic Acid"] <- "FT00490"
-#std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT0201"
-##std_info$feature[std_info$name == "Pipecolic acid"] <- "FT0155"
-std_info$feature[std_info$name == "Proline"] <- "FT00111"
-##std_info$feature[std_info$name == "Putrescine"] <- "FT0024"
-std_info$feature[std_info$name == "Quinolinic acid"] <- "FT00482"
-#std_info$feature[std_info$name == "SAH"] <- "FT1481"
-#std_info$feature[std_info$name == "SAMe"] <- "FT1583"
-#std_info$feature[std_info$name == "SDMA"] <- "FT0407"
-#std_info$feature[std_info$name == "Serine"] <- "FT0079"
-#std_info$feature[std_info$name == "Sorbitol"] <- "FT0420" # same as galactitol
-std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT04147"
-#std_info$feature[std_info$name == "Sphingosine"] <- "FT0843"
-std_info$feature[std_info$name == "Sucrose"] <- "FT03796" 
-#std_info$feature[std_info$name == "Taurine"] <- "FT0146"
-#std_info$feature[std_info$name == "Threonine"] <- "FT0117"
-#std_info$feature[std_info$name == "Tryptophan"] <- "FT0422"
-#std_info$feature[std_info$name == "Tyrosine"] <- "FT0328"
-#std_info$feature[std_info$name == "Valine"] <- "FT0112"
+## Note: some features have quite a large m/z range!
+std_info$feature[std_info$name == "1-Methylhistidine"] <- "FT00485"
+std_info$feature[std_info$name == "1,5-anhydro D-glucitol"] <- "FT00948"
+std_info$feature[std_info$name == "2-Hydroxybutyric acid"] <- "FT00066"
+std_info$feature[std_info$name == "3-Hydroxybutyric Acid"] <- "FT00066"
+std_info$feature[std_info$name == "3-Methylhistidine"] <- "FT00485"
+std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT01695"
+std_info$feature[std_info$name == "Acetylmethionine"] <- "FT00723"
+std_info$feature[std_info$name == "Alanine"] <- "FT00377"
+std_info$feature[std_info$name == "Allantoin"] <- "FT00383"
+std_info$feature[std_info$name == "Alpha-ketoisovaleric acid"] <- "FT00105"
+std_info$feature[std_info$name == "alpha-Lactose"] <- "FT04310"
+std_info$feature[std_info$name == "AMP"] <- "FT10798"
+std_info$feature[std_info$name == "Arginine"] <- "FT00537"
+std_info$feature[std_info$name == "Asparagine"] <- "FT00188"
+std_info$feature[std_info$name == "Aspirin"] <- "FT00603"
+std_info$feature[std_info$name == "Carnosine"] <- "FT01143"
+std_info$feature[std_info$name == "CDP-choline"] <- "FT07627"
+std_info$feature[std_info$name == "CDP-ethanolamine"] <- "FT05598"
+std_info$feature[std_info$name == "CDP"] <- "FT04651"
+std_info$feature[std_info$name == "Citrulline"] <- "FT00554"
+std_info$feature[std_info$name == "Cystine"] <- "FT01310"
+std_info$feature[std_info$name == "Dihydroxyacetone phosphate"] <- "FT03172"
+std_info$feature[std_info$name == "Dimethylglycine"] <- "FT00061"
+std_info$feature[std_info$name == "Fructose"] <- "FT00604"
+std_info$feature[std_info$name == "Galactitol"] <- "FT00629"
+std_info$feature[std_info$name == "Gluconic Acid"] <- "FT00785"
+std_info$feature[std_info$name == "Glucose"] <- "FT01139"
+std_info$feature[std_info$name == "Glutamine"] <- "FT00287"
+std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT09247"
+std_info$feature[std_info$name == "Glutathione Reduced"] <- "FT09247"
+std_info$feature[std_info$name == "Glycolic acid"] <- "FT00071"
+std_info$feature[std_info$name == "Glycero-phosphocholine"] <- "FT02155"
+std_info$feature[std_info$name == "Histidine"] <- "FT00362"
+std_info$feature[std_info$name == "homovanillic acid"] <- "FT00628"
+std_info$feature[std_info$name == "Hydroxyproline"] <- "FT00177"
+std_info$feature[std_info$name == "Hypoxanthine"] <- "FT00236"
+std_info$feature[std_info$name == "Inosine"] <- "FT01712"
+std_info$feature[std_info$name == "Isocitric Acid"] <- "FT00737"
+std_info$feature[std_info$name == "Isoleucine"] <- "FT00181"
+std_info$feature[std_info$name == "Ketoleucine"] <- "FT00172"
+std_info$feature[std_info$name == "L-Aspartic Acid"] <- "FT00195"
+std_info$feature[std_info$name == "L-Cysteine"] <- "FT00132"
+std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT00294"
+std_info$feature[std_info$name == "Leucine"] <- "FT00181"
+std_info$feature[std_info$name == "Lysine"] <- "FT00289"
+std_info$feature[std_info$name == "Mannose"] <- "FT01139"
+std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT00439"
+std_info$feature[std_info$name == "Myo-Inositol"] <- "FT01141"
+std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT00535"
+std_info$feature[std_info$name == "NAD"] <- "FT10209"
+std_info$feature[std_info$name == "Ornithine"] <- "FT00191"
+std_info$feature[std_info$name == "p-Hydroxyphenylacetic acid"] <- "FT00334"
+std_info$feature[std_info$name == "PABA"] <- "FT00247"
+std_info$feature[std_info$name == "Pantothenic Acid"] <- "FT01063"
+std_info$feature[std_info$name == "Phenylalanine"] <- "FT00442"
+std_info$feature[std_info$name == "Phosphoenolpyruvic Acid"] <- "FT00474"
+std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT01944"
+std_info$feature[std_info$name == "Pyruvic Acid"] <- "FT00028"
+std_info$feature[std_info$name == "Ribose"] <- "FT00323"
+std_info$feature[std_info$name == "SAH"] <- "FT04216"
+std_info$feature[std_info$name == "Salicylic acid"] <- "FT00253"
+std_info$feature[std_info$name == "Serine"] <- "FT00067"
+std_info$feature[std_info$name == "Sorbitol"] <- "FT00629"
+std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT04105"
+std_info$feature[std_info$name == "Sphingosine"] <- "FT03306"
+std_info$feature[std_info$name == "Suberic Acid"] <- "FT00534"
+std_info$feature[std_info$name == "Succinic Acid"] <- "FT00118"
+std_info$feature[std_info$name == "Succinylacetone"] <- "FT00384"
+std_info$feature[std_info$name == "Sucrose"] <- "FT04311"
+std_info$feature[std_info$name == "Taurine"] <- "FT00145"
+std_info$feature[std_info$name == "Threonic Acid"] <- "FT00236"
+std_info$feature[std_info$name == "Threonine"] <- "FT00123"
+std_info$feature[std_info$name == "Tryptophan"] <- "FT00891"
+std_info$feature[std_info$name == "Tyrosine"] <- "FT00612"
+std_info$feature[std_info$name == "Uridine"] <- "FT02088"
+std_info$feature[std_info$name == "Xanthine"] <- "FT00333"
 
 std_info <- std_info[!is.na(std_info$feature), ]
 
@@ -362,9 +356,7 @@ legend("topleft", col = col_source, legend = names(col_source),
 ```
 
 In the PC1 plot, capillary and RBC samples cluster together. Plasma samples 
-clusters independently of all other sample sources. In PC3 one can not 
-differentiate between the matrices.
-
+clusters independently of all other sample sources. 
 
 ```{r std_id-samples, echo = FALSE, results = "asis"}
 idx <- pc$x[, 1] > 10
@@ -410,9 +402,7 @@ legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
 
 ```
 
-In the capillary samples, we see some differences between male and female 
-samples. some of the replicates cluster nearby, others, like nr. 13, are far
-apart. The technical replicates are merged in a later step.
+In the capillary samples, we see no clustering of female or male samples.
 
 We then generate the PCA for the venous data set:
 
@@ -421,7 +411,7 @@ We then generate the PCA for the venous data set:
 pc_raw_venous <- prcomp(t(log2(assay(res_ven, "normalized_filled_imputed"))),
                         scale = FALSE, center = TRUE)
 
-pch <- rep(21, ncol(res_cap))
+pch <- rep(21, ncol(res_ven))
 pch[res_ven$sex == "M"] <- 22
 par(mfrow = c(1, 2))
 plot_pca(pc_raw_venous, col = paste0(col_sex[as.character(res_ven$sex)], 80),
@@ -438,9 +428,8 @@ legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
 
 
 
-In the venous data set, a differentiation between male and female samples is not 
-observed.The replicates are clustered farer away, then we saw in the capillary
-data set.
+In the venous data set, a differentiation between male and female samples can 
+be observed.
 
 Lastly, we generate the PCA for the plasma samples:
 
@@ -545,7 +534,7 @@ We proceed with the venous blood samples:
 pc_raw_venous <- prcomp(t(log2(assay(res_ven, "normalized_filled_imputed"))),
                         scale = FALSE, center = TRUE)
 
-pch <- rep(21, ncol(res_cap))
+pch <- rep(21, ncol(res_ven))
 pch[res_ven$sex == "M"] <- 22
 par(mfrow = c(1, 2))
 plot_pca(pc_raw_venous, col = paste0(col_sex[as.character(res_ven$sex)], 80),
@@ -633,6 +622,8 @@ hist(rowData(res_cap)$pvalue, breaks = 64, xlab = "p value",
 hist(rowData(res_cap)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
+The frequency of raw p-values shows the highest peaks around 0.1 and o.3, 
+whereas the highest peak of adjusted p-values is close to 1.
 
 The volcano plot is now plotted to evaluate whether significant features are
 still present or not.
@@ -658,7 +649,7 @@ significant difference in abundances between the two groups. The table below
 lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
-```{r significant-standards-result-table, echo = FALSE, results = "asis"}
+```{r significant-standards-result-table capillary, echo = FALSE, results = "asis"}
 ## Write result table
 if (any(rowData(res_cap)$significant)) {
     tab <- rowData(res_cap)[rowData(res_cap)$significant,
@@ -678,6 +669,53 @@ if (any(rowData(res_cap)$significant)) {
         caption = "Top 20 features with the smallest p-values.")
 }
 ```
+The feature with the smalles p-value is **Gluconic acid**, which is produced
+by oxidizing glucose and can be naturally found in foods like fruit, honey and 
+wine. **Homovanillic acid** is a major catecholamine metabolite being associated
+with dopamine levels in the brain. In neuroscience it is used as a marker of
+metabolic stress caused by 2-desoxy-D-glucose (Marcelis et al., 2006). The third
+smallest p-value was observed in **Allantoin**, a degradation produc of nucleic
+acids.
+
+At this stage, we delve a little deeper and build a beeswarm plot (a
+one-dimensional scatterplot close to a stripchart) to show the different trends
+of each metabolite with a small p-value found between male and female samples.
+The advantage of the beeswarm plot is that it prevents overplotting, thus
+making it easier for us to interpret the results. The gray line represents the
+median.
+
+```{r beeswarm capillary, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_cap)[rownames(tab), ]
+tmp <- log2(assay(res_cap, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_cap$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_neg/standards-beeswarm/FT00785_Gluconic Acid.png)
+![](images/differential_abundance_neg/standards-beeswarm/FT00628_homovanillic acid.png)
+![](images/differential_abundance_neg/standards-beeswarm/FT00383_Allantoin.png)
+The top three features with smallest p-value all show a higher concentration in
+male samples compared to the female ones.
+
+We now proceed with the differential abundace analysis in venous blood samples:
 
 ```{r standards-analysis venous, echo = FALSE}
 sex <- factor(res_ven$sex)
@@ -715,7 +753,9 @@ hist(rowData(res_ven)$pvalue, breaks = 64, xlab = "p value",
 hist(rowData(res_ven)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
-
+The frequency of raw p-values shows the highest peaks close to 0 and 0.8, other
+values are randomly distributed and some are not represented at all. The bar 
+showing the highest frequency of adjusted p-values is close to 1.
 
 ```{r standards-volcano venous, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
 par(mfrow = c(1, 1))
@@ -727,7 +767,7 @@ rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
 rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
      border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
 if (any(rowData(res_ven)$significant)) {
-    points(rowData(res_ven)$coef[rowData(res_cap)$significant],
+    points(rowData(res_ven)$coef[rowData(res_ven)$significant],
            -log10(rowData(res_ven)$adjp[rowData(res_ven)$significant]),
            col = "#0000ffcc")
 }
@@ -738,7 +778,7 @@ significant difference in abundances between the two groups. The table below
 lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
-```{r significant-standards-result-table, echo = FALSE, results = "asis"}
+```{r significant-standards-result-table venous, echo = FALSE, results = "asis"}
 ## Write result table
 if (any(rowData(res_ven)$significant)) {
     tab <- rowData(res_ven)[rowData(res_ven)$significant,
@@ -758,6 +798,40 @@ if (any(rowData(res_ven)$significant)) {
         caption = "Top 20 features with the smallest p-values.")
 }
 ```
+**Gluconic acid** is found to be significant in venous blood samples between
+male and female samples.This feature also had the smallest p-value in capillary
+blood samples, when comparing male to female samples.
+
+We now create the beeswarm plot:
+
+```{r beeswarm venous, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_ven)[rownames(tab), ]
+tmp <- log2(assay(res_ven, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm-ven/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_ven$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_neg/standards-beeswarm-ven/FT00785_Gluconic Acid.png)
+Like already observed in capillary blood samples, also in venous blood Gluconic
+Acid shows a higher concentration in male samples.
 
 We then analyse the features for plasma samples:
 
@@ -779,10 +853,10 @@ tmp <- data.frame(
     adjp = p.adjust(fit$p.value[, "MvsF"]),
     avg.M = rowMeans(
         log2(assay(
-             res_ven, "normalized_filled_imputed")[, res_plas$sex == "M"])),
+             res_plas, "normalized_filled_imputed")[, res_plas$sex == "M"])),
     avg.F = rowMeans(
         log2(assay(
-             res_ven, "normalized_filled_imputed")[, res_plas$sex == "F"]))
+             res_plas, "normalized_filled_imputed")[, res_plas$sex == "F"]))
     )
 tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
 rowData(res_plas) <- cbind(rowData(res_plas), tmp)
@@ -797,6 +871,8 @@ hist(rowData(res_plas)$pvalue, breaks = 64, xlab = "p value",
 hist(rowData(res_plas)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
+In the raw p-values we observe higher bars between 0 and 0.6, in the adjusted 
+p-values the highest bar is close to 0.
 
 ```{r standards-volcano plasma, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
 par(mfrow = c(1, 1))
@@ -807,7 +883,7 @@ rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
      border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
 rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
      border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-if (any(rowData(res_ven)$significant)) {
+if (any(rowData(res_plas)$significant)) {
     points(rowData(res_plas)$coef[rowData(res_plas)$significant],
            -log10(rowData(res_plas)$adjp[rowData(res_plas)$significant]),
            col = "#0000ffcc")
@@ -839,5 +915,52 @@ if (any(rowData(res_plas)$significant)) {
         caption = "Top 20 features with the smallest p-values.")
 }
 ```
+In plasma samples, **Homovanillic acid** is the feature with the smallest
+p-value. This feature was also observed in the top three features with smallest
+p-value in capillary blood samples. **Cystine** is an oxidized dimeric form of 
+cysteine, which is found in high concentrations in digestive enzymes and in the
+cells of the immune system, skeletal and connective tissues, skin, and hair.
 
-xx
+Lastly, we create beeswarm-plots for the 20 features:
+
+```{r beeswarm plasma, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_plas)[rownames(tab), ]
+tmp <- log2(assay(res_plas, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm-plas/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_plas$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_neg/standards-beeswarm-plas/FT00628_homovanillic acid.png)
+
+![](images/differential_abundance_neg/standards-beeswarm-plas/FT01310_Cystine.png)
+Both features show a higher intensity in male samples compared to female ones.
+
+```{r}
+save(res_neg, file = paste0(RDATA_PATH, "res_neg.RData"))
+```
+
+# Session information
+
+The versions of R and the individually used packges are listed below.
+
+```{r}
+sessionInfo()
+```
