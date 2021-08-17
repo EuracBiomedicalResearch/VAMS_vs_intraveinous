@@ -88,6 +88,7 @@ library(RColorBrewer)
 library(MsFeatures)
 library(CompMetaboTools)
 library(pander)
+library(MetaboAnnotation)
 
 load("data/RData/vams_normalization_pos/res_pos.RData")
 res_pos$sample_pair <- paste0(res_pos$source, ".", res_pos$sample)
@@ -183,33 +184,32 @@ pData(data_pos) <- as.data.frame(pData(data_pos))
 tmp <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
                   keepFeatures = TRUE)
 
+rowData(res_pos)$ft <- row.names(res_pos)
+par <- MzRtParam(tolerance = 0, ppm = 40, toleranceRt = 30)
+mo <- matchMz(res_pos, std_info, param = par, mzColumn = c("mzmed", "mz_ion"), 
+               rtColumn = c("rtmed", "RT"))
+mo <- mo[whichQuery(mo)]
+mo <- pruneTarget(mo)
 ## Try to identify all features potentially matching these.
+
+mD <- matchedData(mo, c("ft", "target_name", "target_RT", "target_mz_ion" ))
+mtchd_ft <- unique(mD$ft)
+chrs <- featureChromatograms(tmp, features = mtchd_ft, expandRt = 7, filled = TRUE)
 sample_colors <- col_source[tmp$source]
-for (i in seq_len(nrow(std_info))) {
-    fts <- featureDefinitions(tmp, mz = std_info$mz_ion[i],
-                              rt = std_info$RT[i] + c(-30, 30),
-                              ppm = 10)
-    if (nrow(fts)) {
-        fl <- std_info$name[i]
-        chrs <- featureChromatograms(tmp, features = rownames(fts),
-                                     expandRt = 7, filled = TRUE)
-        #chrs <- chrs[, colnames(res)]
-        chrs <- chrs[, seq_len(ncol(res_pos))]
-        for (j in seq_len(nrow(fts))) {
-            chr <- chrs[j, ]
-            pks <- chromPeaks(chr)
-            png(paste0(dr, fl, "-", rownames(fts)[j], ".png"),
-                width = 10, height = 8, units = "cm", res = 300, pointsize = 6)
-            plot(chr, col = "#00000040",
-                 peakCol = paste0(sample_colors[pks[, "column"]], 50),
-                 peakBg = paste0(sample_colors[pks[, "column"]], 10))
-            abline(v = std_info$RT[i])
-            legend("topleft", legend = c(rownames(fts)[j], fl,
-                                         paste0("rt: ", std_info$RT[i]),
-                                         paste0("mz: ", std_info$mz_ion[i])))
-            dev.off()
-        }
-    }
+for (i in seq_len(nrow(mD))) {
+  chr <- chrs[match(mD$ft[i], mtchd_ft), ]
+  pks <- chromPeaks(chr)
+  fl <- mD$target_name[i]
+  png(paste0(dr, fl, "-", mD$ft[i], ".png"),
+      width = 10, height = 8, units = "cm", res = 300, pointsize = 6)
+  plot(chr, col = "#00000040",
+       peakCol = paste0(sample_colors[pks[, "column"]], 50),
+       peakBg = paste0(sample_colors[pks[, "column"]], 10))
+  abline(v = mD$target_RT[i])
+  legend("topleft", legend = c(mD$ft[i], fl,
+                               paste0("rt: ", mD$target_RT[i]),
+                               paste0("mz: ", mD$target_mz_ion[i])))
+  dev.off()
 }
 ```
 
@@ -224,119 +224,126 @@ range and it is very close to the theoretical retention time.
 ## - Got through all plots for all standards and if there is one feature
 ##   that clearly matches (i.e. retention time close to the expected retention
 ##   time and a single peak present in the wider rt range) assign it.
-std_info$feature <- NA
 
-std_info$feature[std_info$name == "1-Methylhistidine"] <- "FT0293"
-std_info$feature[std_info$name == "3-Methylhistidine"] <- "FT0293" # same as 1-Methylhistidine
-std_info$feature[std_info$name == "5-Oxoproline"] <- "FT0154"
-std_info$feature[std_info$name == "Acetylcarnitine"] <- "FT0415"
-std_info$feature[std_info$name == "Acetyl-Glucosamine"] <- "FT0518"
-std_info$feature[std_info$name == "Acetylhistidine"] <- "FT0384"
-std_info$feature[std_info$name == "ADMA"] <- "FT0407"
-std_info$feature[std_info$name == "Alanine"] <- "FT0051"
-std_info$feature[std_info$name == "alpha-Aminoadipic acid"] <- "FT0268"
-std_info$feature[std_info$name == "alpha-Lactose"] <- "FT1330" # or FT1331
-std_info$feature[std_info$name == "AMP"] <- "FT1197"
-std_info$feature[std_info$name == "Arginine"] <- "FT0307"
-std_info$feature[std_info$name == "Asparagine"] <- "FT0162"
-## std_info$feature[std_info$name == "Betaine"] <- "FT0111/FT0112"
-std_info$feature[std_info$name == "C4 Carnitine"] <- "FT0486"
-std_info$feature[std_info$name == "C5 Carnitine"] <- "FT0527" # rt shifted 10s
-std_info$feature[std_info$name == "Caffeine"] <- "FT0378"
-std_info$feature[std_info$name == "Carnosine"] <- "FT0472"
-## std_info$feature[std_info$name == "Choline"] <- "FT0072"
-std_info$feature[std_info$name == "Citrulline"] <- "FT0312"
-## std_info$feature[std_info$name == "Corticosterone"] <- "FT1193" # rt shifted 10s
-##std_info$feature[std_info$name == "Creatine"] <- "FT0159/FT0160"
-##std_info$feature[std_info$name == "Creatinine"] <- "FT0099/FT0100"
-std_info$feature[std_info$name == "Cystine"] <- "FT0507"
-std_info$feature[std_info$name == "dGMP"] <- "FT1198"
-std_info$feature[std_info$name == "Fructose"] <- "FT0402" # same as glucose and mannose
-std_info$feature[std_info$name == "Galactitol"] <- "FT0420" # same as sorbitol
-std_info$feature[std_info$name == "Gluconic Acid"] <- "FT0460"
-std_info$feature[std_info$name == "Glucose"] <- "FT0402" # same as Fructose
-std_info$feature[std_info$name == "Glutamine"] <- "FT0215"
-std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT3342" # same as Glu. Reduced
-std_info$feature[std_info$name == "Glutathione Reduced"] <- "FT3342" # same as Glu. Oxidized
-std_info$feature[std_info$name == "Glycero-phosphocholine"] <- "FT0581"
-std_info$feature[std_info$name == "Glycine"] <- "FT0031"
-std_info$feature[std_info$name == "Histidine"] <- "FT0249"
-std_info$feature[std_info$name == "Homocysteine"] <- "FT0178"
-std_info$feature[std_info$name == "Hydroxyproline"] <- "FT0158"
-std_info$feature[std_info$name == "Hypoxanthine"] <- "FT0182"
-std_info$feature[std_info$name == "Isoleucine"] <- "FT0161"
-std_info$feature[std_info$name == "L-Aspartic Acid"] <- "FT0168" # or FT0169
-std_info$feature[std_info$name == "L-Carnitine"] <- "FT0270" 
-std_info$feature[std_info$name == "L-Cysteine"] <- "FT0123"
-std_info$feature[std_info$name == "Leucine"] <- "FT0161"
-##std_info$feature[std_info$name == "Levodopa"] <- "FT0384" # found with ppm = 50
-std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT0220"
-std_info$feature[std_info$name == "Lysine"] <- "FT0216"
-std_info$feature[std_info$name == "Mannose"] <- "FT0402" # same as Fructose and Glucose
-std_info$feature[std_info$name == "Methionine"] <- "FT0226"
-std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT0280" 
-## std_info$feature[std_info$name == "Myoinositol"] <- "FT0402" # detected as FT0820 and FT0821 - same as fructose, glucose and mannose
-std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT0306"
-std_info$feature[std_info$name == "NAD"] <- "FT3776"
-std_info$feature[std_info$name == "Niacinamide"] <- "FT0134"
-std_info$feature[std_info$name == "Ornithine"] <- "FT0165"
-std_info$feature[std_info$name == "Palmitoylcarnitine"] <- "FT1588" # or FT1589
-std_info$feature[std_info$name == "Phenylalanine"] <- "FT0281"
-##std_info$feature[std_info$name == "Phenylethylamine"] <- "FT0129"
-##std_info$feature[std_info$name == "Phosphocreatine"] <- "FT0436"
-std_info$feature[std_info$name == "Phosphorylcholine"] <- "FT0338"
-std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT0201"
-##std_info$feature[std_info$name == "Pipecolic acid"] <- "FT0155"
-## std_info$feature[std_info$name == "Proline"] <- "FT0107/FT106"
-##std_info$feature[std_info$name == "Putrescine"] <- "FT0024"
-std_info$feature[std_info$name == "SAH"] <- "FT1481"
-std_info$feature[std_info$name == "SAMe"] <- "FT1583"
-std_info$feature[std_info$name == "SDMA"] <- "FT0407"
-std_info$feature[std_info$name == "Serine"] <- "FT0079"
-std_info$feature[std_info$name == "Sorbitol"] <- "FT0420" # same as galactitol
-std_info$feature[std_info$name == "Sphingosine-1-phosphate"] <- "FT1451"
-std_info$feature[std_info$name == "Sphingosine"] <- "FT0843"
-std_info$feature[std_info$name == "Sucrose"] <- "FT1331" # or FT1330
-std_info$feature[std_info$name == "Taurine"] <- "FT0146"
-std_info$feature[std_info$name == "Threonine"] <- "FT0117"
-std_info$feature[std_info$name == "Tryptophan"] <- "FT0422"
-std_info$feature[std_info$name == "Tyrosine"] <- "FT0328"
-std_info$feature[std_info$name == "Valine"] <- "FT0112"
+keep <- rbind(c("1-Methylhistidine", "FT0293"),
+              c("3-Methylhistidine", "FT0293"), # same as 1-Methylhistidine
+              c("5-Oxoproline", "FT0154"),
+              c("Acetylcarnitine", "FT0415"),
+              c("Acetyl-Glucosamine", "FT0518"),
+              c("Acetylhistidine", "FT0384"),
+              c("ADMA", "FT0407"),
+              c("Alanine", "FT0051"),
+              c("alpha-Aminoadipic acid", "FT0268"),
+              c("alpha-Lactose", "FT1330"), # or FT1331
+              c("AMP", "FT1197"),
+              c("Arginine", "FT0307"),
+              c("Asparagine", "FT0162"),
+              ## c("Betaine", "FT0111/FT0112"),
+              c("C4 Carnitine", "FT0486"),
+              c("C5 Carnitine", "FT0527"), # rt shifted 10s
+              c("Caffeine", "FT0378"),
+              c("Carnosine", "FT0472"),
+              ## c("Choline", "FT0072"),
+              c("Citrulline", "FT0312"),
+              ## c("Corticosterone", "FT1193"), # rt shifted 10s
+              ##c("Creatine", "FT0159/FT0160"),
+              ##c("Creatinine", "FT0099/FT0100"),
+              c("Cystine", "FT0507"),
+              c("dGMP", "FT1198"),
+              c("Fructose", "FT0402"), # same as glucose and mannose
+              c("Galactitol", "FT0420"), # same as sorbitol
+              c("Gluconic Acid", "FT0460"),
+              c("Glucose", "FT0402"), # same as Fructose
+              c("Glutamine", "FT0215"),
+              c("Glutathione Oxidized", "FT3342"), # same as Glu. Reduced
+              c("Glutathione Reduced", "FT3342"), # same as Glu. Oxidized
+              c("Glycero-phosphocholine", "FT0581"),
+              c("Glycine", "FT0031"),
+              c("Histidine", "FT0249"),
+              c("Homocysteine", "FT0178"),
+              c("Hydroxyproline", "FT0158"),
+              c("Hypoxanthine", "FT0182"),
+              c("Isoleucine", "FT0161"),
+              c("L-Aspartic Acid", "FT0168"), # or FT0169
+              c("L-Carnitine", "FT0270"), 
+              c("L-Cysteine", "FT0123"),
+              c("Leucine", "FT0161"),
+              ##c("Levodopa", "FT0384"), # found with ppm = 50
+              c("L-Glutamic Acid", "FT0220"),
+              c("Lysine", "FT0216"),
+              c("Mannose", "FT0402"), # same as Fructose and Glucose
+              c("Methionine", "FT0226"),
+              c("Methioninesulfoxide", "FT0280"), 
+              ## c("Myoinositol", "FT0402"), # detected as FT0820 and FT0821 - same as fructose, glucose and mannose
+              c("N-Acetylornithine", "FT0306"),
+              c("NAD", "FT3776"),
+              c("Niacinamide", "FT0134"),
+              c("Ornithine", "FT0165"),
+              c("Palmitoylcarnitine", "FT1588"), # or FT1589
+              c("Phenylalanine", "FT0281"),
+              ##c("Phenylethylamine", "FT0129"),
+              ##c("Phosphocreatine", "FT0436"),
+              c("Phosphorylcholine", "FT0338"),
+              c("Phosphorylethanolamine", "FT0201"),
+              ##c("Pipecolic acid", "FT0155"),
+              ## c("Proline", "FT0107/FT106"),
+              ##c("Putrescine", "FT0024"),
+              c("SAH", "FT1481"),
+              c("SAMe", "FT1583"),
+              c("SDMA", "FT0407"),
+              c("Serine", "FT0079"),
+              c("Sorbitol", "FT0420"), # same as galactitol
+              c("Sphingosine-1-phosphate", "FT1451"),
+              c("Sphingosine", "FT0843"),
+              c("Sucrose", "FT1331"), # or FT1330
+              c("Taurine", "FT0146"),
+              c("Threonine", "FT0117"),
+              c("Tryptophan", "FT0422"),
+              c("Tyrosine", "FT0328"),
+              c("Valine", "FT0112"))
 
-std_info <- std_info[!is.na(std_info$feature), ]
+mo <- keepMatches(mo, queryValues = keep[, 2], 
+                  targetValues = keep[, 1], 
+                  queryColname = "ft", targetColname = "target_name")
+mo <- mo[whichQuery(mo)]
+mo <- pruneTarget(mo) # Probably it's not very useful but since these two lines
+# are used one ofter the other we could create a function e.g. reduceMatched 
+# that does the two things
 
-## Check if we've got the same feature for multiple standards. In case combine
-## them into one row.
-dups <- std_info$feature[duplicated(std_info$feature)]
+mD <- matchedData(mo, c("ft", paste0("target_", c("name", "RT", "mzneut", 
+                                                 "mz_ion", "HMDB.code"))))
+colnames(mD) <- c("feature", "name", "RT", "mzneut", "mz_ion", "HMDB.code")
+dups <- mD$feature[duplicated(mD$feature)]
 for (dup in dups) {
-    idx <- which(std_info$feature == dup)
-    std_info$HMDB.code[idx[1]] <- paste0(std_info$HMDB.code[idx], collapse = ";")
-    std_info$name[idx[1]] <- paste0(std_info$name[idx], collapse = ";")
-    std_info$feature[idx[-1]] <- NA
+    idx <- which(mD$feature == dup)
+    mD$HMDB.code[idx[1]] <- paste0(mD$HMDB.code[idx], collapse = ";")
+    mD$name[idx[1]] <- paste0(mD$name[idx], collapse = ";")
+    mD$feature[idx[-1]] <- NA
 }
-std_info <- std_info[!is.na(std_info$feature), ]
-rownames(std_info) <- std_info$feature
+mD <- mD[!is.na(mD$feature), ]
+rownames(mD) <- mD$feature
 ```
 
-A total of `r sum(nrow(std_info))` standards have been identified. The features
+A total of `r sum(nrow(mD))` standards have been identified. The features
 identified and the corresponding metabolite are summarized in this table:
 
 ```{r result-table-ft-std, echo = FALSE, results = "asis"}
 ## Write result table
-tab <- std_info[, c("name", "RT", "mzneut", "mz_ion")]
-pandoc.table(as.data.frame(tab), style = "rmarkdown",
+mD <- mD[order(mD$name), ]
+pandoc.table(as.data.frame(mD[, 1:4]), style = "rmarkdown",
              caption = "Features assigned to known compounds")
-
 ```
 
 Next, only the features assigned to the standards are taken into consideration
 and are subsetted in the `std_res` object.
 
 ```{r std-subset, echo = FALSE}
-std_res <- res_pos[rownames(res_pos) %in% std_info$feature, ]
-
+# std_res <- res_pos[rownames(res_pos) %in% mD$feature, ]
+# rowData(std_res) <- cbind(rowData(std_res),
+#                           mD[rownames(std_res), c("name", "HMDB.code")])
+std_res <- query(mo)
 rowData(std_res) <- cbind(rowData(std_res),
-                          std_info[rownames(std_res), c("name", "HMDB.code")])
+                          mD[rownames(std_res), c("name", "HMDB.code")])
 ```
 
 The subsetting reduced the number of features to `r length(std_res)`. 
