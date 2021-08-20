@@ -1,0 +1,1577 @@
+---
+title: "Differential abundance analysis, untargeted approach"
+subtitle: "Positive polarity"
+author: "Christa Malfertheiner"
+date: "10 July 2021"
+output:
+  BiocStyle::html_document:
+    toc: true
+    number_sections: false
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r setup, echo = FALSE, results = "asis", warning = FALSE}
+library(BiocStyle)
+BiocStyle::markdown()
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+```{r parameters, echo = FALSE, warning = FALSE}
+## Set general parameters
+polarity <- "POS" # specify "POS" or "NEG"
+p.cut <- 0.05     # cut-off for significance.
+m.cut <- 0.7      # cut-off for log2 fold change
+
+set.seed(123)
+
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
+
+FILE_NAME <- "diff_analysis_untargeted_pos"
+
+## Define paths:
+IMAGE_PATH <- paste0("images/", FILE_NAME, "/")
+if (dir.exists(IMAGE_PATH)) unlink(IMAGE_PATH, recursive = TRUE, force = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE, showWarnings = FALSE)
+
+RDATA_PATH <- paste0("data/RData/", FILE_NAME, "/")
+dir.create(RDATA_PATH, recursive = TRUE, showWarnings = FALSE)
+
+RESULT_PATH <- paste0("data/results/", FILE_NAME, "/")
+dir.create(RESULT_PATH, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Introduction
+
+In this document we perform the differential abundance analysis of the features
+previously identified for the *MitYOU* project, with the aim of identifying
+significant sex-related features. This task is performed by hypothesis testing,
+where we try to identify which metabolites have the most different 
+concentrations between female and male samples in plasma samples, venous and
+capillary blood samples. We follow an untargeted approach, the analysis comprises
+feature pre-filtering, exploratory analysis and differential abundance analysis
+carried out on each matrix individiously.
+
+
+# Data import
+
+First, we load the required packages and the data, after preprocessing and
+normalization. The end result of these steps is a `SummarizedExperiment` that
+contains aligned data, where features are grouped (after correspondence), and
+that have undergone gap filling, normalization by the median, linear fitting and 
+per-feature between-batch normalization to remove any unwanted variability. 
+The `SummarizedExperiment` lets us store all the information regarding the 
+normalization steps in the form of `assays`, which we are still able to access 
+to proceed with the analysis.
+
+```{r load-data, echo = FALSE, warning = FALSE}
+library(xcms)
+library(limma)
+library(pheatmap)
+library(writexl)
+library(SummarizedExperiment)
+library(RColorBrewer)
+library(MsFeatures)
+library(CompMetaboTools)
+library(pander)
+
+load("data/RData/vams_normalization_pos/res_pos.RData")
+```
+
+We assign the colours as seen before.
+
+```{r split-qc, echo = TRUE}
+res_qc <- res_pos[, res_pos$source == "all"]
+res_pos <- res_pos[, res_pos$source != "all"]
+res_pos$source <- factor(as.character(res_pos$source))
+res_pos$sex <- factor(as.character(res_pos$sex))
+
+col_source <- brewer.pal(5, name = "Set1")
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "all",           #' green
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+col_sex <- brewer.pal(4, name = "Set1") [c(1, 2, 3)]
+names(col_sex) <- c("F",           # red
+                    "M",           # blue
+                    "POOL")        # green
+
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
+```
+
+The samples used in this analysis are listed below.
+
+```{r, echo = FALSE, results = "asis"}
+tab <- colData(res_pos)[, c("source", "sex", "age")]
+pandoc.table(as.data.frame(tab), style = "rmarkdown",
+             caption = "Samples used in this analysis")
+```
+
+
+# Feature pre-filtering
+
+Feature pre-filtering is an important step of data analysis that aims to
+reduce as much as possible the random error that occurs during the measurement
+of an analyte: during this process, features with high noise and features that
+were detected in a low number of samples are removed. As a side effect, by
+reducing the number of features that are being tested later, the pre-filtering
+reduces also the loss of power by the subsequent adjustment for multiple
+hypothesis testing.
+
+This step is fundamental, though one must be careful not to pre-filter for a
+characteristic that will be tested later: the pre-filtering must be, as a matter
+of fact, independent from later analyses.
+
+The first step of pre-filtering consists of removing features with high
+technical variance; several methods have been developed to determine which
+signals must be removed, the most common of which relies on the **relative
+standard deviation (RSD)**, which is defined as the ratio between the standard
+deviation and the mean:
+
+$RSD = \dfrac{s_{i,qc}}{\bar{m}_{i,qc}}$
+
+This value is calculated for each feature found in the pooled QC samples: when
+this is higher than 30%, the feature is removed from the dataset
+[@broadhurstGuidelinesConsiderationsUse2018].
+
+Another common approach is based on the **dispersion ratio (D-ratio)**: this is
+defined as the ratio between the sample standard deviation for the pooled QC
+samples and the sample standard deviation for the study samples (the former
+expected to represent technical variance, the latter a combination of technical
+and biological variance):
+
+$D-ratio = \dfrac{s_{i,qc}}{s_{i,sample}}$
+
+The interpretation of this value goes as follows: when the D-ratio is 0%, there
+is no technical variance in the observed measurements, whereas a D-ratio of
+100% represents only noise and no biological variance detected. A common cut-off
+for the D-ratio is 0.5, aiming at keeping features whose variation in study
+samples is twice as large as the one in QC samples
+[@broadhurstGuidelinesConsiderationsUse2018]. For the present dataset we should
+calculate the D-ratio **separately** for each source (sample matrix) because the
+variance between sample matrices is expected to be very large. For each feature
+we use then the smallest D-ratio from the 4 sample matrices.
+
+```{r filter-rsd, warning = FALSE}
+rsds <- rowRsd(assay(res_qc, "normalized_filled"))
+dratios_ven <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "venous"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_rbc <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "RBC"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_cap <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "capillary"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_pla <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "plasma"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios <- apply(cbind(dratios_ven, dratios_rbc, dratios_cap, dratios_pla),
+                 MARGIN = 1, min, na.rm = TRUE)
+dratios[is.infinite(dratios)] <- NA
+```
+
+The distribution of RSD values and D-ratio is shown in the plot below:
+
+```{r filter-rsd-plot, fig.path = IMAGE_PATH, fig.width = 5 * phi, fig.height = 5, fig.cap = "Distribution of RSD values and D-ratios in the data set. The dashed vertical red line represents the cut-off value for the RSD and D-ratio, respectively.", echo = FALSE}
+par(mfrow = c(1, 2))
+plot(density(rsds, na.rm = TRUE), xlab = "RSD",
+     main = "Distribution of RSD values")
+abline(v = 0.3, col = "red", lty = 2)
+plot(density(dratios, na.rm = TRUE), xlab = "D-ratio",
+     main = "Distribution of D-ratios")
+abline(v = 0.5, col = "red", lty = 2)
+```
+
+The plot below directly compares the RSD and D-ratio for each feature.
+
+```{r filter-rsd-vs-dratio-plot, fig.path = IMAGE_PATH, fig.width = 5, fig.height = 5, fig.cap = "Direct comparison of RSD and D-ratios.", echo = FALSE}
+plot(log2(rsds), log2(dratios), xlab = expression(log[2]~RSD),
+     ylab = expression(log[2]~D-ratio), pch = 16, col = "#00000040")
+abline(v = log2(0.3), col = "red", lty = 2)
+abline(h = log2(0.5), col = "red", lty = 2)
+```
+
+The plot shows a correlation between RSD and D-ratios, though the two methods
+are not interchangeable. Below we pre-filter the data using the D-ratio.
+
+```{r do-filter}
+res <- res_pos[which(dratios < 0.5), ]
+```
+
+This reduced the data set from `r length(dratios)` to `r nrow(res)` features.
+Next, we discard the features that have not been identified in at least 30% of
+the samples in any of the sample groups.
+
+```{r filter-proportion}
+keep <- moreAreValidThan(assay(res, "raw"), f = res$source, prop = 0.3)
+res <- res[keep, ]
+```
+
+The dataset has been reduced from `r length(rsds)` to `r nrow(res)` features:
+this result shows that most features have been retained even after
+pre-filtering, thus ensuring a dataset where features have a D-ratio lower than
+0.5 and have less than 70% missing values.
+
+
+# Exploratory analysis: PCA
+
+Next, we perform a PCA analysis: this allows us to gather information about any
+possible similarities among the samples, based on the measured metabolite
+intensities.
+
+```{r pca-all}
+pc <- prcomp(t(log2(assay(res, "normalized_filled_imputed"))),
+                 center = TRUE, scale. = FALSE)
+```
+
+```{r pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on feature intensities.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
+par(mfrow = c(1, 2))
+plot_pca(pc, col = paste0(col_source[as.character(res$source)], 90),
+         pc_x = 1, pc_y = 2)
+plot_pca(pc, col = paste0(col_source[as.character(res$source)], 90),
+         pc_x = 3, pc_y = 4)
+legend("topleft", col = col_source, legend = names(col_source),
+       title = "phenotype", pch = 16, ncol = 2)
+```
+
+We see a clear separation by sample matrix. Also, a higher variability of RBC
+and capillary samples is visible. All plasma samples are clustered together far
+apart from the other matrices.
+
+
+# Differential abundance analysis: **capillary* blood samples
+
+In this section, we perform a differential abundance analysis to identify
+features that have significantly different abundances between ARVD samples and
+CTRL samples. The analysis is based on feature-wise multiple linear regression:
+the aim of such analysis is to find the relationship between the independent
+variables (age and sex) and the response variable (signal intensity).
+In short, multiple linear regression is a form of linear regression that is used
+when there are two or more predictors.
+Multiple linear regression is preferred over separate simple linear regression
+in order to avoid wrong predictions: this could happen because the input
+variables may be correlated, which could lead to unsatisfactory results. The
+formula for multiple regression model is:
+
+$Y = \beta_0 + \beta_1x_{i1} + \beta_2x_{i2} \ldots, + \beta_px_{ip} + \epsilon$
+
+where: \
+- $Y =$ predicted value (dependent variable) \
+- $\beta_0 =$ y intercept, constant term
+- $\beta_1, \beta_2, \ldots, \beta_p =$ regression coefficients \
+- $x_i =$ independent variables \
+- $\epsilon =$ residuals.
+
+The `limma` package contains the `lmFit` function, which calculates the linear
+model that best describes the data. The results are stored in a `MArrayLM`
+(Microarray Linear Model Fit) object.
+
+This model, though, is not enough to accept whether or not there is actually a
+relationship among the response and the independent variables, therefore we must
+perform a hypothesis test: we define the *null hypothesis* as there not being
+any differences in the abundances of metabolites in ARVD and CTRL samples. The
+*alternative hypothesis* is therefore defined when there are differences in the
+intensities of the signals coming from the metabolites in the two different
+experimental groups.
+To accept or reject the alternative hypothesis, it is necessary to calculate the
+p-value: the function that allows us to add the results to the `MArrayLM` object
+created before is `eBayes`. The `eBayes` function computes several statistics,
+including the moderated t-test, which is defined as follows:
+
+$\dfrac{d}{s + s_0}$
+
+where \
+- $d =$ difference in two group means ($m_1 - m_2$) \
+- $s =$ pooled standard deviation \
+- $s_0 =$ small constant (it depends on the variance within the group).
+
+The constant is added to the denominator in order to avoid a division by an
+extremely low number, which would of course increase the result of the statistic
+falsely inducing us into rejecting the null hypothesis, thus considering the
+difference as significant, when it is not. When performing multiple hypothesis
+testing, though, there is a high chance of rejecting the null hypothesis when it
+is true (type I error), thus a method to control the False Discovery Rate is
+required: in this case we opted for Benjamini-Hochberg correction. In
+conclusion, the alternative hypothesis is rejected when the adjusted p-value is
+smaller than the confidence threshold that was set at the beginning of this
+document to `r p.cut`. This means we accept `r p.cut * 100`% false positives
+among the features called *significant*.
+
+```{r analysis}
+## We subsample the sample sources
+res_cap = res[, res$source == "capillary"]
+res_ven = res[, res$source == "venous"]
+res_plas = res[, res$source == "plasma"]
+
+#We first have a look at the capillary blood samples
+## Factor sample source and sex
+sex <- factor(res_cap$sex)
+age <- res_cap$age
+
+## Fit the data to the desired design
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_cap, "normalized_filled_imputed")), design = dsgn)
+
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+
+```
+
+The next step involves creating a data frame that contains the results obtained
+in the code chunk above. Also, we determine whether or not a feature can be
+considered significant based on the p-value (the adjusted p-value must be below
+the threshold of `r p.cut`) and on the log2 fold change (the (absolute)
+coefficients calculated with `lmFit` must be higher than `r m.cut`).
+
+The data frame is then added to the `rowData` of the `res_cap` object.
+
+```{r result-data-frame, echo = FALSE}
+add_result <- function(x) {
+    ## Generate result data frame
+    tmp <- data.frame(
+        coef = fit$coefficient[, "MvsF"],
+        pvalue = fit$p.value[, "MvsF"],
+        adjp = p.adjust(fit$p.value[, "MvsF"], method = "BH"),
+        avg.M = rowMeans(
+            log2(assay(x, "normalized_filled_imputed")[, x$sex == "M"])),
+        avg.F = rowMeans(
+            log2(assay(x, "normalized_filled_imputed")[, x$sex == "F"]))
+    )
+    ## Evaluate which features are significant
+    tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
+    tmp$RSD_QC <- rsds[rownames(rowData(x))]
+    tmp$Dratio <- dratios[rownames(rowData(x))]
+    ## Add data frame to res
+    rowData(x) <- cbind(rowData(x), tmp)
+    x
+}
+
+res_cap <- add_result(res_cap)
+```
+
+We plot then the distribution of p-values, both raw and adjusted.
+
+```{r histogram, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "Distribution of raw (left) and adjusted p-values (right)."}
+par(mfrow = c(1, 2))
+hist(rowData(res_cap)$pvalue, breaks = 64, xlab = "p value",
+     main = "Distribution of raw p-values")
+hist(rowData(res_cap)$adjp, breaks = 64, xlab = expression(p[BH]~value),
+     main = "Distribution of adjusted p-values")
+```
+
+The plot shows that there is an enrichment of p-values close to 0: this
+indicates that some significant features are present in the dataset. The other
+features have p-values that are mostly randomly spread across the x-axis.
+For the adjusted p-values, we see an enrichment close to 1 and no other high
+peaks across the range of p-values, as expected.
+
+Next, we take a look at the volcano plot, in order to find the features that
+display a significant difference in signal intensity between ARVD and CTRL
+samples.
+
+```{r volcano, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
+plot_volcano <- function(x) {
+    par(mfrow = c(1, 1))
+    plot(rowData(x)$coef, -log10(rowData(x)$adjp),
+         xlab = expression(log[2]~difference),
+         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
+    rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+    rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+    if (any(rowData(x)$significant)) {
+        points(rowData(x)$coef[rowData(x)$significant],
+               -log10(rowData(x)$adjp[rowData(x)$significant]),
+               col = "#0000ffcc")
+    }
+}
+plot_volcano(res_cap)
+```
+
+In total `r sum(rowData(res_cap)$significant)` features were found to have a
+significant difference in abundances between the two groups. The table below
+lists these features (or the 20 features with the smallest p-values if no
+feature was found significant).
+
+```{r result-table, echo = FALSE, results = "asis"}
+res_table <- function(x) {
+    ## Write result table
+    if (any(rowData(x)$significant)) {
+        tab <- rowData(x)[rowData(x)$significant,
+                                c("mzmed", "rtmed", "coef", "adjp",
+                                  "avg.M", "avg.F", "RSD_QC", "Dratio")]
+        tab <- tab[order(tab$adjp, abs(tab$coef)), ]
+        pandoc.table(
+            as.data.frame(tab), style = "rmarkdown",
+            caption = "Features with significant differences in abundances.")
+    } else {
+        tab <- rowData(x)[order(rowData(x)$pvalue),
+                                c("mzmed", "rtmed", "coef", "adjp",
+                                  "avg.F", "avg.M", "RSD_QC", "Dratio")]
+        tab <- tab[1:20, ]
+        pandoc.table(
+            as.data.frame(tab), style = "rmarkdown",
+            caption = "Top 20 features with the smallest p-values.")
+    }
+}
+res_table(res_cap)
+```
+
+Next, we generate a heatmap containing only the signals from the features
+identified above to identify any similarities among samples.
+
+```{r heatmap, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
+## Create heatmap
+tmp <- log2(assay(
+            res_cap, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+ann <- as.data.frame(colData(res_cap)[, c("source", "sex")])
+#pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res),
+#               annotation_color = list(group = col_group,
+#                                   sex = col_sex))
+
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+               breaks = seq(-5, 5, length.out = 101),
+               annotation_color = list(source = col_source,
+                                   sex = col_sex))
+
+tmp <- data.frame(
+  heatmap = pm$tree_row$order
+)
+```
+
+Finally, we extract EICs for all these features and save them.
+
+```{r peak-shape, echo = FALSE, eval = FALSE}
+load("data/RData/vams_normalization_pos/data_pos_filled.RData")
+pData(data_pos) <- as.data.frame(pData(data_pos))
+
+chrs <- featureChromatograms(data_pos, expandRt = 2,
+                             features = rownames(tab),
+                             filled = TRUE)
+
+dr <- paste0(IMAGE_PATH, "features_cap/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+
+for (i in seq_len(nrow(chrs))) {
+    chr <- chrs[i, ]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+
+    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plotChromPeakDensity(chr, peakPch = 16,
+                         peakCol = paste0(pk_col, 80),
+                         peakBg = paste0(pk_col, 10),
+                         main = paste0(rownames(tab)[i], ": ",
+                         format(mz(chr)[1], digits = 6), "-",
+                         format(mz(chr)[2], digits = 6)),
+                         simulate = FALSE)
+    dev.off()
+    #chr <- chr[, colnames(res)]
+    chr <- chr[, seq_len(ncol(res))]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+    png(file = paste0(dr, rownames(tab)[i], ".png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plot(chr, peakPch = 16,
+         peakCol = paste0(pk_col, 80),
+         peakBg = paste0(pk_col, 10),
+         main = paste0(rownames(tab)[i], ": ",
+                       format(mz(chr)[1], digits = 6), "-",
+                       format(mz(chr)[2], digits = 6)))
+    dev.off()
+}
+```
+
+We then take a look at the venous blood samples. Since the code to perform the
+analysis is essentially identical to the one for capillary samples it is not
+shown again.
+
+```{r venous, echo = FALSE}
+#We first have a look at the capillary blood samples
+## Factor sample source and sex
+sex <- factor(res_ven$sex)
+age <- res_ven$age
+
+## Fit the data to the desired design
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_ven, "normalized_filled_imputed")), design = dsgn)
+
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+res_ven <- add_result(res_ven)
+```
+
+We plot then the distribution of p-values, both raw and adjusted.
+
+```{r histogram VBS, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "Distribution of raw (left) and adjusted p-values (right)."}
+par(mfrow = c(1, 2))
+hist(rowData(res_ven)$pvalue, breaks = 64, xlab = "p value",
+     main = "Distribution of raw p-values")
+hist(rowData(res_ven)$adjp, breaks = 64, xlab = expression(p[BH]~value),
+     main = "Distribution of adjusted p-values")
+```
+
+The plot shows that there is an enrichment of p-values close to 0: this
+indicates that some significant features are present in the dataset. The other
+features have p-values that are mostly randomly spread across the x-axis.
+For the adjusted p-values, we see an enrichment close to 1 and no other high
+peaks across the range of p-values, as expected.
+
+Next, we take a look at the volcano plot, in order to find the features that
+display a significant difference in signal intensity between male an female 
+samples in venous blood.
+
+```{r volcano VBS, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
+plot_volcano(res_ven)
+```
+
+In total `r sum(rowData(res_ven)$significant)` features were found to have a
+significant difference in abundances between the two groups. The table below
+lists these features (or the 20 features with the smallest p-values if no
+feature was found significant).
+
+```{r result-table VBS, echo = FALSE, results = "asis"}
+res_table(res_ven)
+```
+
+Next, we generate a heatmap containing only the signals from the features
+identified above to identify any similarities among samples.
+
+```{r heatmap VBS, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
+## Create heatmap
+tmp <- log2(assay(
+            res_ven, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+ann <- as.data.frame(colData(res_ven)[, c("source", "sex")])
+#pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res),
+#               annotation_color = list(group = col_group,
+#                                   sex = col_sex))
+
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+               annotation_color = list(source = col_source,
+                                   sex = col_sex))
+
+tmp <- data.frame(
+  heatmap = pm$tree_row$order
+)
+```
+
+```{r peak-shape VBS, echo = FALSE, eval = FALSE}
+load("data/RData/vams_normalization_pos/data_pos_filled.RData")
+pData(data_pos) <- as.data.frame(pData(data_pos))
+
+chrs <- featureChromatograms(data_pos, expandRt = 2,
+                             features = rownames(tab),
+                             filled = TRUE)
+
+dr <- paste0(IMAGE_PATH, "features_ven/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+
+for (i in seq_len(nrow(chrs))) {
+    chr <- chrs[i, ]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+
+    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plotChromPeakDensity(chr, peakPch = 16,
+                         peakCol = paste0(pk_col, 80),
+                         peakBg = paste0(pk_col, 10),
+                         main = paste0(rownames(tab)[i], ": ",
+                         format(mz(chr)[1], digits = 6), "-",
+                         format(mz(chr)[2], digits = 6)),
+                         simulate = FALSE)
+    dev.off()
+    #chr <- chr[, colnames(res)]
+    chr <- chr[, seq_len(ncol(res))]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+    png(file = paste0(dr, rownames(tab)[i], ".png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plot(chr, peakPch = 16,
+         peakCol = paste0(pk_col, 80),
+         peakBg = paste0(pk_col, 10),
+         main = paste0(rownames(tab)[i], ": ",
+                       format(mz(chr)[1], digits = 6), "-",
+                       format(mz(chr)[2], digits = 6)))
+    dev.off()
+}
+```
+
+Lastly, we look at the plasma samples:
+
+```{r plasma, echo = FALSE}
+## Factor sample source and sex
+sex <- factor(res_plas$sex)
+age <- res_plas$age
+
+## Fit the data to the desired design
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_plas, "normalized_filled_imputed")), design = dsgn)
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+res_plas <- add_result(res_plas)
+
+```
+
+We plot then the distribution of p-values, both raw and adjusted.
+
+```{r histogram plasma, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "Distribution of raw (left) and adjusted p-values (right)."}
+par(mfrow = c(1, 2))
+hist(rowData(res_plas)$pvalue, breaks = 64, xlab = "p value",
+     main = "Distribution of raw p-values")
+hist(rowData(res_plas)$adjp, breaks = 64, xlab = expression(p[BH]~value),
+     main = "Distribution of adjusted p-values")
+```
+
+The plot shows that there is an enrichment of p-values close to 0: this
+indicates that some significant features are present in the dataset. The other
+features have p-values that are mostly randomly spread across the x-axis.
+For the adjusted p-values, we see an enrichment close to 1 and no other high
+peaks across the range of p-values, as expected.
+
+Next, we take a look at the volcano plot, in order to find the features that
+display a significant difference in signal intensity between male and female 
+samples in plasma.
+
+```{r volcano plasma, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
+plot_volcano(res_plas)
+```
+
+In total `r sum(rowData(res_plas)$significant)` features were found to have a
+significant difference in abundances between the two groups. The table below
+lists these features (or the 20 features with the smallest p-values if no
+feature was found significant).
+
+```{r result-table plasma, echo = FALSE, results = "asis"}
+res_table(res_plas)
+```
+
+Next, we generate a heatmap containing only the signals from the features
+identified above to identify any similarities among samples.
+
+```{r heatmap plasma, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
+## Create heatmap
+tmp <- log2(assay(
+            res_plas, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+ann <- as.data.frame(colData(res_plas)[, c("source", "sex")])
+#pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res),
+#               annotation_color = list(group = col_group,
+#                                   sex = col_sex))
+
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+               annotation_color = list(source = col_source,
+                                   sex = col_sex))
+
+tmp <- data.frame(
+  heatmap = pm$tree_row$order
+)
+```
+
+```{r peak-shape plasma, echo = FALSE, eval = FALSE}
+load("data/RData/vams_normalization_pos/data_pos_filled.RData")
+pData(data_pos) <- as.data.frame(pData(data_pos))
+
+chrs <- featureChromatograms(data_pos, expandRt = 2,
+                             features = rownames(tab),
+                             filled = TRUE)
+
+dr <- paste0(IMAGE_PATH, "features_plas/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+
+for (i in seq_len(nrow(chrs))) {
+    chr <- chrs[i, ]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+
+    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plotChromPeakDensity(chr, peakPch = 16,
+                         peakCol = paste0(pk_col, 80),
+                         peakBg = paste0(pk_col, 10),
+                         main = paste0(rownames(tab)[i], ": ",
+                         format(mz(chr)[1], digits = 6), "-",
+                         format(mz(chr)[2], digits = 6)),
+                         simulate = FALSE)
+    dev.off()
+    #chr <- chr[, colnames(res)]
+    chr <- chr[, seq_len(ncol(res))]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+    png(file = paste0(dr, rownames(tab)[i], ".png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plot(chr, peakPch = 16,
+         peakCol = paste0(pk_col, 80),
+         peakBg = paste0(pk_col, 10),
+         main = paste0(rownames(tab)[i], ": ",
+                       format(mz(chr)[1], digits = 6), "-",
+                       format(mz(chr)[2], digits = 6)))
+    dev.off()
+}
+```
+
+**STOP HERE**
+
+TODO: we want to know how similar the results found in the 3 sample matrices
+are. We're less interested in actually identifying the metabolites that are
+different between male/female, but we want to know if we would get similar
+results when analyzing whole blood (venous), plasma or capillary samples.
+
+- compare the list of significant features. (using the `UpSetR` package).
+- compare the list of top 100 features with smallest p-value.
+- directly plot (compare) coefficients? Plot coefficients of all features from
+  venous against coefficients of all features in capillary and the same between
+  venous and plasma and capillary and plasma.
+- potential problem: can not expect the same features in all 3 matrices - maybe
+  reduce to metabolites present in ~ 50% of samples for **each** matrix and
+  repeat the diff abundance analysis?
+- Use different ways to pre-filter the data? How does this affect the results
+  (number of significant features) and the overlap of significant features?
+  - rsds < 0.3
+  - dratio < 0.5 in all matrices
+
+For the feature annotation process we need also to identify samples which have
+high abundances for the significant features. In these samples MS/MS spectra can
+then be generated to further characterize the significant LC-MS features. We
+thus first rank all samples by abundance for each feature.
+
+We start with the analysis of the **capillary** blood samples:
+
+```{r sample-ranks, capillary blood samples}
+abundance_mat <- assay(res_cap, "normalized_filled_imputed")[rownames(tab), ]
+sample_ranks <- t(apply(-abundance_mat, MARGIN = 1, rank))
+```
+
+Next we sum the ranks for each sample across features to identify samples that
+have on general higher abundances for most features. This is performed
+separately for features with positive or negative coefficients.
+
+```{r sample-ranks-average, capillary blood samples}
+sample_ranks_F <- sample_ranks[tab$coef > 0, ]
+sample_ranks_M <- sample_ranks[tab$coef < 0, ]
+sample_ranks_F_sum <- colSums(sample_ranks_F)
+sample_ranks_M_sum <- colSums(sample_ranks_M)
+```
+
+The table below lists the intensities for the individual features in the
+samples with the rank sum.
+
+```{r sample-ranks-cap-table, echo = FALSE, results = "asis"}
+F_table <- abundance_mat[rownames(sample_ranks_F),
+                           order(sample_ranks_F_sum)]
+F_table <- F_table[, 1:6]
+pandoc.table(
+    F_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in female-specific features.")
+```
+
+```{r sample-ranks-M-table, echo = FALSE, results = "asis"}
+M_table <- abundance_mat[rownames(sample_ranks_M),
+                           order(sample_ranks_M_sum)]
+M_table <- M_table[, 1:6]
+pandoc.table(
+    M_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in male-specific features.")
+```
+
+## Feature grouping
+
+The next step in the analysis is to group the significant features that come
+from the same ion into a *feature group*. To find the different groups, proceed
+in 3 phases: first the features are grouped according to the retention time,
+then the features are separated within the groups on the basis of the previously
+calculated coefficients, which indicate the abundance of each feature present in
+the samples. In the end, the division into groups is finalized by observing the
+shape of the detected peaks, which should be similar for fragments deriving from
+the same compound (the profile depends on the elution pattern of the metabolite
+during the chromatography step). The process is iterative and each step improves
+the grouping of the features, until the final feature groups are defined.
+
+First we create a subset that includes only the study samples; then, the first
+group of features is initialized by assigning all the significant features to a
+single group, so that the algorithm considers only these for subsequent
+analyses.
+
+```{r initial-feature-groups}
+data_study <- filterFile(data_pos, match(res_cap$mzML_file, data_pos$mzML_file),
+                         keepFeatures = TRUE)
+
+## Define the initial feature groups, i.e. assign all significant features
+## to "FG" keeping all others to NA
+fgs <- rep(NA_character_, nrow(featureDefinitions(data_study)))
+names(fgs) <- rownames(featureDefinitions(data_study))
+fgs[rownames(rowData(res_cap))[rowData(res_cap)$significant]] <- "FG"
+featureGroups(data_study) <- fgs
+
+```
+
+The first grouping is based on the retention times: all features that elute with
+a retention time that is smaller than 5 seconds are placed in the same feature
+group.
+
+```{r}
+data_study <- groupFeatures(data_study, param = SimilarRtimeParam(5))
+```
+
+The significant features were grouped into in total
+`r length(table(featureGroups(data_study)))` groups. The plot below visualizes
+the grouped features in the rt-m/z plane.
+
+```{r feature-grouping-retention-time, fig.path = IMAGE_PATH, fig.cap = "Feature grouping result based on similar retention time.", echo = FALSE, fig.width = 5 * phi, fig.height = 5}
+plotFeatureGroups(data_study)
+grid()
+```
+
+The table below shows the significant features and their assigned feature group.
+
+```{r, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_cap)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Retention time-based feature grouping results.")
+```
+
+At this point it must be considered that the features grouped so far still come
+from different metabolites: we can recognize this from the fact that the
+coefficients computed above differ a lot among certain features. We now look at
+the heatmap which shows the pairwise correlation between each feature in each
+group; the raw abundances are used to compute the correlation.
+
+```{r feature-grouping-cormat, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of feature abundances across samples.", echo = FALSE, fig.height = 10, fig.width = 10}
+fvals <- log2(featureValues(
+    data_study, filled = TRUE, method = "sum")[rownames(tab), ])
+
+cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+ann <- tab[, "fgroup", drop = FALSE]
+
+hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+               cluster_cols = TRUE)
+
+```
+
+As expected, the feature groups are further divided into smaller clusters, when
+the abundances are taken into account. The following code allows us to perform
+the feature grouping based on these correlations. The `threshold` has been put
+to 0.5, which was defined based on the heatmap above.
+
+```{r abundance-correlation}
+#data_study <- groupFeatures(
+#    data_study, AbundanceSimilarityParam(threshold = 0.5, filled = TRUE,
+#                                          method = "sum"))
+```
+
+The table below shows the significant features and their assigned feature group.
+In total `r length(table(featureGroups(data_study)))` groups have been found at
+this point.
+
+```{r, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_cap)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Feature abundance-based feature grouping results.")
+```
+
+
+The threshold we determined above allowed us to correctly separate the features
+based on the coefficients, however the shape of the detected peaks still remains
+to be verified. This step, in fact, could further separate the feature groups,
+in such a way as to obtain refined groups containing the signals originating
+from a single metabolite. To evaluate the shape of the peaks, we observe the
+extracted ion chromatograms (EICs); since the process of extraction and
+evaluation of the correlation is computationally very expensive, this operation
+is carried out only on the 10 samples that have the highest intensity for a
+certain feature. If the correlation is greater than 0.7, the peaks are assigned
+to the same feature group. Parameter `clean` ensures that the correlation will
+be only performed on the data points being part of the actually detected
+chromatographic peaks.
+
+```{r eic-correlation, message = FALSE, warning = FALSE}
+data_study <- groupFeatures(
+    data_study, EicCorrelationParam(threshold = 0.7, n = 10, clean = TRUE))
+```
+
+The table below shows the significant features and their assigned feature group.
+In the end, the features have been split into
+`r length(table(featureGroups(data_study)))` groups.
+
+```{r, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_cap)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "EIC correlation-based feature grouping results.")
+```
+
+We next manually plot the extracted ion chromatogram for selected feature groups
+to evaluate the grouping. Below we plot a feature group which was split into two
+separate feature groups based on the peak shape correlation.
+
+```{r feature-grouping-example-group, fig.path = IMAGE_PATH, fig.cap = "EIC of features that have been split into several separated feature groups based on peak shape correlation. Top: overlay of normalized intensities, bottom: stacked plot of the EICs relative to their m/z.", fig.width = 10, fig.height = 5}
+fts <- grep("FG.002.001", featureGroups(data_study))
+eics <- featureChromatograms(data_study, features = fts,
+                             filled = TRUE, n = 1, expandRt = 4)
+
+fg <- featureGroups(data_study)[fts]
+fg_cols <- brewer.pal(
+    max(3, length(unique(fg))), "Set1")[seq_len(length(unique(fg)))]
+names(fg_cols) <- unique(fg)
+par(mfrow = c(1, 2))
+plotOverlay(normalize(eics), lwd = 2, main = "FG.001.001.*", col = fg_cols[fg])
+legend("topright", legend = names(fg_cols), col = fg_cols, pch = 15)
+mz_y <- joyPlot(eics, col = fg_cols[fg])
+abline(h = mz_y, col = paste0(fg_cols[fg], 40), lty = 3)
+text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+     y = mz_y, labels = format(mz(eics)[, 1], digits = 5),
+     col = fg_cols[fg], pos = 4)
+```
+
+Below we plot this information for a second feature group which was split into
+different groups.
+
+```{r feature-grouping-example-group-2, fig.path = IMAGE_PATH, fig.cap = "EIC of features that have been split into several separated feature groups based on peak shape correlation. Top: overlay of normalized intensities, bottom: stacked plot of the EICs relative to their m/z.", fig.width = 10, fig.height = 5}
+fts <- grep("FG.003.001", featureGroups(data_study))
+eics <- featureChromatograms(data_study, features = fts,
+                             filled = TRUE, n = 1, expandRt = 4)
+
+fg <- featureGroups(data_study)[fts]
+fg_cols <- brewer.pal(
+    max(3, length(unique(fg))), "Set1")[seq_len(length(unique(fg)))]
+names(fg_cols) <- unique(fg)
+par(mfrow = c(1, 2))
+plotOverlay(normalize(eics), lwd = 2, main = "FG.11.1.*", col = fg_cols[fg])
+legend("topright", legend = names(fg_cols), col = fg_cols, pch = 15)
+mz_y <- joyPlot(eics, col = fg_cols[fg])
+abline(h = mz_y, col = paste0(fg_cols[fg], 40), lty = 3)
+text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+     y = mz_y, labels = format(mz(eics)[, 1], digits = 5),
+     col = fg_cols[fg], pos = 4)
+```
+
+At last, we create such overview plots for all feature groups (code hidden).
+
+```{r feature-grouping-overview-plots, echo = FALSE}
+fgs <- unique(featureGroups(data_study))
+fgs <- fgs[!is.na(fgs)]
+
+dr <- paste0(IMAGE_PATH, "feature_groups/")
+dir.create(dr, showWarnings = FALSE)
+for (fg in fgs) {
+    fts_idx <- which(featureGroups(data_study) == fg)
+    eics <- featureChromatograms(data_study, features = fts_idx,
+                                 expandRt = 2, filled = TRUE, n = 2)
+    png(paste0(dr, fg, ".png"), width = 12, height = 6, units = "cm",
+        res = 300, pointsize = 4)
+    par(mfrow = c(2, 2))
+    ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
+    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[1]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[2]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    if (nrow(eics) > 1) {
+        mz_y <- joyPlot(eics[, 1, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+        mz_y <- joyPlot(eics[, 2, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+    }
+    dev.off()
+    if (nrow(eics) > 1) {
+        fvals <- log2(featureValues(data_study, filled = TRUE)[fts_idx, ])
+        cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+        ann <- data.frame(fgroup = featureGroups(data_study)[fts_idx])
+        rownames(ann) <- rownames(cormat)
+        hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+                       cluster_cols = TRUE,
+                       filename = paste0(dr, fg, "_heatmap.png"))
+    }
+}
+```
+
+Finally, we also add the feature groups to the result table and export it (code
+not shown).
+
+```{r export-result capillarz blood samples, echo = FALSE}
+fgs <- featureGroups(data_study)
+names(fgs) <- rownames(featureDefinitions(data_study))
+
+rowData(res)$feature_group <- fgs[rownames(rowData(res_cap))]
+save(res_cap, file = paste0(RDATA_PATH, "res_cap.RData"))
+
+tmp <- rowData(res_cap)
+tmp <- cbind(feature = rownames(tmp), tmp)
+write_xlsx(as.data.frame(tmp),
+           path = paste0(RESULT_PATH, FILE_NAME, "-res_cap.xlsx"))
+```
+
+# Differential abundance analysis: **venous** blood samples
+
+```{r sample-ranks ven}
+abundance_mat <- assay(res_ven, "normalized_filled_imputed")[rownames(tab), ]
+sample_ranks <- t(apply(-abundance_mat, MARGIN = 1, rank))
+```
+
+Next we sum the ranks for each sample across features to identify samples that
+have on general higher abundances for most features. This is performed
+separately for features with positive or negative coefficients.
+
+```{r sample-ranks-average ven}
+sample_ranks_F <- sample_ranks[tab$coef > 0, ]
+sample_ranks_M <- sample_ranks[tab$coef < 0, ]
+sample_ranks_F_sum <- colSums(sample_ranks_F)
+sample_ranks_M_sum <- colSums(sample_ranks_M)
+```
+
+The table below lists the intensities for the individual features in the
+samples with the rank sum.
+
+```{r sample-ranks-cap-table ven, echo = FALSE, results = "asis"}
+F_table <- abundance_mat[rownames(sample_ranks_F),
+                           order(sample_ranks_F_sum)]
+F_table <- F_table[, 1:6]
+pandoc.table(
+    F_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in female-specific features.")
+```
+
+```{r sample-ranks-M-table ven, echo = FALSE, results = "asis"}
+M_table <- abundance_mat[rownames(sample_ranks_M),
+                           order(sample_ranks_M_sum)]
+M_table <- M_table[, 1:6]
+pandoc.table(
+    M_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in male-specific features.")
+```
+
+## Feature grouping
+
+The next step in the analysis is to group the significant features that come
+from the same ion into a *feature group*. To find the different groups, proceed
+in 3 phases: first the features are grouped according to the retention time,
+then the features are separated within the groups on the basis of the previously
+calculated coefficients, which indicate the abundance of each feature present in
+the samples. In the end, the division into groups is finalized by observing the
+shape of the detected peaks, which should be similar for fragments deriving from
+the same compound (the profile depends on the elution pattern of the metabolite
+during the chromatography step). The process is iterative and each step improves
+the grouping of the features, until the final feature groups are defined.
+
+First we create a subset that includes only the study samples; then, the first
+group of features is initialized by assigning all the significant features to a
+single group, so that the algorithm considers only these for subsequent
+analyses.
+
+```{r initial-feature-groups ven}
+data_study <- filterFile(data_pos, match(res_ven$mzML_file, data_pos$mzML_file),
+                         keepFeatures = TRUE)
+
+## Define the initial feature groups, i.e. assign all significant features
+## to "FG" keeping all others to NA
+fgs <- rep(NA_character_, nrow(featureDefinitions(data_study)))
+names(fgs) <- rownames(featureDefinitions(data_study))
+fgs[rownames(rowData(res_ven))[rowData(res_ven)$significant]] <- "FG"
+featureGroups(data_study) <- fgs
+
+```
+
+The first grouping is based on the retention times: all features that elute with
+a retention time that is smaller than 5 seconds are placed in the same feature
+group.
+
+```{r}
+data_study <- groupFeatures(data_study, param = SimilarRtimeParam(5))
+```
+
+The significant features were grouped into in total
+`r length(table(featureGroups(data_study)))` groups. The plot below visualizes
+the grouped features in the rt-m/z plane.
+
+```{r feature-grouping-retention-time ven, fig.path = IMAGE_PATH, fig.cap = "Feature grouping result based on similar retention time.", echo = FALSE, fig.width = 5 * phi, fig.height = 5}
+plotFeatureGroups(data_study)
+grid()
+```
+
+The table below shows the significant features and their assigned feature group.
+
+```{r VBS, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_ven)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Retention time-based feature grouping results.")
+```
+
+At this point it must be considered that the features grouped so far still come
+from different metabolites: we can recognize this from the fact that the
+coefficients computed above differ a lot among certain features. We now look at
+the heatmap which shows the pairwise correlation between each feature in each
+group; the raw abundances are used to compute the correlation.
+
+```{r feature-grouping-cormat ven, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of feature abundances across samples.", echo = FALSE, fig.height = 10, fig.width = 10}
+fvals <- log2(featureValues(
+    data_study, filled = TRUE, method = "sum")[rownames(tab), ])
+
+cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+ann <- tab[, "fgroup", drop = FALSE]
+
+hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+               cluster_cols = TRUE)
+
+```
+
+As expected, the feature groups are further divided into smaller clusters, when
+the abundances are taken into account. The following code allows us to perform
+the feature grouping based on these correlations. The `threshold` has been put
+to 0.5, which was defined based on the heatmap above.
+
+```{r abundance-correlation ven}
+#data_study <- groupFeatures(
+#    data_study, AbundanceSimilarityParam(threshold = 0.5, filled = TRUE,
+#                                          method = "sum"))
+```
+
+The table below shows the significant features and their assigned feature group.
+In total `r length(table(featureGroups(data_study)))` groups have been found at
+this point.
+
+```{r venous, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_ven)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Feature abundance-based feature grouping results.")
+```
+
+
+The threshold we determined above allowed us to correctly separate the features
+based on the coefficients, however the shape of the detected peaks still remains
+to be verified. This step, in fact, could further separate the feature groups,
+in such a way as to obtain refined groups containing the signals originating
+from a single metabolite. To evaluate the shape of the peaks, we observe the
+extracted ion chromatograms (EICs); since the process of extraction and
+evaluation of the correlation is computationally very expensive, this operation
+is carried out only on the 10 samples that have the highest intensity for a
+certain feature. If the correlation is greater than 0.7, the peaks are assigned
+to the same feature group. Parameter `clean` ensures that the correlation will
+be only performed on the data points being part of the actually detected
+chromatographic peaks.
+
+```{r eic-correlation ven, message = FALSE, warning = FALSE}
+data_study <- groupFeatures(
+    data_study, EicCorrelationParam(threshold = 0.7, n = 10, clean = TRUE))
+```
+
+The table below shows the significant features and their assigned feature group.
+In the end, the features have been split into
+`r length(table(featureGroups(data_study)))` groups.
+
+```{r ven, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_ven)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "EIC correlation-based feature grouping results.")
+```
+
+At last, we create overview plots for all feature groups (code hidden).
+
+```{r feature-grouping-overview-plots ven, echo = FALSE}
+fgs <- unique(featureGroups(data_study))
+fgs <- fgs[!is.na(fgs)]
+
+dr <- paste0(IMAGE_PATH, "feature_groups_ven/")
+dir.create(dr, showWarnings = FALSE)
+for (fg in fgs) {
+    fts_idx <- which(featureGroups(data_study) == fg)
+    eics <- featureChromatograms(data_study, features = fts_idx,
+                                 expandRt = 2, filled = TRUE, n = 2)
+    png(paste0(dr, fg, ".png"), width = 12, height = 6, units = "cm",
+        res = 300, pointsize = 4)
+    par(mfrow = c(2, 2))
+    ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
+    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[1]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[2]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    if (nrow(eics) > 1) {
+        mz_y <- joyPlot(eics[, 1, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+        mz_y <- joyPlot(eics[, 2, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+    }
+    dev.off()
+    if (nrow(eics) > 1) {
+        fvals <- log2(featureValues(data_study, filled = TRUE)[fts_idx, ])
+        cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+        ann <- data.frame(fgroup = featureGroups(data_study)[fts_idx])
+        rownames(ann) <- rownames(cormat)
+        hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+                       cluster_cols = TRUE,
+                       filename = paste0(dr, fg, "_heatmap.png"))
+    }
+}
+```
+
+Finally, we also add the feature groups to the result table and export it (code
+not shown).
+
+```{r export-result, echo = FALSE}
+fgs <- featureGroups(data_study)
+names(fgs) <- rownames(featureDefinitions(data_study))
+
+rowData(res_ven)$feature_group <- fgs[rownames(rowData(res_ven))]
+save(res_ven, file = paste0(RDATA_PATH, "res_ven.RData"))
+
+tmp <- rowData(res_ven)
+tmp <- cbind(feature = rownames(tmp), tmp)
+write_xlsx(as.data.frame(tmp),
+           path = paste0(RESULT_PATH, FILE_NAME, "-res_ven.xlsx"))
+```
+
+# Differential abudance analysis: **plasma** samples
+
+```{r sample-ranks plasma}
+abundance_mat <- assay(res_plas, "normalized_filled_imputed")[rownames(tab), ]
+sample_ranks <- t(apply(-abundance_mat, MARGIN = 1, rank))
+```
+
+Next we sum the ranks for each sample across features to identify samples that
+have on general higher abundances for most features. This is performed
+separately for features with positive or negative coefficients.
+
+```{r sample-ranks-average}
+sample_ranks_F <- sample_ranks[tab$coef > 0, ]
+sample_ranks_M <- sample_ranks[tab$coef < 0, ]
+sample_ranks_F_sum <- colSums(sample_ranks_F)
+sample_ranks_M_sum <- colSums(sample_ranks_M)
+```
+
+The table below lists the intensities for the individual features in the
+samples with the rank sum.
+
+```{r sample-ranks-cap-table plasma, echo = FALSE, results = "asis"}
+F_table <- abundance_mat[rownames(sample_ranks_F),
+                           order(sample_ranks_F_sum)]
+F_table <- F_table[, 1:6]
+pandoc.table(
+    F_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in female-specific features.")
+```
+
+```{r sample-ranks-M-table plasma, echo = FALSE, results = "asis"}
+M_table <- abundance_mat[rownames(sample_ranks_M),
+                           order(sample_ranks_M_sum)]
+M_table <- M_table[, 1:6]
+pandoc.table(
+    M_table, style = "rmarkdown",
+    caption = "Samples with highest intensities in male-specific features.")
+```
+
+## Feature grouping
+
+The next step in the analysis is to group the significant features that come
+from the same ion into a *feature group*. To find the different groups, proceed
+in 3 phases: first the features are grouped according to the retention time,
+then the features are separated within the groups on the basis of the previously
+calculated coefficients, which indicate the abundance of each feature present in
+the samples. In the end, the division into groups is finalized by observing the
+shape of the detected peaks, which should be similar for fragments deriving from
+the same compound (the profile depends on the elution pattern of the metabolite
+during the chromatography step). The process is iterative and each step improves
+the grouping of the features, until the final feature groups are defined.
+
+First we create a subset that includes only the study samples; then, the first
+group of features is initialized by assigning all the significant features to a
+single group, so that the algorithm considers only these for subsequent
+analyses.
+
+```{r initial-feature-groups plasma}
+data_study <- filterFile(data_pos, match(res_plas$mzML_file, data_pos$mzML_file),
+                         keepFeatures = TRUE)
+
+## Define the initial feature groups, i.e. assign all significant features
+## to "FG" keeping all others to NA
+fgs <- rep(NA_character_, nrow(featureDefinitions(data_study)))
+names(fgs) <- rownames(featureDefinitions(data_study))
+fgs[rownames(rowData(res_cap))[rowData(res_plas)$significant]] <- "FG"
+featureGroups(data_study) <- fgs
+
+```
+
+The first grouping is based on the retention times: all features that elute with
+a retention time that is smaller than 5 seconds are placed in the same feature
+group.
+
+```{r}
+data_study <- groupFeatures(data_study, param = SimilarRtimeParam(5))
+```
+
+The significant features were grouped into in total
+`r length(table(featureGroups(data_study)))` groups. The plot below visualizes
+the grouped features in the rt-m/z plane.
+
+```{r feature-grouping-retention-time plssma, fig.path = IMAGE_PATH, fig.cap = "Feature grouping result based on similar retention time.", echo = FALSE, fig.width = 5 * phi, fig.height = 5}
+plotFeatureGroups(data_study)
+grid()
+```
+
+The table below shows the significant features and their assigned feature group.
+
+```{r plasma, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_plas)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Retention time-based feature grouping results.")
+```
+
+At this point it must be considered that the features grouped so far still come
+from different metabolites: we can recognize this from the fact that the
+coefficients computed above differ a lot among certain features. We now look at
+the heatmap which shows the pairwise correlation between each feature in each
+group; the raw abundances are used to compute the correlation.
+
+```{r feature-grouping-cormat plas, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of feature abundances across samples.", echo = FALSE, fig.height = 10, fig.width = 10}
+fvals <- log2(featureValues(
+    data_study, filled = TRUE, method = "sum")[rownames(tab), ])
+
+cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+ann <- tab[, "fgroup", drop = FALSE]
+
+hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+               cluster_cols = TRUE)
+
+```
+
+As expected, the feature groups are further divided into smaller clusters, when
+the abundances are taken into account. The following code allows us to perform
+the feature grouping based on these correlations. The `threshold` has been put
+to 0.5, which was defined based on the heatmap above.
+
+```{r abundance-correlation plas}
+#data_study <- groupFeatures(
+#    data_study, AbundanceSimilarityParam(threshold = 0.5, filled = TRUE,
+#                                          method = "sum"))
+```
+
+The table below shows the significant features and their assigned feature group.
+In total `r length(table(featureGroups(data_study)))` groups have been found at
+this point.
+
+```{r, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_plas)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "Feature abundance-based feature grouping results.")
+```
+
+
+The threshold we determined above allowed us to correctly separate the features
+based on the coefficients, however the shape of the detected peaks still remains
+to be verified. This step, in fact, could further separate the feature groups,
+in such a way as to obtain refined groups containing the signals originating
+from a single metabolite. To evaluate the shape of the peaks, we observe the
+extracted ion chromatograms (EICs); since the process of extraction and
+evaluation of the correlation is computationally very expensive, this operation
+is carried out only on the 10 samples that have the highest intensity for a
+certain feature. If the correlation is greater than 0.7, the peaks are assigned
+to the same feature group. Parameter `clean` ensures that the correlation will
+be only performed on the data points being part of the actually detected
+chromatographic peaks.
+
+```{r eic-correlation plas, message = FALSE, warning = FALSE}
+data_study <- groupFeatures(
+    data_study, EicCorrelationParam(threshold = 0.7, n = 10, clean = TRUE))
+```
+
+The table below shows the significant features and their assigned feature group.
+In the end, the features have been split into
+`r length(table(featureGroups(data_study)))` groups.
+
+```{r, echo = FALSE, results = "asis"}
+fgroups <- featureGroups(data_study)
+names(fgroups) <- rownames(featureDefinitions(data_study))
+fgroups <- fgroups[!is.na(fgroups)]
+fgroups <- sort(fgroups)
+
+tab <- rowData(res_plas)[names(fgroups), c("mzmed", "rtmed", "coef", "adjp")]
+tab <- cbind(as.data.frame(tab), fgroup = fgroups)
+
+pandoc.table(
+    tab, style = "rmarkdown",
+    caption = "EIC correlation-based feature grouping results.")
+```
+
+We create overview plots for all feature groups (code hidden).
+
+```{r feature-grouping-overview-plots plasma, echo = FALSE}
+fgs <- unique(featureGroups(data_study))
+fgs <- fgs[!is.na(fgs)]
+
+dr <- paste0(IMAGE_PATH, "feature_groups_plas/")
+dir.create(dr, showWarnings = FALSE)
+for (fg in fgs) {
+    fts_idx <- which(featureGroups(data_study) == fg)
+    eics <- featureChromatograms(data_study, features = fts_idx,
+                                 expandRt = 2, filled = TRUE, n = 2)
+    png(paste0(dr, fg, ".png"), width = 12, height = 6, units = "cm",
+        res = 300, pointsize = 4)
+    par(mfrow = c(2, 2))
+    ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
+    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[1]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[2]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    if (nrow(eics) > 1) {
+        mz_y <- joyPlot(eics[, 1, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+        mz_y <- joyPlot(eics[, 2, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+    }
+    dev.off()
+    if (nrow(eics) > 1) {
+        fvals <- log2(featureValues(data_study, filled = TRUE)[fts_idx, ])
+        cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+        ann <- data.frame(fgroup = featureGroups(data_study)[fts_idx])
+        rownames(ann) <- rownames(cormat)
+        hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+                       cluster_cols = TRUE,
+                       filename = paste0(dr, fg, "_heatmap.png"))
+    }
+}
+```
+
+Finally, we also add the feature groups to the result table and export it (code
+not shown).
+
+```{r export-result plas, echo = FALSE}
+fgs <- featureGroups(data_study)
+names(fgs) <- rownames(featureDefinitions(data_study))
+
+rowData(res_plas)$feature_group <- fgs[rownames(rowData(res_plas))]
+save(res_cap, file = paste0(RDATA_PATH, "res_plas.RData"))
+
+tmp <- rowData(res_plas)
+tmp <- cbind(feature = rownames(tmp), tmp)
+write_xlsx(as.data.frame(tmp),
+           path = paste0(RESULT_PATH, FILE_NAME, "-res_plas.xlsx"))
+```

@@ -1,0 +1,112 @@
+---
+title: "Differential abundance analysis, untargeted approach"
+subtitle: "Negative polarity"
+author: "Christa Malfertheiner"
+date: "14 July 2021"
+output:
+  BiocStyle::html_document:
+    toc: true
+    number_sections: false
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r setup, echo = FALSE, results = "asis", warning = FALSE}
+library(BiocStyle)
+BiocStyle::markdown()
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+```{r parameters, echo = FALSE, warning = FALSE}
+## Set general parameters
+polarity <- "NEG" # specify "POS" or "NEG"
+p.cut <- 0.05     # cut-off for significance.
+m.cut <- 0.7      # cut-off for log2 fold change
+
+set.seed(123)
+
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
+
+FILE_NAME <- "diff_analysis_untargeted_pos"
+
+## Define paths:
+IMAGE_PATH <- paste0("images/", FILE_NAME, "/")
+if (dir.exists(IMAGE_PATH)) unlink(IMAGE_PATH, recursive = TRUE, force = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE, showWarnings = FALSE)
+
+RDATA_PATH <- paste0("data/RData/", FILE_NAME, "/")
+dir.create(RDATA_PATH, recursive = TRUE, showWarnings = FALSE)
+
+RESULT_PATH <- paste0("data/results/", FILE_NAME, "/")
+dir.create(RESULT_PATH, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Introduction
+
+In this document we perform the differential abundance analysis of the features
+previously identified for the *MitYOU* project, with the aim of identifying
+significant sex-related features. This task is performed by hypothesis testing,
+where we try to identify which metabolites have the most different 
+concentrations between female and male samples in plasma samples, venous and
+capillary blood samples. We follow an untargeted approach, the analysis comprises
+feature pre-filtering, exploratory analysis and differential abundance analysis
+carried out on each matrix individiously.
+
+
+# Data import
+
+First, we load the required packages and the data, after preprocessing and
+normalization. The end result of these steps is a `SummarizedExperiment` that
+contains aligned data, where features are grouped (after correspondence), and
+that have undergone gap filling, normalization by the median, linear fitting and 
+per-feature between-batch normalization to remove any unwanted variability. 
+The `SummarizedExperiment` lets us store all the information regarding the 
+normalization steps in the form of `assays`, which we are still able to access 
+to proceed with the analysis.
+
+```{r load-data, echo = FALSE, warning = FALSE}
+library(xcms)
+library(limma)
+library(pheatmap)
+library(writexl)
+library(SummarizedExperiment)
+library(RColorBrewer)
+library(MsFeatures)
+library(CompMetaboTools)
+library(pander)
+
+load("data/RData/differential_abundance_neg/res_neg.RData")
+```
+
+We assign the colours as seen before.
+#need to remove pool or already removed by using diff_abundance file?
+
+```{r split-qc, echo = TRUE}
+res_qc <- res_neg[, res_neg$source == "all"]
+res_neg <- res_neg[, res_neg$source != "all"]
+res_neg$source <- factor(as.character(res_neg$source))
+res_neg$sex <- factor(as.character(res_neg$sex))
+
+col_source <- brewer.pal(5, name = "Set1")
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "all",           #' green
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+col_sex <- brewer.pal(4, name = "Set1") [c(1, 2, 3)]
+names(col_sex) <- c("F",           # red
+                    "M",           # blue
+                    "POOL")        # green
+
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
+```
