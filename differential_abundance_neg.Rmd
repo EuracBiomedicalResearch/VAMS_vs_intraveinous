@@ -59,7 +59,7 @@ concentrations between female and male samples in plasma samples, venous and
 capillary blood samples. We follow a semi-untargeted approach, where we look
 at concentrations of a lab-internal set of standards.
 The analysis comprises a differential abundance analysis carried out on each 
-matrix individiously.
+matrix separately.
 
 
 # Data import
@@ -83,6 +83,7 @@ library(RColorBrewer)
 library(MsFeatures)
 library(CompMetaboTools)
 library(pander)
+register(SerialParam())                 # disable parallel processing
 
 load("data/RData/vams_normalization_neg/res_neg.RData")
 res_neg$sample_pair <- paste0(res_neg$source, ".", res_neg$sample)
@@ -251,12 +252,13 @@ std_info$feature[std_info$name == "Glucose"] <- "FT01139"
 std_info$feature[std_info$name == "Glutamine"] <- "FT00287"
 std_info$feature[std_info$name == "Glutathione Oxidized"] <- "FT09247"
 std_info$feature[std_info$name == "Glutathione Reduced"] <- "FT09247"
-std_info$feature[std_info$name == "Glycolic acid"] <- "FT00071"
+std_info$feature[std_info$name == "Glyceric Acid"] <- "FT00071"
 std_info$feature[std_info$name == "Glycero-phosphocholine"] <- "FT02155"
 std_info$feature[std_info$name == "Histidine"] <- "FT00362"
 std_info$feature[std_info$name == "homovanillic acid"] <- "FT00628"
 std_info$feature[std_info$name == "Hydroxyproline"] <- "FT00177"
 std_info$feature[std_info$name == "Hypoxanthine"] <- "FT00236"
+std_info$feature[std_info$name == "Indolelactic acid"] <- "FT00905"
 std_info$feature[std_info$name == "Inosine"] <- "FT01712"
 std_info$feature[std_info$name == "Isocitric Acid"] <- "FT00737"
 std_info$feature[std_info$name == "Isoleucine"] <- "FT00181"
@@ -267,6 +269,7 @@ std_info$feature[std_info$name == "L-Glutamic Acid"] <- "FT00294"
 std_info$feature[std_info$name == "Leucine"] <- "FT00181"
 std_info$feature[std_info$name == "Lysine"] <- "FT00289"
 std_info$feature[std_info$name == "Mannose"] <- "FT01139"
+std_info$feature[std_info$name == "Methionine"] <- "FT00313"
 std_info$feature[std_info$name == "Methioninesulfoxide"] <- "FT00439"
 std_info$feature[std_info$name == "Myo-Inositol"] <- "FT01141"
 std_info$feature[std_info$name == "N-Acetylornithine"] <- "FT00535"
@@ -275,6 +278,7 @@ std_info$feature[std_info$name == "Ornithine"] <- "FT00191"
 std_info$feature[std_info$name == "p-Hydroxyphenylacetic acid"] <- "FT00334"
 std_info$feature[std_info$name == "PABA"] <- "FT00247"
 std_info$feature[std_info$name == "Pantothenic Acid"] <- "FT01063"
+std_info$feature[std_info$name == "Phenylpyruvic acid"] <- "FT00433"
 std_info$feature[std_info$name == "Phenylalanine"] <- "FT00442"
 std_info$feature[std_info$name == "Phosphoenolpyruvic Acid"] <- "FT00474"
 std_info$feature[std_info$name == "Phosphorylethanolamine"] <- "FT01944"
@@ -336,7 +340,6 @@ rowData(std_res) <- cbind(rowData(std_res),
 
 The subsetting reduced the number of features to `r length(std_res)`. 
 
-
 A PCA analysis is then performed on the subset to verify whether anything has
 changed and if any similarities among the samples are visible or not.
 
@@ -356,7 +359,10 @@ legend("topleft", col = col_source, legend = names(col_source),
 ```
 
 In the PC1 plot, capillary and RBC samples cluster together. Plasma samples 
-clusters independently of all other sample sources. 
+clusters independently of all other sample sources. On PC2 both matrices with
+cellular content (capillary and RBC) cluster together and separate from the
+venous blood samples. RBC samples show the largest spread on PC2 suggesting a
+potentially higher variability in these samples.
 
 ```{r std_id-samples, echo = FALSE, results = "asis"}
 idx <- pc$x[, 1] > 10
@@ -384,7 +390,6 @@ are represented by different colours. The numbers indicate the two replicates
 for each volunteer. We start with the capillary data set:
 
 ```{r PCA-std-capillary, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "PCA for capillary blood samples. Red numbers represents female, blue numbers male samples.", echo = FALSE}
-
 pc_raw_capillary <- prcomp(t(log2(assay(res_cap, "normalized_filled_imputed"))),
                            scale = FALSE, center = TRUE)
 
@@ -427,9 +432,8 @@ legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
 ```
 
 
-
-In the venous data set, a differentiation between male and female samples can 
-be observed.
+In the venous data set, a hint of a differentiation between male and female
+samples might be present.
 
 Lastly, we generate the PCA for the plasma samples:
 
@@ -453,8 +457,8 @@ legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
 
 ```
 
-In the plasma samples, we see a light clustering effect between male and female
-samples.
+In the plasma samples, we see a very light clustering effect between male and
+female samples.
 
 Next, we merge the technical replicates.
 
@@ -622,6 +626,7 @@ hist(rowData(res_cap)$pvalue, breaks = 64, xlab = "p value",
 hist(rowData(res_cap)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
+
 The frequency of raw p-values shows the highest peaks around 0.1 and o.3, 
 whereas the highest peak of adjusted p-values is close to 1.
 
@@ -669,6 +674,7 @@ if (any(rowData(res_cap)$significant)) {
         caption = "Top 20 features with the smallest p-values.")
 }
 ```
+
 The feature with the smalles p-value is **Gluconic acid**, which is produced
 by oxidizing glucose and can be naturally found in foods like fruit, honey and 
 wine. **Homovanillic acid** is a major catecholamine metabolite being associated
@@ -712,6 +718,7 @@ for (i in seq_len(nrow(tmp))) {
 ![](images/differential_abundance_neg/standards-beeswarm/FT00785_Gluconic Acid.png)
 ![](images/differential_abundance_neg/standards-beeswarm/FT00628_homovanillic acid.png)
 ![](images/differential_abundance_neg/standards-beeswarm/FT00383_Allantoin.png)
+
 The top three features with smallest p-value all show a higher concentration in
 male samples compared to the female ones.
 
@@ -753,6 +760,7 @@ hist(rowData(res_ven)$pvalue, breaks = 64, xlab = "p value",
 hist(rowData(res_ven)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
+
 The frequency of raw p-values shows the highest peaks close to 0 and 0.8, other
 values are randomly distributed and some are not represented at all. The bar 
 showing the highest frequency of adjusted p-values is close to 1.
@@ -780,15 +788,15 @@ feature was found significant).
 
 ```{r significant-standards-result-table venous, echo = FALSE, results = "asis"}
 ## Write result table
-if (any(rowData(res_ven)$significant)) {
-    tab <- rowData(res_ven)[rowData(res_ven)$significant,
-                            c("name", "mzmed", "rtmed", "coef", "adjp"
-                              )]
-    tab <- tab[order(tab$adjp, abs(tab$coef)), ]
-    pandoc.table(
-        as.data.frame(tab), style = "rmarkdown",
-        caption = "Features with significant differences in abundances.")
-} else {
+## if (any(rowData(res_ven)$significant)) {
+##     tab <- rowData(res_ven)[rowData(res_ven)$significant,
+##                             c("name", "mzmed", "rtmed", "coef", "adjp"
+##                               )]
+##     tab <- tab[order(tab$adjp, abs(tab$coef)), ]
+##     pandoc.table(
+##         as.data.frame(tab), style = "rmarkdown",
+##         caption = "Features with significant differences in abundances.")
+## } else {
     tab <- rowData(res_ven)[order(rowData(res_ven)$pvalue),
                             c("name", "mzmed", "rtmed", "coef", "adjp"
                               )]
@@ -796,8 +804,9 @@ if (any(rowData(res_ven)$significant)) {
     pandoc.table(
         as.data.frame(tab), style = "rmarkdown",
         caption = "Top 20 features with the smallest p-values.")
-}
+## }
 ```
+
 **Gluconic acid** is found to be significant in venous blood samples between
 male and female samples.This feature also had the smallest p-value in capillary
 blood samples, when comparing male to female samples.
@@ -830,6 +839,7 @@ for (i in seq_len(nrow(tmp))) {
 ```
 
 ![](images/differential_abundance_neg/standards-beeswarm-ven/FT00785_Gluconic Acid.png)
+
 Like already observed in capillary blood samples, also in venous blood Gluconic
 Acid shows a higher concentration in male samples.
 
@@ -871,6 +881,7 @@ hist(rowData(res_plas)$pvalue, breaks = 64, xlab = "p value",
 hist(rowData(res_plas)$adjp, breaks = 64, xlab = expression(p[BH]~value),
      main = "Distribution of adjusted p-values")
 ```
+
 In the raw p-values we observe higher bars between 0 and 0.6, in the adjusted 
 p-values the highest bar is close to 0.
 
@@ -915,6 +926,7 @@ if (any(rowData(res_plas)$significant)) {
         caption = "Top 20 features with the smallest p-values.")
 }
 ```
+
 In plasma samples, **Homovanillic acid** is the feature with the smallest
 p-value. This feature was also observed in the top three features with smallest
 p-value in capillary blood samples. **Cystine** is an oxidized dimeric form of 
@@ -951,7 +963,54 @@ for (i in seq_len(nrow(tmp))) {
 ![](images/differential_abundance_neg/standards-beeswarm-plas/FT00628_homovanillic acid.png)
 
 ![](images/differential_abundance_neg/standards-beeswarm-plas/FT01310_Cystine.png)
+
 Both features show a higher intensity in male samples compared to female ones.
+
+At last we compare the concentrations for the 3 metabolites Gluconic Acid,
+homovanillic acid and Allantonin in male and female participants across all 3
+matrices.
+
+```{r beeswarm-gluconic-acid, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 8, fig.height = 6, fig.cap = "Abundance of gluconic acid in female and male participants across all 3 sample matrices (capillary, venous and plamsa)."}
+
+beeswarm_feature <- function(x, main = x) {
+    a <- log2(assay(res_cap, "normalized_filled_imputed")[x, ])
+    a <- split(a, res_cap$sex)
+    b <- log2(assay(res_ven, "normalized_filled_imputed")[x, ])
+    b <- split(b, res_ven$sex)
+    c <- log2(assay(res_plas, "normalized_filled_imputed")[x, ])
+    c <- split(c, res_plas$sex)
+    par(mar = c(5, 4, 1, 1))
+    vals <- c(cap = a, ven = b, plas = c)
+    beeswarm(vals,
+             col = paste0(col_sex[c("F", "M", "F", "M", "F", "M")]),
+             pch = 16, main = main, ylab = expression(log[2]~intensity),
+             las = 2)
+    grid(nx = NA, ny = NULL)
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+}
+beeswarm_feature("FT00785", "FT00785: Gluconic Acid")
+```
+
+Also in plasma samples a trend of differential abundance between male and female
+participants is visible, but the concentration of this metabolite is much lower
+(explaining the larger noise and hence poor statistical significance).
+
+```{r beeswarm-homovanillic-acid, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 8, fig.height = 6, fig.cap = "Abundance of homovanillic acid in female and male participants across all 3 sample matrices (capillary, venous and plamsa)."}
+beeswarm_feature("FT00628", "FT00628: homovanillic acid")
+```
+
+Also for homovanillic acid a difference in concentrations between male and
+female participants is present in all 3 sample matrices. Despite being lowest in
+plasma samples, the absolute concentrations are comparable in the 3 matrices.
+
+```{r beeswarm-allantoin, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 8, fig.height = 6, fig.cap = "Abundance of Allantoin in female and male participants across all 3 sample matrices (capillary, venous and plamsa)."}
+beeswarm_feature("FT00383", "FT00383: Allantoin")
+```
+
+Similar to homovanillic acid, concentrations are comparable across the 3
+matrices, but lowest in plasma samples. Again, male participants show higher
+abundances than female participants.
+
 
 ```{r}
 save(res_neg, file = paste0(RDATA_PATH, "res_neg.RData"))
