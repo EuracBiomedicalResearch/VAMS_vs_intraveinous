@@ -663,7 +663,7 @@ if (any(rowData(res_cap)$significant)) {
 }
 ```
 
-In total `r sum(rowData(res_cap)$significant)` feature we do not find a
+In total `r sum(rowData(res_cap)$significant)` feature were found to have a
 significant difference in abundances between the two groups. The table below
 lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
@@ -689,15 +689,50 @@ if (any(rowData(res_cap)$significant)) {
 }
 ```
 
-**SAH** shows the smallest p-value, which is already described as being different in
-concentration when male and female are compared. The second identifies metbolite
-with a small p-value  is **Citrulline**: this is an amino acid that is produced 
-from arginine during the process of nitrogen monoxide (NO) synthesis.
-This biological messenger plays an important role in mechanical and chemical
-signal transduction, especially in cardiomyocytes.**L-Aspartic acid** is an amino 
-acid, which plays a major role in the production in antibodies. As the immune 
-response is stronger in female compared to male, also the higher abundance of
-this AA may be expected.
+**SAH** shows the smallest p-value, which is already described as being 
+different in concentration when male and female are compared. The second 
+identified metbolite with a small p-value  is **Citrulline**: this is an amino 
+acid that is produced from arginine during the process of nitrogen monoxide 
+(NO) synthesis. This biological messenger plays an important role in mechanical
+and chemical signal transduction, especially in cardiomyocytes.
+**L-Aspartic acid** is an amino  acid, which plays a major role in the 
+production in antibodies. 
+
+We now create the beeswarm plot:
+
+```{r beeswarm capillary, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_cap)[rownames(tab), ]
+tmp <- log2(assay(res_cap, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm-cap/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_cap$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_pos/standards-beeswarm-cap/FT1481_SAH.png)
+In our data, the SAH levels in male samples are higher then in female samples.
+
+![](images/differential_abundance_pos/standards-beeswarm-cap/FT0312_Citrulline.png)
+Also, the intensity of Citrulline and L-Aspartic acid peaks are higher in male 
+compared to female samples.
+
+![](images/differential_abundance_pos/standards-beeswarm-cap/FT0168_L-Aspartic Acid.png)
 
 We than look for significant features in venous blood samples: 
 
@@ -785,8 +820,40 @@ if (any(rowData(res_ven)$significant)) {
 ```
 
 Only 2 features show a p-value lower than 0.5, which are **L-Aspartic acid** and
-**Carnitine**, former also being found significant between male and female samples in
-the capillary blood samples.
+**C5-Carnitine**, former also being found with a low p-value between male and 
+female samples in the capillary blood samples.
+
+We now create the beeswarm plot:
+
+```{r beeswarm venous, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_ven)[rownames(tab), ]
+tmp <- log2(assay(res_ven, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm-ven/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_ven$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_pos/standards-beeswarm-cap/FT0168_L-Aspartic Acid.png)
+![](images/differential_abundance_pos/standards-beeswarm-ven/FT0527_C5 Carnitine.png)
+Also these two metabolites show higher levels in male samples when compared
+to female samples.
 
 We then analyse the features for plasma samples:
 
@@ -872,7 +939,40 @@ if (any(rowData(res_plas)$significant)) {
 
 Also in the plasma samples, we did not find a features which is significantly 
 different in concentration when male and female samples are compared. 
-**Homocysteine** shows the lowest p-value here.
+**Homocysteine**, which is a sulfur-containing amino acid that arises during 
+methionine metabolism, shows the lowest p-value here.
+
+Lastly, we create the beeswarm plots:
+
+```{r beeswarm plasma, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_plas)[rownames(tab), ]
+tmp <- log2(assay(res_plas, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm-plas/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_plas$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_pos/standards-beeswarm-plas/FT0178_Homocysteine.png)
+In our data, Homocysteine levels are higher in female samples compared to the
+male samples. This is unexpected, as the literature reports the plasma total
+homocysteine to be consistently higher in male compared to female samples.
 
 ```{r}
 save(res_pos, file = paste0(RDATA_PATH, "res_pos.RData"))
