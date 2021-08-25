@@ -387,7 +387,7 @@ For the adjusted p-values, we see an enrichment close to 1 and no other high
 peaks across the range of p-values, as expected.
 
 Next, we take a look at the volcano plot, in order to find the features that
-display a significant difference in signal intensity between ARVD and CTRL
+display a significant difference in signal intensity between male and female
 samples.
 
 ```{r volcano, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
