@@ -158,10 +158,13 @@ is no technical variance in the observed measurements, whereas a D-ratio of
 100% represents only noise and no biological variance detected. A common cut-off
 for the D-ratio is 0.5, aiming at keeping features whose variation in study
 samples is twice as large as the one in QC samples
-[@broadhurstGuidelinesConsiderationsUse2018]. For the present dataset we should
-calculate the D-ratio **separately** for each source (sample matrix) because the
-variance between sample matrices is expected to be very large. For each feature
-we use then the smallest D-ratio from the 4 sample matrices.
+[@broadhurstGuidelinesConsiderationsUse2018]. 
+
+For the present dataset calculate the D-ratio **separately** for each source
+(sample matrix) because the variance between sample matrices is expected to be
+very large. For each feature the mean D-ratio across the 4 sample matrices is
+used for the filtering.
+
 
 ```{r filter-rsd, warning = FALSE}
 rsds <- rowRsd(assay(res_qc, "normalized_filled"))
@@ -182,7 +185,7 @@ dratios_pla <- apply(
     apply(log2(assay(res_pos[, res_pos$source == "plasma"],
                      "normalized_filled")), 1, sd, na.rm = TRUE)
 dratios <- apply(cbind(dratios_ven, dratios_rbc, dratios_cap, dratios_pla),
-                 MARGIN = 1, min, na.rm = TRUE)
+                 MARGIN = 1, mean, na.rm = TRUE)
 dratios[is.infinite(dratios)] <- NA
 ```
 
@@ -215,11 +218,11 @@ res <- res_pos[which(dratios < 0.5), ]
 ```
 
 This reduced the data set from `r length(dratios)` to `r nrow(res)` features.
-Next, we discard the features that have not been identified in at least 50% of
-the samples in any of the sample groups.
+Next, we discard the features that have not been identified in at least one
+third of the samples in any of the sample groups.
 
 ```{r filter-proportion}
-keep <- moreAreValidThan(assay(res, "raw"), f = res$source, prop = 0.3)
+keep <- moreAreValidThan(assay(res, "raw"), f = res$source, prop = 1/3)
 res <- res[keep, ]
 ```
 
@@ -237,7 +240,7 @@ intensities.
 
 ```{r pca-all}
 pc <- prcomp(t(log2(assay(res, "normalized_filled_imputed"))),
-                 center = TRUE, scale. = FALSE)
+             center = TRUE, scale. = FALSE)
 ```
 
 ```{r pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on feature intensities.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
@@ -252,7 +255,8 @@ legend("topleft", col = col_source, legend = names(col_source),
 
 We see a clear separation by sample matrix. Also, a higher variability of RBC
 and capillary samples is visible. All plasma samples are clustered together far
-apart from the other matrices.
+apart from the other matrices. On PC3 we have a clear separation of capillary
+samples and RBC samples while both the plasma and venous samples group together.
 
 
 # Differential abundance analysis
@@ -314,7 +318,7 @@ document to `r p.cut`. This means we accept `r p.cut * 100`% false positives
 among the features called *significant*.
 
 ```{r analysis}
-## We subsample the sample sources
+## We subset the samples per source
 res_cap = res[, res$source == "capillary"]
 res_ven = res[, res$source == "venous"]
 res_plas = res[, res$source == "plasma"]
@@ -441,7 +445,7 @@ res_table(res_cap)
 Next, we generate a heatmap containing only the signals from the features
 identified above to identify any similarities among samples.
 
-```{r heatmap capillary, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
+```{r heatmap-capillary, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
 ## Create heatmap
 tab <- tab <- rowData(res_cap)[rowData(res_cap)$significant,
                         c("mzmed", "rtmed", "coef", "adjp",
@@ -565,9 +569,9 @@ res_table(res_ven)
 Next, we generate a heatmap containing only the signals from the features
 identified above to identify any similarities among samples.
 
-```{r heatmap VBS, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
+```{r heatmap-VBS, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
 ## Create heatmap
-tab <- tab <- rowData(res_ven)[rowData(res_ven)$significant,
+tab <- rowData(res_ven)[rowData(res_ven)$significant,
                         c("mzmed", "rtmed", "coef", "adjp",
                           "avg.M", "avg.F", "RSD_QC", "Dratio")]
 tmp <- log2(assay(
@@ -686,9 +690,9 @@ identified above to identify any similarities among samples.
 
 ```{r heatmap plasma, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
 ## Create heatmap
-tab <- tab <- rowData(res_plas)[rowData(res_plas)$significant,
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.M", "avg.F", "RSD_QC", "Dratio")]
+tab <- rowData(res_plas)[rowData(res_plas)$significant,
+                         c("mzmed", "rtmed", "coef", "adjp",
+                           "avg.M", "avg.F", "RSD_QC", "Dratio")]
 tmp <- log2(assay(
             res_plas, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
 tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
@@ -749,15 +753,14 @@ for (i in seq_len(nrow(chrs))) {
 We now want to compare the list of significant features across the three
 sample sources. Therefore, we use the `UpSetR` package.
 
-
-```{r feature comparison, echo = FALSE, eval = TRUE}
+```{r feature-comparison-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of significant features across the 3 sample matrices.", echo = FALSE, eval = TRUE}
 #create an UpSetR plot
 library(UpSetR)
 res_sig <- function(x) {
     if (any(rowData(x)$significant)) {
-        tab <- rowData(x)[rowData(x)$significant,
-                                c("mzmed", "rtmed", "coef", "adjp",
-                                  "avg.M", "avg.F", "RSD_QC", "Dratio")]
+        as.data.frame(rowData(x)[rowData(x)$significant,
+                                 c("mzmed", "rtmed", "coef", "adjp",
+                                   "avg.M", "avg.F", "RSD_QC", "Dratio")])
 }}
 cap_sig <- res_sig(res_cap)
 ven_sig <- res_sig(res_ven)
@@ -768,21 +771,41 @@ listInput <- list(capillary = rownames(cap_sig),
                   plasma = rownames(plas_sig))
 upset(fromList(listInput), order.by = "freq")
 ```
+
 The set size in venous blood and plasma samples is the same, whereas in
 capillary blood samples we found much more significant features. Out of the
 three significant features found in venous blood, 2 were also found to be 
 significant in capillary blood samples.
 
+The small overlap could also result from the selection of only significant
+features: features found to be significant in one sample matrix might be just
+below the cut-off in the other sample matrices. To evaluate this we create a
+heatmap of the coefficients representing the differential abundance between
+male and female samples for features found to be significant in at least one of
+the sample matrices across the 3 sample matrices.
+
+```{r feature-comparison-heatmap, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Heatmap of coefficients for differential abundance male/female."}
+
+## TODO:
+##     - identify features significant in at least one sample matrix
+##     - create heatmap of their coefficient in the 3 sample matrices
+##     - are the coefficients similar? do they have the same sign (same color on heatmap)?
+## HINTS:
+##     - combine the rownames of cap_sig etc and use `unique` to identify
+##     - use `cbind` to combine the $coef of cap_sig etc
+##     - create heatmap of that matrix, no centering ( - rowMeans(...) is required.
+
+```
+
 We now want to compare the top 100 features with lowest p-values across the
 three sample sources:
 
-```{r top 100 features with lowest p-values, echo = TRUE, eval = TRUE}
-
+```{r feature-comparison-top-100-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 100 features with lowest p-values.", echo = TRUE, eval = TRUE}
 top_100 <- function(x) {
- tab <- rowData(x)[order(rowData(x)$pvalue),
-                                c("mzmed","rtmed", "coef", "adjp",
-                                  "avg.F", "avg.M")]
- as.data.frame(tab[1:100, ])
+    tab <- rowData(x)[order(rowData(x)$pvalue),
+                      c("mzmed","rtmed", "coef", "adjp",
+                        "avg.F", "avg.M")]
+    as.data.frame(tab[1:100, ])
 }
 
 top_100_cap <- top_100(res_cap)
@@ -793,8 +816,8 @@ listInput <- list(capillary = rownames(top_100_cap),
                   venous = rownames(top_100_ven),
                   plasma = rownames(top_100_plas))
 upset(fromList(listInput), order.by = "freq")
-
 ```
+
 Of the top 100 features with lowest p-value, 14 were found in capillary and 
 venous blood samples and 9 features were present in venous blood and plasma
 samples. There is no single feature found to be present in all three 
@@ -803,63 +826,52 @@ matrices among the top 100.
 Lastly, we compare the coefficients of all features between capillary and
 venous blood samples by plotting them against each other:
 
-```{r comparison of coefficients of all features between capillary and venous blood samples, echo = FALSE}
-plot(log2(rowData(res_cap)$coef), log2(rowData(res_ven)$coef), 
-     xlab = expression(log[2]~coef-all-feat-capillary-samples),
-     ylab = expression(log[2]~coef-all-feat-venous-samples), 
+```{r feature-comparison-coef-cap-ven, fip.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between capillary and venous blood samples", echo = FALSE}
+X <- rowData(res_cap)$coef
+Y <- rowData(res_ven)$coef
+plot(X, Y, 
+     xlab = expression(coef[capillary]),
+     ylab = expression(coef[venous]), 
      pch = 16, col = "#00000040")
-abline(v = log2(0.3), col = "red", lty = 2)
-abline(h = log2(0.5), col = "red", lty = 2)
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
 ```
 
 Then, we compare the coefficients of all features between capillary and
 plasma samples by plotting them against each other:
 
-```{r comparison of coefficients of all features between capillary and plasma samples, echo = FALSE}
-plot(log2(rowData(res_cap)$coef), log2(rowData(res_plas)$coef), 
-     xlab = expression(log[2]~coef-all-feat-capillary-samples),
-     ylab = expression(log[2]~coef-all-feat-plasma-samples), 
+```{r feature-comparison-coef-cap-plas, fig.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between capillary and plasma samples", echo = FALSE}
+X <- rowData(res_cap)$coef
+Y <- rowData(res_plas)$coef
+plot(X, Y, 
+     xlab = expression(coef[capillary]),
+     ylab = expression(coef[plasma]), 
      pch = 16, col = "#00000040")
-abline(v = log2(0.3), col = "red", lty = 2)
-abline(h = log2(0.5), col = "red", lty = 2)
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
 ```
 
 Finally, we compare the coefficients of all features between venous and
 plasma samples by plotting them against each other:
 
-```{r comparison of coefficients of all features between plasma and venous blood samples, echo = FALSE}
-plot(log2(rowData(res_plas)$coef), log2(rowData(res_ven)$coef), 
-     xlab = expression(log[2]~coef-all-feat-plasma-samples),
-     ylab = expression(log[2]~coef-all-feat-venous-samples), 
+```{r feature-comparison-coef-plas-ven, fig.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between plasma and venous blood samples", echo = FALSE}
+X <- rowData(res_plas)$coef
+Y <- rowData(res_ven)$coef
+plot(X, Y, 
+     xlab = expression(coef[plasma]),
+     ylab = expression(coef[venous]), 
      pch = 16, col = "#00000040")
-abline(v = log2(0.3), col = "red", lty = 2)
-abline(h = log2(0.5), col = "red", lty = 2)
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
 ```
 
-**STOP HERE**
 
-TODO: we want to know how similar the results found in the 3 sample matrices
-are. We're less interested in actually identifying the metabolites that are
-different between male/female, but we want to know if we would get similar
-results when analyzing whole blood (venous), plasma or capillary samples.
-
-- compare the list of significant features. (using the `UpSetR` package). DONE
-- compare the list of top 100 features with smallest p-value. DONE
-- directly plot (compare) coefficients? Plot coefficients of all features from
-  venous against coefficients of all features in capillary and the same between
-  venous and plasma and capillary and plasma. DONE
-- potential problem: can not expect the same features in all 3 matrices - maybe
-  reduce to metabolites present in ~ 50% of samples for **each** matrix and
-  repeat the diff abundance analysis? DONE, only 24 significant features found
-  in capillary blood samples, still 2 significant features shared between 
-  capillary and venous blood samples. Top 100: 17 features shared between
-  capillary and venous vlood samples, 7 between venous and plasma
-- Use different ways to pre-filter the data? How does this affect the results
-  (number of significant features) and the overlap of significant features?
-  - rsds < 0.3
-  - dratio < 0.5 in all matrices DONE, no major differences, amount of sig.
-  features decreases with decreasing d-ratio
-  
 # Session information
 
 ```{r}
