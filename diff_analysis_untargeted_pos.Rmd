@@ -710,7 +710,7 @@ tmp <- data.frame(
 )
 ```
 
-```{r peak-shape plasma, echo = FALSE, eval = FALSE}
+```{r peak-shape-plasma, echo = FALSE, eval = FALSE}
 load("data/RData/vams_normalization_pos/data_pos_filled.RData")
 pData(data_pos) <- as.data.frame(pData(data_pos))
 
