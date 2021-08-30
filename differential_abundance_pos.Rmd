@@ -213,10 +213,7 @@ for (i in seq_len(nrow(mD))) {
 ```
 
 The EICs have been manually inspected and the best matching feature has been
-manually assigned to the corresponding standard. Some features found a better
-match than others, such as xyz; in this case, in fact, there is a single
-peak detected, with high intensity, that is well within the theoretical m/z
-range and it is very close to the theoretical retention time.
+manually assigned to the corresponding standard.
 
 ```{r assign-feature-metabolite, echo = FALSE, warning = FALSE, message = FALSE}
 ## This is the tricky manual thing:
@@ -370,9 +367,10 @@ legend("topleft", col = col_source, legend = names(col_source),
 ```
 
 In the PC1 plot, capillary and RBC samples cluster together. Plasma samples 
-clusters independently of all other sample sources. In PC3 one can not 
-differentiate between the matrices.
-
+clusters independently of all other sample sources. Venous and capillary samples
+are separated on PC2. RBC samples show a large spread on PC2 suggesting higher
+variability. Sample groups are also separating on PC3 but less pronounced than
+on PC1 or PC2.
 
 ```{r std_id-samples, echo = FALSE, results = "asis"}
 idx <- pc$x[, 1] > 10
@@ -380,10 +378,10 @@ tab <- colData(std_res)[which(idx), c("source", "age", "sex")]
 pandoc.table(as.data.frame(tab), style = "rmarkdown",
              caption = "samples: PC1>10")
 
-idx <- pc$x[, 2] < -5
+idx <- pc$x[, 2] > 5
 tab <- colData(std_res)[which(idx), c("source", "age", "sex")]
 pandoc.table(as.data.frame(tab), style = "rmarkdown",
-             caption = "samples: PC2<-5")
+             caption = "samples: PC2 > 5")
 ```
 
 We then create a data set for each sample source:
@@ -417,9 +415,9 @@ legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
 
 ```
 
-In the capillary samples, we see some differences between male and female 
-samples. some of the replicates cluster nearby, others, like nr. 13, are far
-apart. The technical replicates are merged in a later step.
+In the capillary samples, we see some differences between male and female
+samples. Some of the replicates cluster closely, while others, like nr. 13, are
+far apart. The technical replicates are merged in a later step.
 
 We then generate the PCA for the venous data set:
 
@@ -427,7 +425,7 @@ We then generate the PCA for the venous data set:
 pc_raw_venous <- prcomp(t(log2(assay(res_ven, "normalized_filled_imputed"))),
                         scale = FALSE, center = TRUE)
 
-pch <- rep(21, ncol(res_cap))
+pch <- rep(21, ncol(res_ven))
 pch[res_ven$sex == "M"] <- 22
 par(mfrow = c(1, 2))
 plot_pca(pc_raw_venous, col = paste0(col_sex[as.character(res_ven$sex)], 80),
@@ -440,9 +438,8 @@ legend("topleft", col = col_sex, legend = names(col_sex), pch = 16,
        cex = 0.4)
 ```
 
-In the venous data set, a differentiation between male and female samples is not 
-observed.The replicates are clustered farer away, then we saw in the capillary
-data set.
+In the venous data set, no separation of clustering of male and female samples
+is visible. Also, the replicates are less close than in the capillary samples.
 
 Lastly, we generate the PCA for the plasma samples:
 
@@ -542,7 +539,7 @@ We proceed with the venous blood samples:
 pc_raw_venous <- prcomp(t(log2(assay(res_ven, "normalized_filled_imputed"))),
                         scale = FALSE, center = TRUE)
 
-pch <- rep(21, ncol(res_cap))
+pch <- rep(21, ncol(res_ven))
 pch[res_ven$sex == "M"] <- 22
 par(mfrow = c(1, 2))
 plot_pca(pc_raw_venous, col = paste0(col_sex[as.character(res_ven$sex)], 80),
@@ -659,7 +656,7 @@ if (any(rowData(res_cap)$significant)) {
 }
 ```
 
-In total `r sum(rowData(res_cap)$significant)` feature we do not find a
+In total `r sum(rowData(res_cap)$significant)` feature were found to have a
 significant difference in abundances between the two groups. The table below
 lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
@@ -685,15 +682,50 @@ if (any(rowData(res_cap)$significant)) {
 }
 ```
 
-**SAH** shows the smallest p-value, which is already described as being different in
-concentration when male and female are compared. The second identifies metbolite
-with a small p-value  is **Citrulline**: this is an amino acid that is produced 
-from arginine during the process of nitrogen monoxide (NO) synthesis.
-This biological messenger plays an important role in mechanical and chemical
-signal transduction, especially in cardiomyocytes.**L-Aspartic acid** is an amino 
-acid, which plays a major role in the production in antibodies. As the immune 
-response is stronger in female compared to male, also the higher abundance of
-this AA may be expected.
+**SAH** shows the smallest p-value, which is already described as being 
+different in concentration when male and female are compared. The second 
+identified metbolite with a small p-value  is **Citrulline**: this is an amino 
+acid that is produced from arginine during the process of nitrogen monoxide 
+(NO) synthesis. This biological messenger plays an important role in mechanical
+and chemical signal transduction, especially in cardiomyocytes.
+**L-Aspartic acid** is an amino  acid, which plays a major role in the 
+production in antibodies. 
+
+We now create the beeswarm plot:
+
+```{r beeswarm capillary, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_cap)[rownames(tab), ]
+tmp <- log2(assay(res_cap, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm-cap/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_cap$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_pos/standards-beeswarm-cap/FT1481_SAH.png)
+In our data, the SAH levels in male samples are higher then in female samples.
+
+![](images/differential_abundance_pos/standards-beeswarm-cap/FT0312_Citrulline.png)
+Also, the intensity of Citrulline and L-Aspartic acid peaks are higher in male 
+compared to female samples.
+
+![](images/differential_abundance_pos/standards-beeswarm-cap/FT0168_L-Aspartic Acid.png)
 
 We than look for significant features in venous blood samples: 
 
@@ -781,8 +813,40 @@ if (any(rowData(res_ven)$significant)) {
 ```
 
 Only 2 features show a p-value lower than 0.5, which are **L-Aspartic acid** and
-**Carnitine**, former also being found significant between male and female samples in
-the capillary blood samples.
+**C5-Carnitine**, former also being found with a low p-value between male and 
+female samples in the capillary blood samples.
+
+We now create the beeswarm plot:
+
+```{r beeswarm venous, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_ven)[rownames(tab), ]
+tmp <- log2(assay(res_ven, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm-ven/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_ven$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_pos/standards-beeswarm-cap/FT0168_L-Aspartic Acid.png)
+![](images/differential_abundance_pos/standards-beeswarm-ven/FT0527_C5 Carnitine.png)
+Also these two metabolites show higher levels in male samples when compared
+to female samples.
 
 We then analyse the features for plasma samples:
 
@@ -868,7 +932,133 @@ if (any(rowData(res_plas)$significant)) {
 
 Also in the plasma samples, we did not find a features which is significantly 
 different in concentration when male and female samples are compared. 
-**Homocysteine** shows the lowest p-value here.
+**Homocysteine**, which is a sulfur-containing amino acid that arises during 
+methionine metabolism, shows the lowest p-value here.
+
+Lastly, we create the beeswarm plots:
+
+```{r beeswarm plasma, echo = FALSE}
+library(beeswarm)
+tab <- rowData(res_plas)[rownames(tab), ]
+tmp <- log2(assay(res_plas, "normalized_filled_imputed")[rownames(tab), 
+                                                        , drop = FALSE])
+rownames(tmp) <- tab$name
+dr <- paste0(IMAGE_PATH, "standards-beeswarm-plas/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(tmp))) {
+    vals <- split(tmp[i, ], f = res_plas$sex)
+    col <- col_sex[names(vals)]
+    png(file = paste0(dr, rownames(tab)[i], "_", rownames(tmp)[i], ".png"),
+        width = 6 * phi, height = 6, units = "in", res = 300, pointsize = 12)
+    par(mar = c(5, 5, 5, 1))
+    beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5, spacing = 1.2,
+             cex.main = 1.5,
+             cex.lab = 1.5,
+             cex.axis = 1.3,
+             main = paste0(rownames(tab)[i], ": ", rownames(tmp)[i]),
+             ylab = expression(log[2]~intensity))
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+    dev.off()
+}
+```
+
+![](images/differential_abundance_pos/standards-beeswarm-plas/FT0178_Homocysteine.png)
+In our data, Homocysteine levels are higher in female samples compared to the
+male samples. This is unexpected, as the literature reports the plasma total
+homocysteine to be consistently higher in male compared to female samples.
+
+Note however that the signal for Homocysteine is also not that clear and the
+assigned feature might represent data from multiple different compounds (see
+below).
+
+![](images/differential_abundance_pos/standards/Homocysteine-FT0178.png)
+
+For SAH on the other hand the assigned feature is less ambiguous:
+
+![](images/differential_abundance_pos/standards/SAH-FT1481.png)
+
+Also the selected feature for Citrulline seems to be OK:
+
+![](images/differential_abundance_pos/standards/Citrulline-FT0312.png)
+
+The chromatographic peak for the features assigned to L-Aspartic Acid looks
+clean, but also another peak/feature is close by.
+
+![](images/differential_abundance_pos/standards/L-Aspartic Acid-FT0168.png)
+
+The retention time of the feature for C5-Carnitine is shifted by about 10
+seconds, which could make this assignment also questionable.
+
+![](images/differential_abundance_pos/standards/C5 Carnitine-FT0527.png)
+
+At last we compare the concentrations for these metabolites in male and female
+participants across all 3 matrices.
+
+```{r beeswarm-SAH, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 8, fig.height = 6, fig.cap = "Abundance of SAH in female and male participants across all 3 sample matrices (capillary, venous and plamsa)."}
+
+beeswarm_feature <- function(x, main = x) {
+    a <- log2(assay(res_cap, "normalized_filled_imputed")[x, ])
+    a <- split(a, res_cap$sex)
+    b <- log2(assay(res_ven, "normalized_filled_imputed")[x, ])
+    b <- split(b, res_ven$sex)
+    c <- log2(assay(res_plas, "normalized_filled_imputed")[x, ])
+    c <- split(c, res_plas$sex)
+    par(mar = c(5, 4, 1, 1))
+    vals <- c(cap = a, ven = b, plas = c)
+    beeswarm(vals,
+             col = paste0(col_sex[c("F", "M", "F", "M", "F", "M")]),
+             pch = 16, main = main, ylab = expression(log[2]~intensity),
+             las = 2)
+    grid(nx = NA, ny = NULL)
+    bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+}
+beeswarm_feature("FT1481", "SAH: FT1481")
+```
+
+SAH shows lower levels in female participants in all 3 matrices, but
+concentrations are much lower in plasma samples, leading to a higher variability
+and thus lower significance.
+
+```{r beeswarm-citrulline, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 8, fig.height = 6, fig.cap = "Abundance of citrulline in female and male participants across all 3 sample matrices (capillary, venous and plamsa)."}
+beeswarm_feature("FT0312", "Citrulline: FT0312")
+```
+
+Also for citrulline a difference in concentrations between male and
+female participants is present in all 3 sample matrices. Concentrations are
+highest in capillary samples and lower, but comparable in venous and plasma
+samples.
+
+```{r beeswarm-l-aspartic-acid, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 8, fig.height = 6, fig.cap = "Abundance of L-Aspartic Acid in female and male participants across all 3 sample matrices (capillary, venous and plamsa)."}
+beeswarm_feature("FT0168", "L-Aspartic Acid: FT0168")
+```
+
+Concentration of L-Aspartic Acid is comparably high in capillary and venous
+samples but much lower in plasma samples. In contrast to capillary and venous
+samples, in which concentrations are higher in male than in female samples, in
+plasma samples the concentrations are higher in female samples.
+
+```{r beeswarm-c5-carnitine, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 8, fig.height = 6, fig.cap = "Abundance of C5 Carnitine in female and male participants across all 3 sample matrices (capillary, venous and plamsa)."}
+beeswarm_feature("FT0527", "C5 Carnitine: FT0527")
+```
+
+C5 Carnitine shows the same trend of differential abundance in all 3 matrices.
+
+
+Also, we evaluate the abundances of Gluconic Acid, one of the metabolites found
+to be different in the negative polarity data (for the other two metabolites
+from the negative polarity analysis, homovanillic acid and Allantonin, no
+feature was identified in positive mode).
+
+```{r beeswarm-gluconic-acid, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 8, fig.height = 6, fig.cap = "Abundance of Gluconic Acid in female and male participants across all 3 sample matrices (capillary, venous and plamsa)."}
+beeswarm_feature("FT0460", "Gluconic Acid: FT0460")
+```
+
+While female participants show higher levels in capillary and plasma samples,
+the opposite can be seen for venous samples. Note however that the retention
+time of the feature assigned to Gluconic Acid in positive mode does not match
+the retention time of Gluconic Acid in negative polarity. In fact, at the
+retention time of Gluconic Acid in negative polarity no feature is present in
+positive polarity.
 
 ```{r}
 save(res_pos, file = paste0(RDATA_PATH, "res_pos.RData"))
