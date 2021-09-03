@@ -732,6 +732,32 @@ wer also found to be significant in venous blood samples, when male and female
 samples are compared. Venous blood and plasma samples also share two common
 significant features.
 
+The small overlap could also result from the selection of only significant
+features: features found to be significant in one sample matrix might be just
+below the cut-off in the other sample matrices. To evaluate this we create a
+heatmap of the coefficients representing the differential abundance between
+male and female samples for features found to be significant in at least one of
+the sample matrices across the 3 sample matrices.
+
+```{r feature-comparison-heatmap, fig.path = IMAGE_PATH, fig.path = IMAGE_PATH, fig.width = 10 * phi, fig.height = 15 * phi, echo = FALSE, fig.cap = "Heatmap of coefficients for differential abundance male/female."}
+
+## TODO:
+##     - identify features significant in at least one sample matrix
+##     - create heatmap of their coefficient in the 3 sample matrices
+##     - are the coefficients similar? do they have the same sign (same color on heatmap)?
+## HINTS:
+##     - combine the rownames of cap_sig etc and use `unique` to identify
+##     - use `cbind` to combine the $coef of cap_sig etc
+##     - create heatmap of that matrix, no centering ( - rowMeans(...) is required.
+
+ids <- unique(c(rownames(cap_sig), rownames(ven_sig), rownames(plas_sig)))
+all_coef <- cbind(capillary = rowData(res_cap)[ids, "coef"],
+                  venous = rowData(res_ven)[ids, "coef"],
+                  plasma = rowData(res_plas)[ids, "coef"])
+
+pheatmap(all_coef)
+```
+
 We now want to compare the top 100 features with lowest p-values across the
 three sample sources:
 
