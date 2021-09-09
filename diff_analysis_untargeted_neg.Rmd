@@ -100,6 +100,41 @@ names(col_sex) <- c("F",           # red
 phi <- (1+sqrt(5))/2
 ```
 
+At last we also average the *technical* replicates for each individual to
+generate the final data set.
+
+```{r average-replicates}
+#' Average 
+averageSE <- function(x, column = character(), mainAssay = character()) {
+    if (!column %in% colnames(colData(x)))
+        stop("Column '", "' not found in 'colData' of 'x'")
+    f <- factor(colData(x)[, column], levels = unique(colData(x)[, column]))
+    ## new colData: take the first element for each replicate.
+    cd <- colData(x)[match(levels(f), f), ]
+    ## loop over the assays and average them.
+    a <- lapply(assays(x), function(z) {
+        z <- split.data.frame(t(z), f = f)
+        z <- do.call(cbind, lapply(z, colMeans, na.rm = TRUE))
+        z[is.na(z)] <- NA
+        z
+    })
+    if (length(mainAssay)) {
+        tmp <- split.data.frame(t(assay(x, mainAssay)), f = f)
+        tmp <- do.call(cbind, lapply(tmp, function(y) {
+            apply(y, MARGIN = 2, FUN = sd, na.rm = TRUE)
+        }))
+        tmp[is.na(tmp)] <- NA
+        a[[paste0(mainAssay, "_sd")]] <- tmp
+    }
+    SummarizedExperiment(assays = a, rowData = rowData(x),
+                         colData = cd, metadata = metadata(x))
+}
+
+## Average technical replicates:
+res_neg <- averageSE(res_neg, column = "source_sample",
+                     mainAssay = "normalized_filled")
+```
+
 The samples used in this analysis are listed below.
 
 ```{r, echo = FALSE, results = "asis"}
@@ -170,7 +205,7 @@ dratios_pla <- apply(
     log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
     apply(log2(assay(res_neg[, res_neg$source == "plasma"],
                      "normalized_filled")), 1, sd, na.rm = TRUE)
-dratios <- apply(cbind(dratios_ven, dratios_rbc, dratios_cap, dratios_pla),
+dratios <- apply(cbind(dratios_ven, dratios_cap, dratios_pla),
                  MARGIN = 1, mean, na.rm = TRUE)
 dratios[is.infinite(dratios)] <- NA
 ```
@@ -416,32 +451,27 @@ res_table <- function(x) {
             as.data.frame(tab), style = "rmarkdown",
             caption = "Top 20 features with the smallest p-values.")
     }
+    invisible(tab)
 }
-res_table(res_cap)
+tab <- res_table(res_cap)
 ```
 
 Next, we generate a heatmap containing only the signals from the features
 identified above to identify any similarities among samples.
 
-```{r heatmap capillary, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
+```{r heatmap capillary, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features for capillary samples.", echo = FALSE}
 ## Create heatmap
-tab <- rowData(res_cap)[rowData(res_cap)$significant,
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.M", "avg.F", "RSD_QC", "Dratio")]
 tmp <- log2(assay(
   res_cap, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
 tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
 ann <- as.data.frame(colData(res_cap)[, c("source", "sex")])
-##pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res),
-#               annotation_color = list(group = col_group,
-#                                   sex = col_sex))
+## pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+##                breaks = seq(-5, 5, length.out = 101),
+##                annotation_color = list(source = col_source,
+##                                        sex = col_sex))
 pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
-               breaks = seq(-5, 5, length.out = 101),
                annotation_color = list(source = col_source,
                                        sex = col_sex))
-tmp <- data.frame(
-  heatmap = pm$tree_row$order
-)
 ```
 
 Finally, we extract EICs for all these features and save them.
@@ -532,30 +562,21 @@ lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
 ```{r result-table VBS, echo = FALSE, results = "asis"}
-res_table(res_ven)
+tab <- res_table(res_ven)
 ```
 
 Next, we generate a heatmap containing only the signals from the features
 identified above to identify any similarities among samples.
 
-```{r heatmap VBS, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
+```{r heatmap VBS, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features for venous.", echo = FALSE}
 ## Create heatmap
-tab <- rowData(res_ven)[rowData(res_ven)$significant,
-                        c("mzmed", "rtmed", "coef", "adjp",
-                          "avg.M", "avg.F", "RSD_QC", "Dratio")]
 tmp <- log2(assay(
             res_ven, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
 tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
 ann <- as.data.frame(colData(res_ven)[, c("source", "sex")])
-##pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res),
-#               annotation_color = list(group = col_group,
-#                                   sex = col_sex))
 pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
                annotation_color = list(source = col_source,
                                    sex = col_sex))
-tmp <- data.frame(
-  heatmap = pm$tree_row$order
-)
 ```
 
 ```{r peak-shape VBS, echo = FALSE, eval = FALSE}
@@ -642,30 +663,21 @@ lists these features (or the 20 features with the smallest p-values if no
 feature was found significant).
 
 ```{r result-table plasma, echo = FALSE, results = "asis"}
-res_table(res_plas)
+tab <- res_table(res_plas)
 ```
 
 Next, we generate a heatmap containing only the signals from the features
 identified above to identify any similarities among samples.
 
-```{r heatmap plasma, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features. Note that for better visibility, the color range has been restricted to -5 to 5, thus, differences larger than these values are assigned the extreme colors.", echo = FALSE}
+```{r heatmap plasma, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features for venous samples.", echo = FALSE}
 ## Create heatmap
-tab <- rowData(res_plas)[rowData(res_plas)$significant,
-                         c("mzmed", "rtmed", "coef", "adjp",
-                           "avg.M", "avg.F", "RSD_QC", "Dratio")]
 tmp <- log2(assay(
             res_plas, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
 tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
 ann <- as.data.frame(colData(res_plas)[, c("source", "sex")])
-##pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res),
-#               annotation_color = list(group = col_group,
-#                                   sex = col_sex))
 pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
                annotation_color = list(source = col_source,
                                    sex = col_sex))
-tmp <- data.frame(
-  heatmap = pm$tree_row$order
-)
 ```
 
 ```{r peak-shape-plasma, echo = FALSE, eval = FALSE}
@@ -704,60 +716,6 @@ for (i in seq_len(nrow(chrs))) {
 }
 ```
 
-We now want to compare the list of significant features across the three
-sample sources. Therefore, we use the `UpSetR` package.
-
-
-```{r feature-comparison-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of significant features.", echo = FALSE, eval = TRUE}
-#create an UpSetR plot
-library(UpSetR)
-res_sig <- function(x) {
-    if (any(rowData(x)$significant)) {
-        as.data.frame(rowData(x)[rowData(x)$significant,
-                                 c("mzmed", "rtmed", "coef", "adjp",
-                                  "avg.M", "avg.F", "RSD_QC", "Dratio")])
-}}
-cap_sig <- res_sig(res_cap)
-ven_sig <- res_sig(res_ven)
-plas_sig <- res_sig(res_plas)
-listInput <- list(capillary = rownames(cap_sig),
-                  venous = rownames(ven_sig),
-                  plasma = rownames(plas_sig))
-upset(fromList(listInput), order.by = "freq")
-```
-
-The set size of venous blood samples, is the highest, followed by plasma 
-samples. Out of the 9 significant features found in capillary blood samples, 2 
-wer also found to be significant in venous blood samples, when male and female
-samples are compared. Venous blood and plasma samples also share two common
-significant features.
-
-The small overlap could also result from the selection of only significant
-features: features found to be significant in one sample matrix might be just
-below the cut-off in the other sample matrices. To evaluate this we create a
-heatmap of the coefficients representing the differential abundance between
-male and female samples for features found to be significant in at least one of
-the sample matrices across the 3 sample matrices.
-
-```{r feature-comparison-heatmap, fig.path = IMAGE_PATH, fig.path = IMAGE_PATH, fig.width = 10 * phi, fig.height = 15 * phi, echo = FALSE, fig.cap = "Heatmap of coefficients for differential abundance male/female."}
-
-## TODO:
-##     - identify features significant in at least one sample matrix
-##     - create heatmap of their coefficient in the 3 sample matrices
-##     - are the coefficients similar? do they have the same sign (same color on heatmap)?
-## HINTS:
-##     - combine the rownames of cap_sig etc and use `unique` to identify
-##     - use `cbind` to combine the $coef of cap_sig etc
-##     - create heatmap of that matrix, no centering ( - rowMeans(...) is required.
-
-ids <- unique(c(rownames(cap_sig), rownames(ven_sig), rownames(plas_sig)))
-all_coef <- cbind(capillary = rowData(res_cap)[ids, "coef"],
-                  venous = rowData(res_ven)[ids, "coef"],
-                  plasma = rowData(res_plas)[ids, "coef"])
-
-pheatmap(all_coef)
-```
-
 We now want to compare the top 100 features with lowest p-values across the
 three sample sources:
 
@@ -774,13 +732,28 @@ top_100_plas <- top_100(res_plas)
 listInput <- list(capillary = rownames(top_100_cap),
                   venous = rownames(top_100_ven),
                   plasma = rownames(top_100_plas))
+library(UpSetR)
 upset(fromList(listInput), order.by = "freq")
 ```
 
-Of the top 100 features with lowest p-value, 26 were found in capillary and 
-venous blood samples and 4 features were present in capillary blood and plasma
-samples. 2 features are shared between venous and plasma samples and 2 features
-were found to be present in all three matrices among the top 100.
+Of the top 100 features with lowest p-value, 31 were found common between capillary and 
+venous blood samples, 14 between capillary and plasma, 8 between venous and
+plasma and 7 in all samples.
+
+```{r feature-comparison-heatmap, fig.path = IMAGE_PATH, fig.path = IMAGE_PATH, fig.width = 10 * phi, fig.height = 15 * phi, echo = FALSE, fig.cap = "Heatmap of coefficients for differential abundance male/female."}
+
+ids <- unique(c(rownames(top_100_cap), rownames(top_100_ven),
+                rownames(top_100_plas)))
+all_coef <- cbind(capillary = rowData(res_cap)[ids, "coef"],
+                  venous = rowData(res_ven)[ids, "coef"],
+                  plasma = rowData(res_plas)[ids, "coef"])
+
+pheatmap(all_coef)
+```
+
+Overlap between capillary and venous is higher. For a number of features, the
+sign of the coefficient in plasma samples differs to the sign in capillary and
+venous samples.
 
 Lastly, we compare the coefficients of all features between capillary and
 venous blood samples by plotting them against each other:
