@@ -754,6 +754,7 @@ We now want to compare the list of significant features across the three
 sample sources. Therefore, we use the `UpSetR` package.
 
 ```{r feature-comparison-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of significant features across the 3 sample matrices.", echo = FALSE, eval = TRUE}
+
 #create an UpSetR plot
 library(UpSetR)
 res_sig <- function(x) {
@@ -784,7 +785,7 @@ heatmap of the coefficients representing the differential abundance between
 male and female samples for features found to be significant in at least one of
 the sample matrices across the 3 sample matrices.
 
-```{r feature-comparison-heatmap, fig.path = IMAGE_PATH, echo = FALSE, fig.cap = "Heatmap of coefficients for differential abundance male/female."}
+```{r feature-comparison-heatmap, fig.path = IMAGE_PATH, fig.path = IMAGE_PATH, fig.width = 10 * phi, fig.height = 15 * phi, echo = FALSE, fig.cap = "Heatmap of coefficients for differential abundance male/female."}
 
 ## TODO:
 ##     - identify features significant in at least one sample matrix
@@ -795,6 +796,12 @@ the sample matrices across the 3 sample matrices.
 ##     - use `cbind` to combine the $coef of cap_sig etc
 ##     - create heatmap of that matrix, no centering ( - rowMeans(...) is required.
 
+ids <- unique(c(rownames(cap_sig), rownames(ven_sig), rownames(plas_sig)))
+all_coef <- cbind(capillary = rowData(res_cap)[ids, "coef"],
+                  venous = rowData(res_ven)[ids, "coef"],
+                  plasma = rowData(res_plas)[ids, "coef"])
+
+pheatmap(all_coef)
 ```
 
 We now want to compare the top 100 features with lowest p-values across the
