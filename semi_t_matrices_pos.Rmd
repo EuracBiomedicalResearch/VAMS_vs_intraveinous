@@ -428,7 +428,7 @@ We then wanted to check if there are compounds that are only present in some of
 the three matrices. Therefore, we used the `raw` data of our three sample 
 sources and looked, which compounds are present in more than 2/3 of the samples.
 
-```{r Present and absent features}
+```{r Present and absent features, echo = FALSE}
 plas <- assay(std_res, "raw")[, std_res$source == "plasma"]
 plas_present <- moreAreValidThan(plas, prop = 2/3)
 
@@ -441,6 +441,13 @@ cap_present <- moreAreValidThan(cap, prop = 2/3)
 
 ```
 
+
+We then create a plot an `UpSetR` plot to see the overlap of present features:
+
+```{r present-feature-comparison-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of present features across the 3 sample matrices.", echo = FALSE, eval = TRUE}
+#create an UpSetR plot
+library(UpSetR)
+
 listInput <- list(capillary = which(cap_present, useNames = TRUE),
                   venous = which(ven_present, useNames = TRUE),
                   plasma = which(plas_present, useNames = TRUE))
@@ -451,6 +458,57 @@ sources, whereas 10 features are only present in capillary and venous blood
 samples and 9 features are only present in capillary blood samples. 2 features
 are present in plasma and venous blood samples, but absent in capillary blood 
 samples and one feature is only present in plasma samples.
+
+We want to identify the features present in only some of the matrices, starting
+with features that are only present in capillary blood samples:
+
+```{r present-features_cap, echo = FALSE, results = "asis"}
+
+#identify features present in only one or two matrices
+only_cap <- rowData(std_res)[cap_present & !ven_present & !plas_present, ]
+only_plas <- rowData(std_res)[plas_present & !ven_present & !cap_present, ]
+only_capven <- rowData(std_res)[cap_present & ven_present & !plas_present, ]
+only_venplas <- rowData(std_res)[ven_present & plas_present & !cap_present, ]
+
+## Write result table
+tab <- only_cap[, c("name", "mzmed", "rtmed")]
+pandoc.table(as.data.frame(tab), style = "rmarkdown",
+             caption = "Features only present in capillary blood samples")
+
+```
+Then we take a look at the feature, which is only present in plasma samples:
+
+```{r present-features_plas, echo = FALSE, results = "asis"}
+
+## Write result table
+tab <- only_plas[, c("name", "mzmed", "rtmed")]
+pandoc.table(as.data.frame(tab), style = "rmarkdown",
+             caption = "Features only present in plasma samples")
+
+```
+Next, we want to identify the features that are present in capillary and venous
+blood samples, but absent in plasma samples:
+
+```{r present-features_cap_ven, echo = FALSE, results = "asis"}
+
+## Write result table
+tab <- only_capven[, c("name", "mzmed", "rtmed")]
+pandoc.table(as.data.frame(tab), style = "rmarkdown",
+             caption = "Features only present in capillary and venous blood
+             samples")
+
+```
+And lastly, we take a look at the features found in plasma and venous blood
+samples, but not in capillary blood:
+
+```{r present-features_ven_plas, echo = FALSE, results = "asis"}
+
+## Write result table
+tab <- only_venplas[, c("name", "mzmed", "rtmed")]
+pandoc.table(as.data.frame(tab), style = "rmarkdown",
+             caption = "Features only present in plasma and venous blood samples")
+
+```
 
 Now, we start with the differential abundance analysis.
 
@@ -619,9 +677,9 @@ While **Valine** and **Methionine** show comparable intensities in plasma and
 venous blood samples, **Creatine** levels are higher in venous blood compared
 to both plasma and capillary blood samples. 
 
-We save the significant features in a new variable:
+We save the significant features in a new variable, `capven_sig`.
 
-```{r}
+```{r echo = FALSE}
 feat_sig <- function(x) {
     if (any(rowData(x)$significant)) {
         as.data.frame(rowData(x)[rowData(x)$significant,
@@ -775,9 +833,9 @@ Of the `r sum(rowData(std_res)$significant)` significant features, six showed
 a higher intensity in plasma: **Cystine**, **Valine**, **Arginine**, 
 **Fructose, Glucose, Mannose**, **Methylhistidine** and **Methionine**.
 
-We save the significant features in a new variable:
+We save the significant features in a new variable, `capplas_sig`.
 
-```{r}
+```{r echo = FALSE}
 capplas_sig <- feat_sig(std_res)
 ```
 
@@ -858,7 +916,7 @@ if (any(rowData(std_res)$significant)) {
 ```
 
 In total `r sum(rowData(std_res)$significant)` feature were found to have a
-significant difference in abundances between plasma and capillary blood samples.
+significant difference in abundances between plasma and venous blood samples.
 The table below lists these features (or the 20 features with the smallest 
 p-values if no feature was found significant).
 
@@ -884,7 +942,7 @@ if (any(rowData(std_res)$significant)) {
 ```
 
 In total `r sum(rowData(std_res)$significant)` features were found to have a
-significant difference in abundances between the capillary and venous blood
+significant difference in abundances between the plasma and venous blood
 samples.
 
 We now create the beeswarm plot:
@@ -927,9 +985,9 @@ only six have a higher intensity in plasma samples:
 **Hydroxyproline**, **Isoleucine, Leucine**, **Arginine**, **Tryptophan**,
 **Fructose, Glucose, Mannose** and **Cystine**.
 
-Lastly, we also save these features in a variable:
+Lastly, we also save these features in a variable, `venplas_sig`.
 
-```{r}
+```{r echo = FALSE}
 venplas_sig <- feat_sig(std_res)
 ```
 
@@ -938,7 +996,7 @@ difference between the intensity in capillary and plasma samples and features
 that show a significant difference between the intensity in venous and plasma
 samples:
 
-```{r}
+```{r significant-feature-comparison-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of significant features in matrix comparisons.", echo = FALSE, eval = TRUE}
 listInput <- list(capillaryVSplasma = rownames(capplas_sig),
                   venousVSplasma = rownames(venplas_sig))
 upset(fromList(listInput), order.by = "freq")
