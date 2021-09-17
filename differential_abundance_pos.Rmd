@@ -1050,6 +1050,54 @@ the retention time of Gluconic Acid in negative polarity. In fact, at the
 retention time of Gluconic Acid in negative polarity no feature is present in
 positive polarity.
 
+Lastly, we compare the coefficients of all features between capillary and
+venous blood samples by plotting them against each other:
+
+```{r feature-comparison-coef-cap-ven, fip.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between capillary and venous blood samples", echo = FALSE}
+X <- rowData(res_cap)$coef
+Y <- rowData(res_ven)$coef
+plot(X, Y, 
+     xlab = expression(coef[capillary]),
+     ylab = expression(coef[venous]), 
+     pch = 16, col = "#00000040")
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
+```
+
+Then, we compare the coefficients of all features between capillary and
+plasma samples by plotting them against each other:
+
+```{r feature-comparison-coef-cap-plas, fig.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between capillary and plasma samples", echo = FALSE}
+X <- rowData(res_cap)$coef
+Y <- rowData(res_plas)$coef
+plot(X, Y, 
+     xlab = expression(coef[capillary]),
+     ylab = expression(coef[plasma]), 
+     pch = 16, col = "#00000040")
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
+```
+
+Finally, we compare the coefficients of all features between venous and
+plasma samples by plotting them against each other:
+
+```{r feature-comparison-coef-plas-ven, fig.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between plasma and venous blood samples", echo = FALSE}
+X <- rowData(res_plas)$coef
+Y <- rowData(res_ven)$coef
+plot(X, Y, 
+     xlab = expression(coef[plasma]),
+     ylab = expression(coef[venous]), 
+     pch = 16, col = "#00000040")
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
+```
+
 ```{r}
 save(res_pos, file = paste0(RDATA_PATH, "res_pos.RData"))
 ```
