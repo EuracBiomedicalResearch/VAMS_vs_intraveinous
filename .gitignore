@@ -3,6 +3,7 @@ local_data/*
 data/phenodata.txt
 phenodata.txt
 *.RData
+*.Rhistory
 *.png
 *.html
 *.pdf
