@@ -89,8 +89,8 @@ are still required to evaluate the goodness of the detected features, therefore
 they will be stored in a separate `SummarizedExperiment` object that can be
 accessed when needed.
 We also exclude the `RBC` samples from our analysis, as these samples showed
-a noisy signal beforehand. We also store them separatedly in a 
-`SummarizedExperiment` object
+a noisy signal beforehand. We also store them separately in a 
+`SummarizedExperiment` object.
 
 We also assign the colours as seen before.
 

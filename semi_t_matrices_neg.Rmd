@@ -439,6 +439,7 @@ cap_present <- moreAreValidThan(cap, prop = 2/3)
 We then create a plot an `UpSetR` plot to see the overlap of present features:
 
 ```{r present-feature-comparison-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of present features across the 3 sample matrices.", echo = FALSE, eval = TRUE}
+library("UpSetR")
 listInput <- list(capillary = which(cap_present, useNames = TRUE),
                   venous = which(ven_present, useNames = TRUE),
                   plasma = which(plas_present, useNames = TRUE))
@@ -536,7 +537,7 @@ pandoc.table(as.data.frame(tab), style = "rmarkdown",
 And lastly, we take a look at the feature found in plasma and capillary blood
 samples, but not in venous blood:
 
-```{r present-features_ven_plas, echo = FALSE, results = "asis"}
+```{r present-features_cap_plas, echo = FALSE, results = "asis"}
 
 ## Write result table
 tab <- only_capplas[, c("name", "mzmed", "rtmed")]
