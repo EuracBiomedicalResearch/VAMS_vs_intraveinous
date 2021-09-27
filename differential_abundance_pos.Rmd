@@ -1102,10 +1102,149 @@ legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
 save(res_pos, file = paste0(RDATA_PATH, "res_pos.RData"))
 ```
 
-# Session information
 
-The versions of R and the individually used packges are listed below.
+# Known sex-related compounds
 
+In a next step, we looked for known sex-related compounds in the literature and
+sub-set our list of lab-internal standards.
+
+```{r std-subset, echo = FALSE}
+sex_related_features <- subset(
+    md, md$name %in% c("5-Oxoproline", "Acetylcarnitine", "Alanine", "Arginine",
+"Asparagine", "L-Aspartic Acid", "C4 Carnitine", "C5 Carnitine", "Caffeine",
+"L-Carnitine", "Creatine", "Creatinine", "ADMA", "Glutamine", "Glucose", 
+"Glutamine", "Glycine", "Glycero-phosphocholine", "Glycine", "Histidine",
+"Hypoxanthine", "C4 Carnitine", "Isoleucine", "C5 Carnitine", "Leucine",
+"Lysine", "Methionine", "Methioninesulfoxide", "Acetylhistidine", "Ornithine",
+"Palmitoylcarnitine", "Phenylalanine", "Taurine", "Threonine", "Tryptophan",
+"Tyrosine", "Valine"))
+```
+
+The sex-related compounds are summarized in this table:
+
+```{r result-table-ft-std, echo = FALSE, results = "asis"}
+## Write result table
+
+pandoc.table(sex_related_features[, c("name", "HMDB")],
+             style = "rmarkdown", caption = "Sex-related compounds known from 
+             literature.")
+```
+Next, only the features assigned to these compounds are taken into consideration
+and are subsetted in the `std_res_MF` object.
+
+```{r std-subset, echo = FALSE}
+std_res_MF <- query(mo)
+rowData(std_res_MF) <- cbind(rowData(std_res_MF),
+                          md[rownames(std_res_MF), c("name", "HMDB")])
+```
+
+The subsetting reduced the number of features to `r length(std_res_MF)`. 
+
+A PCA analysis is then performed on the subset to verify whether anything has
+changed and if any similarities among the samples are visible or not.
+
+```{r standards-pca-all, echo = FALSE}
+pc <- prcomp(t(log2(assay(std_res_MF, "normalized_filled_imputed"))),
+                 center = TRUE, scale. = FALSE)
+```
+
+```{r standards-pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on intensities of known sex-related compounds.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
+par(mfrow = c(1, 2))
+plot_pca(pc, col = paste0(col_source[as.character(std_res_MF$source)], 90),
+         pc_x = 1, pc_y = 2, labels = std_res$differentiation)
+plot_pca(pc, col = paste0(col_source[as.character(std_res_MF$source)], 90),
+         pc_x = 3, pc_y = 4)
+legend("topleft", col = col_source, legend = names(col_source),
+       title = "phenotype", pch = 16, ncol = 2)
+```
+We then exclude the `RBC` samples from our analysis, as these samples showed
+a noisy signal beforehand. We also store them separately in a 
+`SummarizedExperiment` object.
+
+```{r split-qc, echo = TRUE}
+res_rbc <- res_pos[, res_pos$source == "RBC"]
+std_res_MF <- std_res_MF[, std_res_MF$source != "RBC"]
+```
+
+Subsequently, we re-perfom the PCA analysis:
+
+```{r standards-pca-all, echo = FALSE}
+pc <- prcomp(t(log2(assay(std_res_MF, "normalized_filled_imputed"))),
+                 center = TRUE, scale. = FALSE)
+```
+
+```{r standards-pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on intensities of known sex-related compounds.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
+
+par(mfrow = c(1, 2))
+plot_pca(pc, col = paste0(col_sex[as.character(std_res_MF$sex)], 90),
+         pc_x = 1, pc_y = 2, labels = std_res$differentiation)
+plot_pca(pc, col = paste0(col_sex[as.character(std_res_MF$sex)], 90),
+         pc_x = 3, pc_y = 4)
+legend("topleft", col = col_sex, legend = names(col_sex),
+       title = "phenotype", pch = 16, ncol = 2)
+```
+We then subset according to the sample sources, to get a better resolution
+of a possible gender effect.
+
+```{r source-subset 2, echo = FALSE}
+res_cap = std_res_MF[, std_res_MF$source == "capillary"]
+res_ven = std_res_MF[, std_res_MF$source == "venous"]
+res_plas = std_res_MF[, std_res_MF$source == "plasma"]
+
+```
+
+Then, we perform a PCA for the capillary blood samples:
+
+```{r standards-pca-all, echo = FALSE}
+pc <- prcomp(t(log2(assay(res_cap, "normalized_filled_imputed"))),
+                 center = TRUE, scale. = FALSE)
+```
+
+```{r standards-pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on intensities of known sex-related compounds.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
+
+par(mfrow = c(1, 2))
+plot_pca(pc, col = paste0(col_sex[as.character(res_cap$sex)], 90),
+         pc_x = 1, pc_y = 2, labels = std_res$differentiation)
+plot_pca(pc, col = paste0(col_sex[as.character(res_cap$sex)], 90),
+         pc_x = 3, pc_y = 4)
+legend("topleft", col = col_sex, legend = names(col_sex),
+       title = "phenotype", pch = 16, ncol = 2)
+```
+Then, we perform the analysis on the venous blood samples:
+
+```{r standards-pca-all, echo = FALSE}
+pc <- prcomp(t(log2(assay(res_ven, "normalized_filled_imputed"))),
+                 center = TRUE, scale. = FALSE)
+```
+
+```{r standards-pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on intensities of known sex-related compounds.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
+
+par(mfrow = c(1, 2))
+plot_pca(pc, col = paste0(col_sex[as.character(res_ven$sex)], 90),
+         pc_x = 1, pc_y = 2, labels = std_res$differentiation)
+plot_pca(pc, col = paste0(col_sex[as.character(res_ven$sex)], 90),
+         pc_x = 3, pc_y = 4)
+legend("topleft", col = col_sex, legend = names(col_sex),
+       title = "phenotype", pch = 16, ncol = 2)
+```
+
+And lastly, a PCA on plasma samples was performed:
+
+```{r standards-pca-all, echo = FALSE}
+pc <- prcomp(t(log2(assay(res_plas, "normalized_filled_imputed"))),
+                 center = TRUE, scale. = FALSE)
+```
+
+```{r standards-pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on intensities of known sex-related compounds.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
+
+par(mfrow = c(1, 2))
+plot_pca(pc, col = paste0(col_sex[as.character(res_plas$sex)], 90),
+         pc_x = 1, pc_y = 2, labels = std_res$differentiation)
+plot_pca(pc, col = paste0(col_sex[as.character(res_plas$sex)], 90),
+         pc_x = 3, pc_y = 4)
+legend("topleft", col = col_sex, legend = names(col_sex),
+       title = "phenotype", pch = 16, ncol = 2)
+```
 ```{r}
 sessionInfo()
 ```
