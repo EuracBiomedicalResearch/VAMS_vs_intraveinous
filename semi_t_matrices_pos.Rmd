@@ -513,6 +513,7 @@ pandoc.table(tab, style = "rmarkdown",
              caption = "Features only present in capillary blood samples")
 
 ```
+
 Three of those features, **Methioninesulfoxide** , **Phosphorylethanolamine** 
 and **Carnosine** were also found to be only present in capillary blood samples
 in the analysis of negative polarity.
@@ -523,6 +524,7 @@ for Methioninesulfoxide:
 ```{r extraction-MS1-spectrum-Methioninesulfoxide, echo = FALSE}
 ## Define the ID of the feature.
 ft <- rownames(std_res)[rowData(std_res)$name == "Methioninesulfoxide"]
+ft_mz <- rowData(std_res)[ft, "mzmed"]
 
 ## Restrict to files for the present analysis
 data <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
@@ -536,6 +538,9 @@ library(MsCoreUtils)
 ft_sps <- featureSpectra(data, msLevel = 1L, return.type = "Spectra",
                          features = ft, method = "closest_rt",
                          skipFilled = FALSE)
+
+## Extract also the EIC
+ft_chr <- featureChromatograms(data, expandRt = 5, features = ft)
 
 ## Get a spectrum for a plasma sample
 sp_plas <- ft_sps[pData(data)$source[ft_sps$fromFile] == "plasma"][1L]
@@ -556,28 +561,97 @@ label_fun <- function(x) {
 
 ```
 
+```{r MS1-EIC-Methioninesulfoxide, fig.path = IMAGE_PATH, fig.cap = "EIC of Methioninesulfoxide.", echo = FALSE, eval = TRUE}
+plot_eic <- function(x) {
+    col_sample <- col_source[x$source]
+    col_peak <- col_sample[chromPeaks(x)[, "sample"]]
+    plot(x, col = paste0(col_sample, 80),
+         peakBg = paste0(col_peak, 10), peakCol = paste0(col_peak, 40))
+    legend("topright", col = col_source[c("plasma", "capillary", "venous")],
+           legend = c("plasma", "capillary", "venous"), pch = 15)
+}
+plot_eic(ft_chr)
+```
+
 
 ```{r MS1-spectrum-Methioninesulfoxide, fig.path = IMAGE_PATH, fig.cap = "MS1 spectra of Methioninesulfoxide in a plasma sample (left), in a capillary blood sample (mid) and in a venous blood sample (right).", echo = FALSE, eval = TRUE}
-par(mfrow = c(1, 3))
-plotSpectra(sp_plas, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
-
-plotSpectra(sp_cap, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
-
-plotSpectra(sp_ven, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
+plot_ms1_single_sample <- function() {
+    par(mfrow = c(2, 3), mar = c(3.5, 3.5, 1.5, 0.5))
+    plotSpectra(sp_plas, labels = label_fun, labelPos = 4, labelOffset = 0.2,
+                labelSrt = 30)
+    grid()
+    abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+    legend("topright", "plasma")
+    plotSpectra(sp_cap, labels = label_fun, labelPos = 4, labelOffset = 0.2,
+                labelSrt = 30)
+    grid()
+    abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+    legend("topright", "capillary")
+    plotSpectra(sp_ven, labels = label_fun, labelPos = 4, labelOffset = 0.2,
+                labelSrt = 30)
+    grid()
+    abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+    legend("topright", "venous")
+    
+    ## Focus on peak
+    plotSpectra(sp_plas, labels = label_fun, labelPos = 4, labelOffset = 0.2,
+                labelSrt = 30, xlim = ft_mz + c(-50, 50))
+    grid()
+    abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+    legend("topright", "plasma")
+    plotSpectra(sp_cap, labels = label_fun, labelPos = 4, labelOffset = 0.2,
+                labelSrt = 30, xlim = ft_mz + c(-50, 50))
+    grid()
+    abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+    legend("topright", "capillary")
+    plotSpectra(sp_ven, labels = label_fun, labelPos = 4, labelOffset = 0.2,
+                labelSrt = 30, xlim = ft_mz + c(-50, 50))
+    grid()
+    abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+    legend("topright", "venous")
+}
+plot_ms1_single_sample()
 ```
+
 The MS1 spectrum of Methioninesulfoxide on the left side, which derives from
 a plasma sample, shows only no or low signal at the rt the feature should be
 around, same can be observed in the MS1 spectrum derived from a venous blood
 sample (right).
+
+In addition to plotting a representative spectrum for each sample matrix we
+aggregate the MS1 spectra per source matrix and compare those.
+
+```{r MS1-spectrum-Methioninesulfoxide-aggregated, fig.path = IMAGE_PATH, fig.cap = "Aggregated MS1 spectra of Methioninesulfoxide in the 3 sample matrices.", echo = FALSE, eval = TRUE}
+plot_aggregated_spectra <- function(x, target_mz, mzdiff = 3) {
+    x$source <- droplevels(
+        factor(pData(data)$source[x$fromFile],
+               levels = c("plasma", "capillary", "venous")))
+    
+    ## Aggregate spectra keeping only peaks present in 1/3 of samples
+    ft_sps_agg <- combineSpectra(x, f = x$source, p = x$source,
+                                 peaks = "intersect", minProp = 1/3, ppm = 10,
+                                 intensityFun = median, mzFun = median)
+    par(mfrow = c(2, length(ft_sps_agg)), mar = c(3.4, 3.5, 1.5, 0.5))
+    for (i in seq_along(ft_sps_agg)) {
+        plotSpectra(ft_sps_agg[i], labels = label_fun, labelPos = 4,
+                    labelOffset = 0.2, labelSrt = 30)
+        grid()
+        abline(v = target_mz, lty = 3, col = "#ff000060", lwd = 2)
+        legend("topright", legend = ft_sps_agg$source[i])
+    }
+    ft_sps_agg <- filterMzRange(ft_sps_agg, mz = target_mz + c(-mzdiff, mzdiff))
+    for (i in seq_along(ft_sps_agg)) {
+        if (lengths(ft_sps_agg[i]) > 1)
+            plotSpectra(ft_sps_agg[i], labels = label_fun, labelPos = 4,
+                        labelOffset = 0.2, labelSrt = 30)
+        else plotSpectra(ft_sps_agg[i])
+        grid()
+        abline(v = target_mz, lty = 3, col = "#ff000060", lwd = 2)
+        legend("topright", legend = ft_sps_agg$source[i])
+    }
+}
+plot_aggregated_spectra(ft_sps, target_mz = ft_mz)
+```
 
 We now extract the (full) MS1 spectrum at the features' (peaks') apex position
 for Phosphorylethanolamine:
@@ -585,19 +659,16 @@ for Phosphorylethanolamine:
 ```{r extraction-MS1-spectrum-Phosphorylethanolamine, echo = FALSE}
 ## Define the ID of the feature.
 ft <- rownames(std_res)[rowData(std_res)$name == "Phosphorylethanolamine"]
-
-## Restrict to files for the present analysis
-data <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
-                   keepFeatures = TRUE)
-
-library(Spectra)
-library(MsCoreUtils)
+ft_mz <- rowData(std_res)[ft, "mzmed"]
 
 ## Extract for each sample the MS1 spectrum with the retention time closest
 ## to the apex position of the chromatographic peak
 ft_sps <- featureSpectra(data, msLevel = 1L, return.type = "Spectra",
                          features = ft, method = "closest_rt",
                          skipFilled = FALSE)
+
+## Extract also the EIC
+ft_chr <- featureChromatograms(data, expandRt = 5, features = ft)
 
 ## Get a spectrum for a plasma sample
 sp_plas <- ft_sps[pData(data)$source[ft_sps$fromFile] == "plasma"][1L]
@@ -607,36 +678,32 @@ sp_cap <- ft_sps[pData(data)$source[ft_sps$fromFile] == "capillary"][1L]
 
 sp_ven <- ft_sps[pData(data)$source[ft_sps$fromFile] == "venous"][1L]
 
-
-## Plot labeling peaks with intensity > 2000 with their m/z
-label_fun <- function(x) {
-    ints <- unlist(intensity(x))
-    mzs <- format(unlist(mz(x)), digits = 4)
-    mzs[ints < 2000] <- ""
-    mzs
-}
-
 ```
 
+```{r MS1-EIC-Phosphorylethanolamine, fig.path = IMAGE_PATH, fig.cap = "EIC of Phosphorylethanolamine.", echo = FALSE, eval = TRUE}
+plot_eic(ft_chr)
+```
+
+Only in capillary samples chromatographic peaks were detected. Some venous
+samples also show comparable signal.
 
 ```{r MS1-spectrum-Phosphorylethanolamine, fig.path = IMAGE_PATH, fig.cap = "MS1 spectra of Phosphorylethanolamine in a plasma sample (left), in a capillary blood sample (mid) and in a venous blood sample (right).", echo = FALSE, eval = TRUE}
-par(mfrow = c(1, 3))
-plotSpectra(sp_plas, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
-
-plotSpectra(sp_cap, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
-
-plotSpectra(sp_ven, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
+plot_ms1_single_sample()
 ```
-For Phosphorylethanolamine a peak can be seen in all three matrices.
+
+For Phosphorylethanolamine a peak can be seen in the capillary and venous
+samples, but not in the plasma sample.
+
+In addition to plotting a representative spectrum for each sample matrix we
+aggregate the MS1 spectra per source matrix and compare those.
+
+```{r MS1-spectrum-Phosphorylethanolamine-aggregated, fig.path = IMAGE_PATH, fig.cap = "Aggregated MS1 spectra of Phosphorylethanolamine in the 3 sample matrices.", echo = FALSE, eval = TRUE}
+plot_aggregated_spectra(ft_sps, target_mz = ft_mz)
+```
+
+Highest intensity was observed in capillary samples while both venous and plasma
+samples show considerably lower signal.
+
 
 We then extract the (full) MS1 spectrum at the features' (peaks') apex position
 for Carnosine:
@@ -644,19 +711,16 @@ for Carnosine:
 ```{r extraction-MS1-spectrum-Carnosine, echo = FALSE}
 ## Define the ID of the feature.
 ft <- rownames(std_res)[rowData(std_res)$name == "Carnosine"]
-
-## Restrict to files for the present analysis
-data <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
-                   keepFeatures = TRUE)
-
-library(Spectra)
-library(MsCoreUtils)
+ft_mz <- rowData(std_res)[ft, "mzmed"]
 
 ## Extract for each sample the MS1 spectrum with the retention time closest
 ## to the apex position of the chromatographic peak
 ft_sps <- featureSpectra(data, msLevel = 1L, return.type = "Spectra",
                          features = ft, method = "closest_rt",
                          skipFilled = FALSE)
+
+## Extract also the EIC
+ft_chr <- featureChromatograms(data, expandRt = 5, features = ft)
 
 ## Get a spectrum for a plasma sample
 sp_plas <- ft_sps[pData(data)$source[ft_sps$fromFile] == "plasma"][1L]
@@ -665,39 +729,31 @@ sp_plas <- ft_sps[pData(data)$source[ft_sps$fromFile] == "plasma"][1L]
 sp_cap <- ft_sps[pData(data)$source[ft_sps$fromFile] == "capillary"][1L]
 
 sp_ven <- ft_sps[pData(data)$source[ft_sps$fromFile] == "venous"][1L]
-
-
-## Plot labeling peaks with intensity > 2000 with their m/z
-label_fun <- function(x) {
-    ints <- unlist(intensity(x))
-    mzs <- format(unlist(mz(x)), digits = 4)
-    mzs[ints < 2000] <- ""
-    mzs
-}
-
 ```
 
+```{r MS1-EIC-Carnosine, fig.path = IMAGE_PATH, fig.cap = "EIC of Carnosine.", echo = FALSE, eval = TRUE}
+plot_eic(ft_chr)
+```
+
+Again, chromatographic peaks were detected in capillary samples, while in most
+venous samples, while a signal was present, no peaks were identified. No signal
+is visible in plasma samples.
 
 ```{r MS1-spectrum-Carnosine, fig.path = IMAGE_PATH, fig.cap = "MS1 spectra of Carnosine in a plasma sample (left), in a capillary blood sample (mid) and in a venous blood sample (right).", echo = FALSE, eval = TRUE}
-par(mfrow = c(1, 3))
-plotSpectra(sp_plas, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
-
-plotSpectra(sp_cap, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
-
-plotSpectra(sp_ven, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
+plot_ms1_single_sample()
 ```
+
 No peak can be observed in the MS1 spectrum of the plasma sample on the left
-side, whereas the venous samples shows peaks with very high intensity right
-next to the rt Carnosine is expected at. 
+side, whereas the a peak is present in both the venous and capillary sample.
+
+In addition to plotting a representative spectrum for each sample matrix we
+aggregate the MS1 spectra per source matrix and compare those.
+
+```{r MS1-spectrum-Carnosine-aggregated, fig.path = IMAGE_PATH, fig.cap = "Aggregated MS1 spectra of Carnosine in the 3 sample matrices.", echo = FALSE, eval = TRUE}
+plot_aggregated_spectra(ft_sps, target_mz = ft_mz)
+
+```
+
 
 Then we take a look at the feature, which is only present in plasma samples:
 
@@ -707,6 +763,7 @@ tab <- data.frame(name = only_plas[, c("name")],
 pandoc.table(as.data.frame(tab), style = "rmarkdown",
              caption = "Features only present in plasma samples")
 ```
+
 **Cystine** was only found present in plasma samples, this can also be seen in
 negative polarity.
 
@@ -716,13 +773,7 @@ for Cystine:
 ```{r extraction-MS1-spectrum-Cystine, echo = FALSE}
 ## Define the ID of the feature.
 ft <- rownames(std_res)[rowData(std_res)$name == "Cystine"]
-
-## Restrict to files for the present analysis
-data <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
-                   keepFeatures = TRUE)
-
-library(Spectra)
-library(MsCoreUtils)
+ft_mz <- rowData(std_res)[ft, "mzmed"]
 
 ## Extract for each sample the MS1 spectrum with the retention time closest
 ## to the apex position of the chromatographic peak
@@ -730,37 +781,67 @@ ft_sps <- featureSpectra(data, msLevel = 1L, return.type = "Spectra",
                          features = ft, method = "closest_rt",
                          skipFilled = FALSE)
 
+## Extract also the EIC
+ft_chr <- featureChromatograms(data, expandRt = 5, features = ft)
+
 ## Get a spectrum for a plasma sample
 sp_plas <- ft_sps[pData(data)$source[ft_sps$fromFile] == "plasma"][1L]
 
 ## Get a spectrum for a capillary sample
 sp_cap <- ft_sps[pData(data)$source[ft_sps$fromFile] == "capillary"][1L]
 
-
-## Plot labeling peaks with intensity > 2000 with their m/z
-label_fun <- function(x) {
-    ints <- unlist(intensity(x))
-    mzs <- format(unlist(mz(x)), digits = 4)
-    mzs[ints < 2000] <- ""
-    mzs
-}
-
 ```
 
-```{r MS1-spectrum-Cystine, fig.path = IMAGE_PATH, fig.width = 10 * phi, fig.height = 6, fig.cap = "MS1 spectra of Cystine in a plasma sample (left) and in a capillary blood sample (right).", echo = FALSE, eval = TRUE}
-par(mfrow = c(1, 2))
+```{r MS1-EIC-Cystine, fig.path = IMAGE_PATH, fig.cap = "EIC of Cystine.", echo = FALSE, eval = TRUE}
+plot_eic(ft_chr)
+```
+
+Chromatographic peaks have only been detected in plasma samples.
+
+```{r MS1-spectrum-Cystine, fig.path = IMAGE_PATH, fig.cap = "MS1 spectra of Cystine in a plasma sample (left) and in a capillary blood sample (right).", echo = FALSE, eval = TRUE}
+par(mfrow = c(2, 2), mar = c(3.5, 3.5, 1.5, 0.5))
 plotSpectra(sp_plas, labels = label_fun, labelPos = 4, labelOffset = 0.2,
             labelSrt = 30)
 grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
+abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+legend("topright", "plasma")
 plotSpectra(sp_cap, labels = label_fun, labelPos = 4, labelOffset = 0.2,
             labelSrt = 30)
 grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
+abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+legend("topright", "capillary")
+
+## Focus on peak
+plotSpectra(sp_plas, labels = label_fun, labelPos = 4, labelOffset = 0.2,
+            labelSrt = 30, xlim = ft_mz + c(-20, 20))
+grid()
+abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+legend("topright", "plasma")
+plotSpectra(sp_cap, labels = label_fun, labelPos = 4, labelOffset = 0.2,
+            labelSrt = 30, xlim = ft_mz + c(-20, 20))
+grid()
+abline(v = ft_mz, lty = 3, col = "#ff000060", lwd = 2)
+legend("topright", "capillary")
 ```
+
 On the left side we see the MS1 spectrum of Cystine in a plasma sample, at a
 retention time of 208 we observe a peak, which was not measured in the MS1 of
-the capillary blood sample on the right side.
+the capillary blood sample on the right side. Also, in capillary samples a very
+large number of peaks for ions with a large m/z (above 600) is present. These
+could represent *contamination* with proteins or lipids. The missing signal for
+Cystine in capillary samples could thus be (at least partially) caused by ion
+suppression.
+
+In addition to plotting a representative spectrum for each sample matrix we
+aggregate the MS1 spectra per source matrix and compare those.
+
+```{r MS1-spectrum-Cystine-aggregated, fig.path = IMAGE_PATH, fig.cap = "Aggregated MS1 spectra of Cystine in the 3 sample matrices.", echo = FALSE, eval = TRUE}
+plot_aggregated_spectra(ft_sps, target_mz = ft_mz)
+```
+
+Only a very low signal is present in capillary samples while in plasma samples a
+clear peak with a high intensity was detected.
+
 
 We then check for the features that are only present in venous blood:
 
@@ -770,6 +851,7 @@ tab <- data.frame(name = only_ven[, c("name")],
 pandoc.table(as.data.frame(tab), style = "rmarkdown",
              caption = "Features only present in venous blood samples")
 ```
+
 As we first did our analysis with a detection cutoff at 2/3 of all samples per
 matrix, dGMP was not reported as present in only venous blood, which is bizarre.
 
@@ -779,19 +861,16 @@ for dGMP:
 ```{r extraction-MS1-spectrum-dGMP, echo = FALSE}
 ## Define the ID of the feature.
 ft <- rownames(std_res)[rowData(std_res)$name == "dGMP"]
-
-## Restrict to files for the present analysis
-data <- filterFile(data_pos, match(res_pos$mzML_file, data_pos$mzML_file),
-                   keepFeatures = TRUE)
-
-library(Spectra)
-library(MsCoreUtils)
+ft_mz <- rowData(std_res)[ft, "mzmed"]
 
 ## Extract for each sample the MS1 spectrum with the retention time closest
 ## to the apex position of the chromatographic peak
 ft_sps <- featureSpectra(data, msLevel = 1L, return.type = "Spectra",
                          features = ft, method = "closest_rt",
                          skipFilled = FALSE)
+
+## Extract also the EIC
+ft_chr <- featureChromatograms(data, expandRt = 5, features = ft)
 
 ## Get a spectrum for a plasma sample
 sp_plas <- ft_sps[pData(data)$source[ft_sps$fromFile] == "plasma"][1L]
@@ -801,38 +880,31 @@ sp_cap <- ft_sps[pData(data)$source[ft_sps$fromFile] == "capillary"][1L]
 
 sp_ven <- ft_sps[pData(data)$source[ft_sps$fromFile] == "venous"][1L]
 
-
-## Plot labeling peaks with intensity > 2000 with their m/z
-label_fun <- function(x) {
-    ints <- unlist(intensity(x))
-    mzs <- format(unlist(mz(x)), digits = 4)
-    mzs[ints < 2000] <- ""
-    mzs
-}
-
 ```
 
+```{r MS1-EIC-dGMP, fig.path = IMAGE_PATH, fig.cap = "EIC of dGMP.", echo = FALSE, eval = TRUE}
+plot_eic(ft_chr)
+```
+
+In most venous samples a chromatographic peak was identified and also in some
+capillary samples. Plasma samples don't seem to yield a signal.
 
 ```{r MS1-spectrum-dGMP, fig.path = IMAGE_PATH, fig.cap = "MS1 spectra of dGMP in a plasma sample (left), in a capillary blood sample (mid) and in a venous blood sample (right).", echo = FALSE, eval = TRUE}
-par(mfrow = c(1, 3))
-plotSpectra(sp_plas, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
-
-plotSpectra(sp_cap, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
-
-plotSpectra(sp_ven, labels = label_fun, labelPos = 4, labelOffset = 0.2,
-            labelSrt = 30)
-grid()
-abline(v = rowData(std_res)[ft, "mzmed"], lty = 3, col = "#ff000060", lwd = 2)
+plot_ms1_single_sample()
 ```
-On the left side, only a small peak at low intensity can be observed, whereas
-in capillary blood (mid) and venous blood samples (right) peaks with higher
-intensity were detected for dGMP.
+
+In plasma samples (left) clearly no peak is present at the expected m/z whereas
+in both capillary and venous samples a peak is present.
+
+In addition to plotting a representative spectrum for each sample matrix we
+aggregate the MS1 spectra per source matrix and compare those.
+
+```{r MS1-spectrum-dGMP-aggregated, fig.path = IMAGE_PATH, fig.cap = "Aggregated MS1 spectra of dGMP in the 3 sample matrices.", echo = FALSE, eval = TRUE}
+plot_aggregated_spectra(ft_sps, target_mz = ft_mz)
+```
+
+No peak is present in plasma samples, while in both capillary and venous samples
+a peak is present.
 
 Next, we want to identify the features that are present in capillary and venous
 blood samples, but absent in plasma samples:
@@ -1035,6 +1107,34 @@ While **Valine** and **Methionine** show comparable intensities in plasma and
 venous blood samples, **Creatine** levels are higher in venous blood compared
 to both plasma and capillary blood samples. 
 
+```{r echo = FALSE}
+summary_plots <- function(x, tab) {
+    dr <- paste0(IMAGE_PATH, x, "/")
+    dir.create(dr, recursive = TRUE, showWarning = FALSE)
+    for (i in seq_len(nrow(tab))) {
+        ft <- rownames(tab)[i]
+        name <- tab$name[i]
+        ft_mz <- rowData(std_res)[ft, "mzmed"]
+        ft_sps <- featureSpectra(data, msLevel = 1L, return.type = "Spectra",
+                                 features = ft, method = "closest_rt",
+                                 skipFilled = FALSE)
+        ft_chr <- featureChromatograms(data, expandRt = 5, features = ft)
+        png(file = paste0(dr, name, "_", ft, "_EIC.png"),
+            width = 6 * phi, height = 6, units = "in", res = 300,
+            pointsize = 12)
+        plot_eic(ft_chr)
+        dev.off()
+        png(file = paste0(dr, name, "_", ft, "_MS1.png"),
+            width = 6 * phi, height = 6, units = "in", res = 300,
+            pointsize = 12)
+        plot_aggregated_spectra(ft_sps, ft_mz)
+        dev.off()
+    }
+}
+
+summary_plots("CapvsVen", tab)
+```
+
 
 ### Capillary *vs* plasma
 
@@ -1076,6 +1176,10 @@ capillary and venous blood samples compared to plasma samples.
 Of the `r sum(rowData(std_res)$significant)` significant features, six showed
 a higher intensity in plasma: **Cystine**, **Valine**, **Arginine**, 
 **Fructose, Glucose, Mannose**, **Methylhistidine** and **Methionine**.
+
+```{r, echo = FALSE}
+summary_plots("CapvsPlas", tab)
+```
 
 
 ### Venous *vs* plasma
@@ -1119,6 +1223,10 @@ significant difference in intensity between plasma and venous blood samples,
 only six have a higher intensity in plasma samples:
 **Hydroxyproline**, **Isoleucine, Leucine**, **Arginine**, **Tryptophan**,
 **Fructose, Glucose, Mannose** and **Cystine**.
+
+```{r, echo = FALSE}
+summary_plots("VenvsPlas", tab)
+```
 
 
 Finally, we take a look at the overlap of features that show a significant 
