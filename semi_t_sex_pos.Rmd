@@ -40,7 +40,7 @@ set.seed(123)
 ## Setting golden ratio to save images
 phi <- (1+sqrt(5))/2
 
-FILE_NAME <- "differential_abundance_pos"
+FILE_NAME <- "semi_t_sex_pos"
 
 ## Define paths:
 IMAGE_PATH <- paste0("images/", FILE_NAME, "/")
