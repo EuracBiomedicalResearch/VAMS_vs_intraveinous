@@ -25,7 +25,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE)
 ```
 
 <!--
-**Modified**: `r file.info("differential_abundance_pos.Rmd")$mtime`<br />
+**Modified**: `r file.info("semi_t_sex_pos.Rmd")$mtime`<br />
 **Compiled**: `r date()`
 -->
 
@@ -722,14 +722,14 @@ for (i in seq_len(nrow(tmp))) {
 }
 ```
 
-![](images/differential_abundance_pos/standards-beeswarm-cap/FT1481_SAH.png)
+![](images/semi_t_sex_pos/standards-beeswarm-cap/FT1481_SAH.png)
 In our data, the SAH levels in male samples are higher then in female samples.
 
-![](images/differential_abundance_pos/standards-beeswarm-cap/FT0312_Citrulline.png)
+![](images/semi_t_sex_pos/standards-beeswarm-cap/FT0312_Citrulline.png)
 Also, the intensity of Citrulline and L-Aspartic acid peaks are higher in male 
 compared to female samples.
 
-![](images/differential_abundance_pos/standards-beeswarm-cap/FT0168_L-Aspartic Acid.png)
+![](images/semi_t_sex_pos/standards-beeswarm-cap/FT0168_L-Aspartic Acid.png)
 
 We than look for significant features in venous blood samples: 
 
@@ -847,8 +847,8 @@ for (i in seq_len(nrow(tmp))) {
 }
 ```
 
-![](images/differential_abundance_pos/standards-beeswarm-cap/FT0168_L-Aspartic Acid.png)
-![](images/differential_abundance_pos/standards-beeswarm-ven/FT0527_C5 Carnitine.png)
+![](images/semi_t_sex_pos/standards-beeswarm-cap/FT0168_L-Aspartic Acid.png)
+![](images/semi_t_sex_pos/standards-beeswarm-ven/FT0527_C5 Carnitine.png)
 Also these two metabolites show higher levels in male samples when compared
 to female samples.
 
@@ -965,21 +965,21 @@ for (i in seq_len(nrow(tmp))) {
 Below we evaluate the EIC of the assigned feature for the most interesting
 metabolites. Assignment of the feature *FT1481* to SAH seems to be OK:
 
-![](images/differential_abundance_pos/standards/SAH-FT1481.png)
+![](images/semi_t_sex_pos/standards/SAH-FT1481.png)
 
 Also the selected feature for Citrulline seems to be OK:
 
-![](images/differential_abundance_pos/standards/Citrulline-FT0312.png)
+![](images/semi_t_sex_pos/standards/Citrulline-FT0312.png)
 
 The chromatographic peak for the features assigned to L-Aspartic Acid looks
 clean, but also another peak/feature is close by.
 
-![](images/differential_abundance_pos/standards/L-Aspartic Acid-FT0168.png)
+![](images/semi_t_sex_pos/standards/L-Aspartic Acid-FT0168.png)
 
 The retention time of the feature for C5-Carnitine is shifted by about 10
 seconds, which could make this assignment also questionable.
 
-![](images/differential_abundance_pos/standards/C5 Carnitine-FT0527.png)
+![](images/semi_t_sex_pos/standards/C5 Carnitine-FT0527.png)
 
 At last we compare the concentrations for these metabolites in male and female
 participants across all 3 matrices.

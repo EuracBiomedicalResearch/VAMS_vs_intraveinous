@@ -737,9 +737,9 @@ for (i in seq_len(nrow(tmp))) {
 }
 ```
 
-![](images/differential_abundance_neg/standards-beeswarm/FT00785_Gluconic Acid.png)
-![](images/differential_abundance_neg/standards-beeswarm/FT00628_homovanillic acid.png)
-![](images/differential_abundance_neg/standards-beeswarm/FT00383_Allantoin.png)
+![](images/semi_t_sex_neg/standards-beeswarm/FT00785_Gluconic Acid.png)
+![](images/semi_t_sex_neg/standards-beeswarm/FT00628_homovanillic acid.png)
+![](images/semi_t_sex_neg/standards-beeswarm/FT00383_Allantoin.png)
 
 The top three features with smallest p-value all show a higher concentration in
 male samples compared to the female ones.
@@ -860,7 +860,7 @@ for (i in seq_len(nrow(tmp))) {
 }
 ```
 
-![](images/differential_abundance_neg/standards-beeswarm-ven/FT00785_Gluconic Acid.png)
+![](images/semi_t_sex_neg/standards-beeswarm-ven/FT00785_Gluconic Acid.png)
 
 Like already observed in capillary blood samples, also in venous blood Gluconic
 Acid shows a higher concentration in male samples.
@@ -982,9 +982,9 @@ for (i in seq_len(nrow(tmp))) {
 }
 ```
 
-![](images/differential_abundance_neg/standards-beeswarm-plas/FT00628_homovanillic acid.png)
+![](images/semi_t_sex_neg/standards-beeswarm-plas/FT00628_homovanillic acid.png)
 
-![](images/differential_abundance_neg/standards-beeswarm-plas/FT01310_Cystine.png)
+![](images/semi_t_sex_neg/standards-beeswarm-plas/FT01310_Cystine.png)
 
 Both features show a higher intensity in male samples compared to female ones.
 
