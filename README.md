@@ -39,33 +39,27 @@ Data preprocessing and normalization:
   the negative polarity data.
 - [vams_normalization.Rmd](vams_normalization.Rmd): performs the normalization
   of the feature abundances (positive polarity).
-- [vams_normalziation_neg.Rmd](vams_normalization_neg.Rmd): normalization of the
-  negative polarity data.
+- [vams_normaliziation_neg.Rmd](vams_normalization_neg.Rmd): normalization of
+  the negative polarity data.
 
 Differences between matrices:
 
-- [vams_matrix_pos.Rmd](vams_matrix_pos.Rmd): analysis of the matrix specific
-  effects (positive polarity).
-- [vams_matrix_neg.Rmd](vams_matrix_neg.Rmd): matrix specific effects for
-  negative polarity data.
-- [vams_matrix_pos_semtar.Rmd](vams_matrix_pos_semtar.Rmd): *semi-targeted*
-  analysis for the matrix specific effects (positive polarity). The analysis is
-  restricted to features potentially measuring ~ 120 *standards* that were
-  measured previously and for which approximate retention times are available.
-- [vams_matrix_neg_semtar.Rmd](vams_matrix_neg_semtar.Rmd): *semi-targeted*
-  analysis for the matrix specific effects (negative polarity).
+- [semi_t_matrices_pos.Rmd](semi_t_matrices_pos.Rmd): semi-targeted analysis of
+  the matrix specific effects (positive polarity).
+- [semi_t_matrices_neg.Rmd](semi_t_matrices_neg.Rmd): semi-targeted analysis of
+  matrix specific effects for negative polarity data.
 
 Differences between male and female individuals:
 
-- [vams_sex_pos.Rmd](vams_sex_pos.Rmd): analysis to identify features with
-  significant abundances between male and female participants.
-- [vams_sex_neg.Rmd](vams_sex_neg.Rmd): analysis to identify features with
-  significant abundances between male and female participants, negative polarity
-  data.
-- [vams_sex_pos_semtar.Rmd](vams_sex_pos_semtar.Rmd): *semi-targeted* analysis
-  for the sex differences, positive polarity.
-- [vams_sex_neg_semtar.Rmd](vams_sex_neg_semtar.Rmd): *semi-targeted* analysis
-  for the sex differences, negative polarity.
+- [semi_t_sex_pos.Rmd](semi_t_sex_pos.Rmd): semi-targeted analysis to identify
+  features with significant abundances between male and female participants.
+- [semi_t_sex_neg.Rmd](semi_t_sex_neg.Rmd): semi-targeted analysis to identify
+  features with significant abundances between male and female participants,
+  negative polarity data.
+- [untargeted_sex_pos.Rmd](untargeted_sex_pos.Rmd): untargeted analysis for
+  difference male/female.
+- [untargeted_sex_neg.Rmd](untargeted_sex_neg.Rmd): untargeted analysis for
+  difference male/female, negative polarity.
 
 ## Required packages and setup
 
