@@ -32,7 +32,7 @@ m.cut <- 0.7      # cut-off for log2 fold change
 set.seed(123)
 ## Setting golden ratio to save images
 phi <- (1+sqrt(5))/2
-FILE_NAME <- "diff_analysis_untargeted_neg"
+FILE_NAME <- "untargeted_sex_neg"
 ## Define paths:
 IMAGE_PATH <- paste0("images/", FILE_NAME, "/")
 if (dir.exists(IMAGE_PATH)) unlink(IMAGE_PATH, recursive = TRUE, force = TRUE)
