@@ -842,6 +842,27 @@ plot_aggregated_spectra(ft_sps, target_mz = ft_mz)
 Only a very low signal is present in capillary samples while in plasma samples a
 clear peak with a high intensity was detected.
 
+In addition we extract also the MS1 spectrum closest to the average retention
+time of this feature from all files (including plasma and venous samples).
+
+```{r MS1-spectrum-Cystine-aggregated-2, fig.path = IMAGE_PATH, fig.cap = "Aggregated MS1 spectra of Cystine in the 3 sample matrices.", echo = FALSE, eval = TRUE}
+sps <- Spectra(fileNames(data))
+diff_rt <- abs(rtime(sps) - median(rtime(ft_sps)))
+diff_rt <- data.frame(index = seq_along(diff_rt), diff = diff_rt,
+                      fromFile = match(sps$dataOrigin, fileNames(data)))
+res <- vapply(split(diff_rt, diff_rt$fromFile),
+              function(x) {
+                  x$index[which.min(x$diff)]
+              }, integer(1))
+sps_all <- sps[res]
+sps_all$source <- data$source
+sps_all$fromFile <- seq_along(sps_all)
+plot_aggregated_spectra(sps_all, target_mz = ft_mz, mzdiff = 1)
+```
+
+While in plasma a peak for Cystine is present no signal is present in capillary
+or venous samples. The latter two matrices show however high signals in the
+upper m/z range.
 
 We then check for the features that are only present in venous blood:
 

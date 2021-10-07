@@ -1,0 +1,852 @@
+---
+title: "Differential abundance analysis, untargeted approach"
+subtitle: "Positive polarity"
+author: "Christa Malfertheiner"
+date: "10 July 2021"
+output:
+  BiocStyle::html_document:
+    toc: true
+    number_sections: false
+    toc_float: true
+bibliography: references.bib
+csl: biomed-central.csl
+references:
+- id: dummy
+  title: no title
+  author:
+  - family: noname
+    given: noname
+---
+
+```{r setup, echo = FALSE, results = "asis", warning = FALSE}
+library(BiocStyle)
+BiocStyle::markdown()
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+```{r parameters, echo = FALSE, warning = FALSE}
+## Set general parameters
+polarity <- "POS" # specify "POS" or "NEG"
+p.cut <- 0.05     # cut-off for significance.
+m.cut <- 0.7      # cut-off for log2 fold change
+
+set.seed(123)
+
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
+
+FILE_NAME <- "untargeted_sex_pos"
+
+## Define paths:
+IMAGE_PATH <- paste0("images/", FILE_NAME, "/")
+if (dir.exists(IMAGE_PATH)) unlink(IMAGE_PATH, recursive = TRUE, force = TRUE)
+dir.create(IMAGE_PATH, recursive = TRUE, showWarnings = FALSE)
+
+RDATA_PATH <- paste0("data/RData/", FILE_NAME, "/")
+dir.create(RDATA_PATH, recursive = TRUE, showWarnings = FALSE)
+
+RESULT_PATH <- paste0("data/results/", FILE_NAME, "/")
+dir.create(RESULT_PATH, recursive = TRUE, showWarnings = FALSE)
+```
+
+# Introduction
+
+In this document we perform the differential abundance analysis of the features
+previously identified for the *MitYOU* project, with the aim of identifying
+significant sex-related features. This task is performed by hypothesis testing,
+where we try to identify which metabolites have the most different 
+concentrations between female and male samples in plasma samples, venous and
+capillary blood samples. We follow an untargeted approach, the analysis comprises
+feature pre-filtering, exploratory analysis and differential abundance analysis
+carried out on each matrix individiously.
+
+
+# Data import
+
+First, we load the required packages and the data, after preprocessing and
+normalization. The end result of these steps is a `SummarizedExperiment` that
+contains aligned data, where features are grouped (after correspondence), and
+that have undergone gap filling, normalization by the median, linear fitting and 
+per-feature between-batch normalization to remove any unwanted variability. 
+The `SummarizedExperiment` lets us store all the information regarding the 
+normalization steps in the form of `assays`, which we are still able to access 
+to proceed with the analysis.
+
+```{r load-data, echo = FALSE, warning = FALSE}
+library(xcms)
+library(limma)
+library(pheatmap)
+library(writexl)
+library(SummarizedExperiment)
+library(RColorBrewer)
+library(MsFeatures)
+library(CompMetaboTools)
+library(pander)
+
+load("data/RData/vams_normalization_pos/res_pos.RData")
+```
+
+We assign the colours as seen before.
+
+```{r split-qc, echo = TRUE}
+res_qc <- res_pos[, res_pos$source == "all"]
+res_pos <- res_pos[, res_pos$source != "all"]
+res_pos$source <- factor(as.character(res_pos$source))
+res_pos$sex <- factor(as.character(res_pos$sex))
+
+col_source <- brewer.pal(5, name = "Set1")
+names(col_source) <- c("RBC",           #' red
+                       "plasma",        #' blue
+                       "all",           #' green
+                       "capillary",     #' purple
+                       "venous")        #' orange
+
+col_sex <- brewer.pal(4, name = "Set1") [c(1, 2, 3)]
+names(col_sex) <- c("F",           # red
+                    "M",           # blue
+                    "POOL")        # green
+
+## Setting golden ratio to save images
+phi <- (1+sqrt(5))/2
+```
+
+At last we also average the *technical* replicates for each individual to
+generate the final data set.
+
+```{r average-replicates}
+#' Average 
+averageSE <- function(x, column = character(), mainAssay = character()) {
+    if (!column %in% colnames(colData(x)))
+        stop("Column '", "' not found in 'colData' of 'x'")
+    f <- factor(colData(x)[, column], levels = unique(colData(x)[, column]))
+    ## new colData: take the first element for each replicate.
+    cd <- colData(x)[match(levels(f), f), ]
+    ## loop over the assays and average them.
+    a <- lapply(assays(x), function(z) {
+        z <- split.data.frame(t(z), f = f)
+        z <- do.call(cbind, lapply(z, colMeans, na.rm = TRUE))
+        z[is.na(z)] <- NA
+        z
+    })
+    if (length(mainAssay)) {
+        tmp <- split.data.frame(t(assay(x, mainAssay)), f = f)
+        tmp <- do.call(cbind, lapply(tmp, function(y) {
+            apply(y, MARGIN = 2, FUN = sd, na.rm = TRUE)
+        }))
+        tmp[is.na(tmp)] <- NA
+        a[[paste0(mainAssay, "_sd")]] <- tmp
+    }
+    SummarizedExperiment(assays = a, rowData = rowData(x),
+                         colData = cd, metadata = metadata(x))
+}
+
+## Average technical replicates:
+res_pos <- averageSE(res_pos, column = "source_sample",
+                     mainAssay = "normalized_filled")
+```
+
+The samples used in this analysis are listed below.
+
+```{r, echo = FALSE, results = "asis"}
+tab <- colData(res_pos)[, c("source", "sex", "age")]
+pandoc.table(as.data.frame(tab), style = "rmarkdown",
+             caption = "Samples used in this analysis")
+```
+
+
+# Feature pre-filtering
+
+Feature pre-filtering is an important step of data analysis that aims to
+reduce as much as possible the random error that occurs during the measurement
+of an analyte: during this process, features with high noise and features that
+were detected in a low number of samples are removed. As a side effect, by
+reducing the number of features that are being tested later, the pre-filtering
+reduces also the loss of power by the subsequent adjustment for multiple
+hypothesis testing.
+
+This step is fundamental, though one must be careful not to pre-filter for a
+characteristic that will be tested later: the pre-filtering must be, as a matter
+of fact, independent from later analyses.
+
+The first step of pre-filtering consists of removing features with high
+technical variance; several methods have been developed to determine which
+signals must be removed, the most common of which relies on the **relative
+standard deviation (RSD)**, which is defined as the ratio between the standard
+deviation and the mean:
+
+$RSD = \dfrac{s_{i,qc}}{\bar{m}_{i,qc}}$
+
+This value is calculated for each feature found in the pooled QC samples: when
+this is higher than 30%, the feature is removed from the dataset
+[@broadhurstGuidelinesConsiderationsUse2018].
+
+Another common approach is based on the **dispersion ratio (D-ratio)**: this is
+defined as the ratio between the sample standard deviation for the pooled QC
+samples and the sample standard deviation for the study samples (the former
+expected to represent technical variance, the latter a combination of technical
+and biological variance):
+
+$D-ratio = \dfrac{s_{i,qc}}{s_{i,sample}}$
+
+The interpretation of this value goes as follows: when the D-ratio is 0%, there
+is no technical variance in the observed measurements, whereas a D-ratio of
+100% represents only noise and no biological variance detected. A common cut-off
+for the D-ratio is 0.5, aiming at keeping features whose variation in study
+samples is twice as large as the one in QC samples
+[@broadhurstGuidelinesConsiderationsUse2018]. 
+
+For the present dataset calculate the D-ratio **separately** for each source
+(sample matrix) because the variance between sample matrices is expected to be
+very large. For each feature the mean D-ratio across the 4 sample matrices is
+used for the filtering.
+
+
+```{r filter-rsd, warning = FALSE}
+rsds <- rowRsd(assay(res_qc, "normalized_filled"))
+dratios_ven <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "venous"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_rbc <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "RBC"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_cap <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "capillary"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios_pla <- apply(
+    log2(assay(res_qc, "normalized_filled")), 1, sd, na.rm = TRUE) /
+    apply(log2(assay(res_pos[, res_pos$source == "plasma"],
+                     "normalized_filled")), 1, sd, na.rm = TRUE)
+dratios <- apply(cbind(dratios_ven, dratios_cap, dratios_pla),
+                 MARGIN = 1, mean, na.rm = TRUE)
+dratios[is.infinite(dratios)] <- NA
+```
+
+The distribution of RSD values and D-ratio is shown in the plot below:
+
+```{r filter-rsd-plot, fig.path = IMAGE_PATH, fig.width = 5 * phi, fig.height = 5, fig.cap = "Distribution of RSD values and D-ratios in the data set. The dashed vertical red line represents the cut-off value for the RSD and D-ratio, respectively.", echo = FALSE}
+par(mfrow = c(1, 2))
+plot(density(rsds, na.rm = TRUE), xlab = "RSD",
+     main = "Distribution of RSD values")
+abline(v = 0.3, col = "red", lty = 2)
+plot(density(dratios, na.rm = TRUE), xlab = "D-ratio",
+     main = "Distribution of D-ratios")
+abline(v = 0.5, col = "red", lty = 2)
+```
+
+The plot below directly compares the RSD and D-ratio for each feature.
+
+```{r filter-rsd-vs-dratio-plot, fig.path = IMAGE_PATH, fig.width = 5, fig.height = 5, fig.cap = "Direct comparison of RSD and D-ratios.", echo = FALSE}
+plot(log2(rsds), log2(dratios), xlab = expression(log[2]~RSD),
+     ylab = expression(log[2]~D-ratio), pch = 16, col = "#00000040")
+abline(v = log2(0.3), col = "red", lty = 2)
+abline(h = log2(0.5), col = "red", lty = 2)
+```
+
+The plot shows a correlation between RSD and D-ratios, though the two methods
+are not interchangeable. Below we pre-filter the data using the D-ratio.
+
+```{r do-filter}
+res <- res_pos[which(dratios < 0.5), ]
+```
+
+This reduced the data set from `r length(dratios)` to `r nrow(res)` features.
+Next, we discard the features that have not been identified in at least one
+third of the samples in any of the sample groups.
+
+```{r filter-proportion}
+keep <- moreAreValidThan(assay(res, "raw"), f = res$source, prop = 1/3)
+res <- res[keep, ]
+```
+
+The dataset has been reduced from `r length(rsds)` to `r nrow(res)` features:
+this result shows that most features have been retained even after
+pre-filtering, thus ensuring a dataset where features have a D-ratio lower than
+0.5 and have less than 70% missing values.
+
+
+# Exploratory analysis: PCA
+
+Next, we perform a PCA analysis: this allows us to gather information about any
+possible similarities among the samples, based on the measured metabolite
+intensities.
+
+```{r pca-all}
+pc <- prcomp(t(log2(assay(res, "normalized_filled_imputed"))),
+             center = TRUE, scale. = FALSE)
+```
+
+```{r pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on feature intensities.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
+par(mfrow = c(1, 2))
+plot_pca(pc, col = paste0(col_source[as.character(res$source)], 90),
+         pc_x = 1, pc_y = 2)
+plot_pca(pc, col = paste0(col_source[as.character(res$source)], 90),
+         pc_x = 3, pc_y = 4)
+legend("topleft", col = col_source, legend = names(col_source),
+       title = "phenotype", pch = 16, ncol = 2)
+```
+
+We see a clear separation by sample matrix. Also, a higher variability of RBC
+and capillary samples is visible. All plasma samples are clustered together far
+apart from the other matrices. On PC3 we have a clear separation of capillary
+samples and RBC samples while both the plasma and venous samples group together.
+
+
+# Differential abundance analysis
+
+In this section, we perform a differential abundance analysis to identify
+features that have significantly different abundances between male and female 
+samples. The analysis is based on feature-wise multiple linear regression:
+the aim of such analysis is to find the relationship between the independent
+variables (age and sex) and the response variable (signal intensity).
+In short, multiple linear regression is a form of linear regression that is used
+when there are two or more predictors.
+Multiple linear regression is preferred over separate simple linear regression
+in order to avoid wrong predictions: this could happen because the input
+variables may be correlated, which could lead to unsatisfactory results. The
+formula for multiple regression model is:
+
+$Y = \beta_0 + \beta_1x_{i1} + \beta_2x_{i2} \ldots, + \beta_px_{ip} + \epsilon$
+
+where: \
+- $Y =$ predicted value (dependent variable) \
+- $\beta_0 =$ y intercept, constant term
+- $\beta_1, \beta_2, \ldots, \beta_p =$ regression coefficients \
+- $x_i =$ independent variables \
+- $\epsilon =$ residuals.
+
+The `limma` package contains the `lmFit` function, which calculates the linear
+model that best describes the data. The results are stored in a `MArrayLM`
+(Microarray Linear Model Fit) object.
+
+This model, though, is not enough to accept whether or not there is actually a
+relationship among the response and the independent variables, therefore we must
+perform a hypothesis test: we define the *null hypothesis* as there not being
+any differences in the abundances of metabolites in male and female samples. The
+*alternative hypothesis* is therefore defined when there are differences in the
+intensities of the signals coming from the metabolites in the two different
+experimental groups.
+To accept or reject the alternative hypothesis, it is necessary to calculate the
+p-value: the function that allows us to add the results to the `MArrayLM` object
+created before is `eBayes`. The `eBayes` function computes several statistics,
+including the moderated t-test, which is defined as follows:
+
+$\dfrac{d}{s + s_0}$
+
+where \
+- $d =$ difference in two group means ($m_1 - m_2$) \
+- $s =$ pooled standard deviation \
+- $s_0 =$ small constant (it depends on the variance within the group).
+
+The constant is added to the denominator in order to avoid a division by an
+extremely low number, which would of course increase the result of the statistic
+falsely inducing us into rejecting the null hypothesis, thus considering the
+difference as significant, when it is not. When performing multiple hypothesis
+testing, though, there is a high chance of rejecting the null hypothesis when it
+is true (type I error), thus a method to control the False Discovery Rate is
+required: in this case we opted for Benjamini-Hochberg correction. In
+conclusion, the alternative hypothesis is rejected when the adjusted p-value is
+smaller than the confidence threshold that was set at the beginning of this
+document to `r p.cut`. This means we accept `r p.cut * 100`% false positives
+among the features called *significant*.
+
+```{r analysis}
+## We subset the samples per source
+res_cap = res[, res$source == "capillary"]
+res_ven = res[, res$source == "venous"]
+res_plas = res[, res$source == "plasma"]
+
+#We first have a look at the capillary blood samples
+## Factor sample source and sex
+sex <- factor(res_cap$sex)
+age <- res_cap$age
+
+## Fit the data to the desired design
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_cap, "normalized_filled_imputed")), design = dsgn)
+
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+
+```
+
+The next step involves creating a data frame that contains the results obtained
+in the code chunk above. Also, we determine whether or not a feature can be
+considered significant based on the p-value (the adjusted p-value must be below
+the threshold of `r p.cut`) and on the log2 fold change (the (absolute)
+coefficients calculated with `lmFit` must be higher than `r m.cut`).
+
+The data frame is then added to the `rowData` of the `res_cap` object.
+
+```{r result-data-frame, echo = FALSE}
+add_result <- function(x) {
+    ## Generate result data frame
+    tmp <- data.frame(
+        coef = fit$coefficient[, "MvsF"],
+        pvalue = fit$p.value[, "MvsF"],
+        adjp = p.adjust(fit$p.value[, "MvsF"], method = "BH"),
+        avg.M = rowMeans(
+            log2(assay(x, "normalized_filled_imputed")[, x$sex == "M"])),
+        avg.F = rowMeans(
+            log2(assay(x, "normalized_filled_imputed")[, x$sex == "F"]))
+    )
+    ## Evaluate which features are significant
+    tmp$significant <- abs(tmp$coef) > m.cut & tmp$adjp < p.cut
+    tmp$RSD_QC <- rsds[rownames(rowData(x))]
+    tmp$Dratio <- dratios[rownames(rowData(x))]
+    ## Add data frame to res
+    rowData(x) <- cbind(rowData(x), tmp)
+    x
+}
+
+res_cap <- add_result(res_cap)
+```
+
+We plot then the distribution of p-values, both raw and adjusted.
+
+```{r histogram, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "Distribution of raw (left) and adjusted p-values (right)."}
+par(mfrow = c(1, 2))
+hist(rowData(res_cap)$pvalue, breaks = 64, xlab = "p value",
+     main = "Distribution of raw p-values")
+hist(rowData(res_cap)$adjp, breaks = 64, xlab = expression(p[BH]~value),
+     main = "Distribution of adjusted p-values")
+```
+
+The plot shows that there is an enrichment of p-values close to 0: this
+indicates that some significant features are present in the dataset. The other
+features have p-values that are mostly randomly spread across the x-axis.
+For the adjusted p-values, we see an enrichment close to 1 and no other high
+peaks across the range of p-values, as expected.
+
+Next, we take a look at the volcano plot, in order to find the features that
+display a significant difference in signal intensity between male and female
+samples.
+
+```{r volcano, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
+plot_volcano <- function(x) {
+    par(mfrow = c(1, 1))
+    plot(rowData(x)$coef, -log10(rowData(x)$adjp),
+         xlab = expression(log[2]~difference),
+         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
+    rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+    rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+    if (any(rowData(x)$significant)) {
+        points(rowData(x)$coef[rowData(x)$significant],
+               -log10(rowData(x)$adjp[rowData(x)$significant]),
+               col = "#0000ffcc")
+    }
+}
+plot_volcano(res_cap)
+```
+
+In total `r sum(rowData(res_cap)$significant)` features were found to have a
+significant difference in abundances between the two groups. The table below
+lists these features (or the 20 features with the smallest p-values if no
+feature was found significant).
+
+```{r result-table, echo = FALSE, results = "asis"}
+res_table <- function(x) {
+    ## Write result table
+    if (any(rowData(x)$significant)) {
+        tab <- rowData(x)[rowData(x)$significant,
+                                c("mzmed", "rtmed", "coef", "adjp",
+                                  "avg.M", "avg.F", "RSD_QC", "Dratio")]
+        tab <- tab[order(tab$adjp, abs(tab$coef)), ]
+        pandoc.table(
+            as.data.frame(tab), style = "rmarkdown",
+            caption = "Features with significant differences in abundances.")
+    } else {
+        tab <- rowData(x)[order(rowData(x)$pvalue),
+                                c("mzmed", "rtmed", "coef", "adjp",
+                                  "avg.F", "avg.M", "RSD_QC", "Dratio")]
+        tab <- tab[1:20, ]
+        pandoc.table(
+            as.data.frame(tab), style = "rmarkdown",
+            caption = "Top 20 features with the smallest p-values.")
+    }
+    invisible(tab)
+}
+tab <- res_table(res_cap)
+```
+
+Next, we generate a heatmap containing only the signals from the features
+identified above to identify any similarities among samples.
+
+```{r heatmap-capillary, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features for capillary samples.", echo = FALSE}
+## Create heatmap
+tmp <- log2(assay(
+  res_cap, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+ann <- as.data.frame(colData(res_cap)[, c("source", "sex")])
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+               annotation_color = list(source = col_source,
+                                       sex = col_sex))
+```
+
+Finally, we extract EICs for all these features and save them.
+
+```{r peak-shape capillary, echo = FALSE, eval = FALSE}
+load("data/RData/vams_normalization_pos/data_pos_filled.RData")
+pData(data_pos) <- as.data.frame(pData(data_pos))
+
+chrs <- featureChromatograms(data_pos, expandRt = 2,
+                             features = rownames(tab),
+                             filled = TRUE)
+
+dr <- paste0(IMAGE_PATH, "features_cap/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+
+for (i in seq_len(nrow(chrs))) {
+    chr <- chrs[i, ]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+
+    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plotChromPeakDensity(chr, peakPch = 16,
+                         peakCol = paste0(pk_col, 80),
+                         peakBg = paste0(pk_col, 10),
+                         main = paste0(rownames(tab)[i], ": ",
+                         format(mz(chr)[1], digits = 6), "-",
+                         format(mz(chr)[2], digits = 6)),
+                         simulate = FALSE)
+dev.off()
+chr <- chr[, colnames(res)]
+chr <- chr[, seq_len(ncol(res))]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+    png(file = paste0(dr, rownames(tab)[i], ".png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plot(chr, peakPch = 16,
+         peakCol = paste0(pk_col, 80),
+         peakBg = paste0(pk_col, 10),
+         main = paste0(rownames(tab)[i], ": ",
+                       format(mz(chr)[1], digits = 6), "-",
+                       format(mz(chr)[2], digits = 6)))
+    dev.off()
+}
+```
+
+We then take a look at the venous blood samples. Since the code to perform the
+analysis is essentially identical to the one for capillary samples it is not
+shown again.
+
+```{r venous, echo = FALSE}
+#We first have a look at the capillary blood samples
+## Factor sample source and sex
+sex <- factor(res_ven$sex)
+age <- res_ven$age
+
+## Fit the data to the desired design
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_ven, "normalized_filled_imputed")), design = dsgn)
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+res_ven <- add_result(res_ven)
+```
+
+We plot then the distribution of p-values, both raw and adjusted.
+
+```{r histogram VBS, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "Distribution of raw (left) and adjusted p-values (right)."}
+par(mfrow = c(1, 2))
+hist(rowData(res_ven)$pvalue, breaks = 64, xlab = "p value",
+     main = "Distribution of raw p-values")
+hist(rowData(res_ven)$adjp, breaks = 64, xlab = expression(p[BH]~value),
+     main = "Distribution of adjusted p-values")
+```
+
+The plot shows that there is an enrichment of p-values close to 0: this
+indicates that some significant features are present in the data set. The other
+features have p-values that are mostly randomly spread across the x-axis.
+For the adjusted p-values, we see an enrichment close to 1 and around 0.3
+
+Next, we take a look at the volcano plot, in order to find the features that
+display a significant difference in signal intensity between male an female 
+samples in venous blood.
+
+```{r volcano VBS, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
+plot_volcano(res_ven)
+```
+
+In total `r sum(rowData(res_ven)$significant)` features were found to have a
+significant difference in abundances between the two groups. The table below
+lists these features (or the 20 features with the smallest p-values if no
+feature was found significant).
+
+```{r result-table VBS, echo = FALSE, results = "asis"}
+tab <- res_table(res_ven)
+```
+
+Next, we generate a heatmap containing only the signals from the features
+identified above to identify any similarities among samples.
+
+```{r heatmap-VBS, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features for venous samples.", echo = FALSE}
+## Create heatmap
+tmp <- log2(assay(
+            res_ven, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+ann <- as.data.frame(colData(res_ven)[, c("source", "sex")])
+
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+               annotation_color = list(source = col_source,
+                                   sex = col_sex))
+```
+
+```{r peak-shape VBS, echo = FALSE, eval = FALSE}
+load("data/RData/vams_normalization_pos/data_pos_filled.RData")
+pData(data_pos) <- as.data.frame(pData(data_pos))
+
+chrs <- featureChromatograms(data_pos, expandRt = 2,
+                             features = rownames(tab),
+                             filled = TRUE)
+
+dr <- paste0(IMAGE_PATH, "features_ven/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+
+for (i in seq_len(nrow(chrs))) {
+    chr <- chrs[i, ]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+
+    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plotChromPeakDensity(chr, peakPch = 16,
+                         peakCol = paste0(pk_col, 80),
+                         peakBg = paste0(pk_col, 10),
+                         main = paste0(rownames(tab)[i], ": ",
+                         format(mz(chr)[1], digits = 6), "-",
+                         format(mz(chr)[2], digits = 6)),
+                         simulate = FALSE)
+    dev.off()
+    chr <- chr[, colnames(res)]
+    chr <- chr[, seq_len(ncol(res))]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+    png(file = paste0(dr, rownames(tab)[i], ".png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plot(chr, peakPch = 16,
+         peakCol = paste0(pk_col, 80),
+         peakBg = paste0(pk_col, 10),
+         main = paste0(rownames(tab)[i], ": ",
+                       format(mz(chr)[1], digits = 6), "-",
+                       format(mz(chr)[2], digits = 6)))
+    dev.off()
+}
+```
+
+Lastly, we look at the plasma samples:
+
+```{r plasma, echo = FALSE}
+## Factor sample source and sex
+sex <- factor(res_plas$sex)
+age <- res_plas$age
+
+## Fit the data to the desired design
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_plas, "normalized_filled_imputed")), design = dsgn)
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+res_plas <- add_result(res_plas)
+
+```
+
+We plot then the distribution of p-values, both raw and adjusted.
+
+```{r histogram plasma, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 7 * phi, fig.height = 7, fig.cap = "Distribution of raw (left) and adjusted p-values (right)."}
+par(mfrow = c(1, 2))
+hist(rowData(res_plas)$pvalue, breaks = 64, xlab = "p value",
+     main = "Distribution of raw p-values")
+hist(rowData(res_plas)$adjp, breaks = 64, xlab = expression(p[BH]~value),
+     main = "Distribution of adjusted p-values")
+```
+
+The plot shows that there is an enrichment of p-values close to 0: this
+indicates that some significant features are present in the data set. The other
+features have p-values that are mostly randomly spread across the x-axis.
+For the adjusted p-values, we see an enrichment close to 1 and no other high
+peaks across the range of p-values, as expected.
+
+Next, we take a look at the volcano plot, in order to find the features that
+display a significant difference in signal intensity between male and female 
+samples in plasma.
+
+```{r volcano plasma, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
+plot_volcano(res_plas)
+```
+
+In total `r sum(rowData(res_plas)$significant)` features were found to have a
+significant difference in abundances between the two groups. The table below
+lists these features (or the 20 features with the smallest p-values if no
+feature was found significant).
+
+```{r result-table plasma, echo = FALSE, results = "asis"}
+tab <- res_table(res_plas)
+```
+
+Next, we generate a heatmap containing only the signals from the features
+identified above to identify any similarities among samples.
+
+```{r heatmap plasma, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features for plasma samples.", echo = FALSE}
+## Create heatmap
+tmp <- log2(assay(
+            res_plas, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+ann <- as.data.frame(colData(res_plas)[, c("source", "sex")])
+##pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res),
+#               annotation_color = list(group = col_group,
+#                                   sex = col_sex))
+
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+               annotation_color = list(source = col_source,
+                                   sex = col_sex))
+```
+
+```{r peak-shape-plasma, echo = FALSE, eval = FALSE}
+load("data/RData/vams_normalization_pos/data_pos_filled.RData")
+pData(data_pos) <- as.data.frame(pData(data_pos))
+
+chrs <- featureChromatograms(data_pos, expandRt = 2,
+                             features = rownames(tab),
+                             filled = TRUE)
+
+dr <- paste0(IMAGE_PATH, "features_plas/")
+dir.create(dr, recursive = TRUE, showWarnings = FALSE)
+
+for (i in seq_len(nrow(chrs))) {
+    chr <- chrs[i, ]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+
+    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plotChromPeakDensity(chr, peakPch = 16,
+                         peakCol = paste0(pk_col, 80),
+                         peakBg = paste0(pk_col, 10),
+                         main = paste0(rownames(tab)[i], ": ",
+                         format(mz(chr)[1], digits = 6), "-",
+                         format(mz(chr)[2], digits = 6)),
+                         simulate = FALSE)
+    dev.off()
+    chr <- chr[, colnames(res)]
+    chr <- chr[, seq_len(ncol(res))]
+    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
+    png(file = paste0(dr, rownames(tab)[i], ".png"),
+        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
+    plot(chr, peakPch = 16,
+         peakCol = paste0(pk_col, 80),
+         peakBg = paste0(pk_col, 10),
+         main = paste0(rownames(tab)[i], ": ",
+                       format(mz(chr)[1], digits = 6), "-",
+                       format(mz(chr)[2], digits = 6)))
+    dev.off()
+}
+```
+
+We now want to compare the list of top 100 features with the smallest p-value
+across the three sample sources. Therefore, we use the `UpSetR` package.
+
+```{r feature-comparison-top-100-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of top 100 features with lowest p-values.", echo = TRUE, eval = TRUE}
+library(UpSetR)
+top_100 <- function(x) {
+    tab <- rowData(x)[order(rowData(x)$pvalue),
+                      c("mzmed","rtmed", "coef", "adjp",
+                        "avg.F", "avg.M")]
+    as.data.frame(tab[1:100, ])
+}
+
+top_100_cap <- top_100(res_cap)
+top_100_ven <- top_100(res_ven)
+top_100_plas <- top_100(res_plas)
+
+listInput <- list(capillary = rownames(top_100_cap),
+                  venous = rownames(top_100_ven),
+                  plasma = rownames(top_100_plas))
+upset(fromList(listInput), order.by = "freq")
+```
+
+Of the top 100 features with lowest p-value, 22 were found common in capillary
+and venous blood samples, 19 in venous blood and plasma samples, 2 in capillary
+and plasma samples and one in all 3 matrices.
+
+```{r feature-comparison-heatmap, fig.path = IMAGE_PATH, fig.path = IMAGE_PATH, fig.width = 10 * phi, fig.height = 15 * phi, echo = FALSE, fig.cap = "Heatmap of coefficients for differential abundance male/female."}
+
+ids <- unique(c(rownames(top_100_cap), rownames(top_100_ven),
+                rownames(top_100_plas)))
+all_coef <- cbind(capillary = rowData(res_cap)[ids, "coef"],
+                  venous = rowData(res_ven)[ids, "coef"],
+                  plasma = rowData(res_plas)[ids, "coef"])
+
+pheatmap(all_coef)
+```
+
+Coefficients for capillary and venous samples appear to be more similar while
+for many features the coefficients in plasma samples have an opposite sign.
+
+Lastly, we compare the coefficients of all features between capillary and
+venous blood samples by plotting them against each other:
+
+```{r feature-comparison-coef-cap-ven, fip.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between capillary and venous blood samples", echo = FALSE}
+X <- rowData(res_cap)$coef
+Y <- rowData(res_ven)$coef
+plot(X, Y, 
+     xlab = expression(coef[capillary]),
+     ylab = expression(coef[venous]), 
+     pch = 16, col = "#00000040")
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
+```
+
+Then, we compare the coefficients of all features between capillary and
+plasma samples by plotting them against each other:
+
+```{r feature-comparison-coef-cap-plas, fig.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between capillary and plasma samples", echo = FALSE}
+X <- rowData(res_cap)$coef
+Y <- rowData(res_plas)$coef
+plot(X, Y, 
+     xlab = expression(coef[capillary]),
+     ylab = expression(coef[plasma]), 
+     pch = 16, col = "#00000040")
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
+```
+
+Finally, we compare the coefficients of all features between venous and
+plasma samples by plotting them against each other:
+
+```{r feature-comparison-coef-plas-ven, fig.path = IMAGE_PATH, fig.cap = "Comparison of coefficients of all features between plasma and venous blood samples", echo = FALSE}
+X <- rowData(res_plas)$coef
+Y <- rowData(res_ven)$coef
+plot(X, Y, 
+     xlab = expression(coef[plasma]),
+     ylab = expression(coef[venous]), 
+     pch = 16, col = "#00000040")
+grid()
+LM <- lm(Y ~ X)
+abline(LM)
+legend("topleft", paste0("R=", format(cor(X, Y), digits = 2)))
+```
+
+
+# Session information
+
+```{r}
+sessionInfo()
+```
