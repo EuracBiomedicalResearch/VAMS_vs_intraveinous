@@ -104,12 +104,10 @@ res_pos <- res_pos[, res_pos$source != "RBC"]
 res_pos$source <- factor(as.character(res_pos$source))
 res_pos$sex <- factor(as.character(res_pos$sex))
 
-col_source <- brewer.pal(5, name = "Set1")
-names(col_source) <- c("RBC",           #' red
-                       "plasma",        #' blue
-                       "all",           #' green
-                       "capillary",     #' purple
-                       "venous")        #' orange
+col_source <- brewer.pal(6, name = "Set1")[c(6, 1, 2)]
+names(col_source) <- c("plasma",        #' yellow
+                       "capillary",     #' red
+                       "venous")        #' blue
 
 col_sex <- brewer.pal(4, name = "Set1") [c(1, 2, 3)]
 names(col_sex) <- c("F",           # red
@@ -428,14 +426,115 @@ pandoc.table(tab, style = "rmarkdown",
 
 
 TODO:
-- [ ] volcano plots, all 3 in one plot.
-- [ ] upset plot of the significant features
+- [x] volcano plots, all 3 in one plot.
+- [x] upset plot of the significant features
 - [ ] heatmap of coefficients for features found significant in at least one
       comparison. Matrix would have 3 columns.
 - [ ] heatmap of individual log2 abundances for features found significant in at
       least one comparison.
 - [ ] discuss the plots.
 
+### Volcano plots
+
+We first evaluate features found to be significantly different between two 
+matrices visually by generating volcano plots:
+
+```{r volcano, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results for the comparison between capillary and venous samples (left), capillary and plasma samples (mid) and venous and plasma samples (right)."}
+plot_volcano <- function(x, contrast = y) {
+    X <- rowData(x)[, paste0("coef.", contrast)]
+    Y <- rowData(x)[, paste0("adjp.", contrast)]
+    minp <- min(Y[Y > 0])
+    Y[Y == 0] <- minp / 100
+    Y <- -log10(Y)
+    plot(X, Y,
+         xlab = expression(log[2]~difference),
+         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
+    rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+    rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+        sigs <- rowData(x)[, paste0("significant.", contrast)]
+    if (any(sigs))
+        points(X[sigs], Y[sigs], col = "#0000ffcc")
+}
+par(mfrow = c(1, 3))
+y = "CapvsVen"
+plot_volcano(res, "CapvsVen")
+y = "CapvsPlas"
+plot_volcano(res, "CapvsPlas")
+y = "VenvsPlas"
+plot_volcano(res, "VenvsPlas")
+
+```
+
+Fewer significant features are shown in the volcano plot of the matrix 
+comparison of capillary and venous samples (left) compared to the other two
+plots. Also, both sides of the volcano plot are more balanced, whereas the
+plots of the other two comparisons show a higher abundance of significant
+features on the positive side of the log2 scale. The analyses of significant
+features of capillary samples versus plasma samples and of venous samples 
+versus plasma samples seem more comparable according to the volcano plots.
+
+### UpSetR plot of the significant features
+
+We then compare the features found to be significant in the 1 vs 1 matrix 
+comparison across all three analyses by creating an `UpSetR` plot:
+
+```{r overlap-significant-ft-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of significant features for the comparison between capillary and venous samples, capillary and plasma samples and venous and plasma samples.", echo = FALSE, eval = TRUE}
+library(UpSetR)
+
+
+listInput <- list(CapvsVen = which(rowData(res)$significant.CapvsVen, 
+                                   useNames = TRUE),
+                  CapvsPlas = which(rowData(res)$significant.CapvsPlas, 
+                                    useNames = TRUE),
+                  VenvsPlas = which(rowData(res)$significant.VenvsPlas, 
+                                    useNames = TRUE))
+upset(fromList(listInput), order.by = "freq")
+```
+
+252 of the 584 features found to be significant in at least one of the matrix 
+comparisons are shared between the comparison of capillary and plasma samples
+and the comparison between venous and plasma samples, whereas 202 features are
+shared throughout all analyses. 33 features were found to be significant when
+comparing venous against plasma samples, 5 features are only found significant 
+when capillary and plasma samples are compared and only three features are 
+linked to the comparison of capillary and venous samples exclusively.
+
+### Heatmap
+
+First, we want to plot a heatmap of the coefficients for the features that are
+found to be significant in at least one matrix comparison.
+
+```{r heatmap-coef, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of coefficients for significant features.", echo = FALSE}
+
+sig_CV <- which(rowData(res)$significant.CapvsVen, useNames = TRUE)
+sig_CP <- which(rowData(res)$significant.CapvsPlas, useNames = TRUE)
+sig_VP <- which(rowData(res)$significant.VenvsPlas, useNames = TRUE)
+
+sig_ft <- unique(c(rowData(res)[sig_CV & sig_CP & sig_VP, ]))
+
+```
+
+
+Then, we generate a heatmap of individual log2 abundances for features that are
+found significant in at least one matrix comparison.
+
+```{r heatmap-log2, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of log2 abundances for significant features.", echo = FALSE}
+
+## Create heatmap
+tmp <- log2(assay(
+  res, "normalized_filled_imputed")[rownames(sig_ft), , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+ann <- as.data.frame(colData(res)[, c("source", "sex")])
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+               annotation_color = list(source = col_source,
+                                       sex = col_sex))
+```
+
+The data is separated into two main clusters, one containing all plasma samples
+and the other containing all capillary and venous samples which indicates a 
+higher similarity between the latter ones. 
 
 ### Capillary *vs* venous
 
@@ -470,7 +569,7 @@ smallest p-values if no feature was found significant).
 ```{r result-table-CapvsVen, echo = FALSE, results = "asis"}
 res_table <- function(x, contrast) {
     ## Write result table
-    sigs <- rowData(x)[, paste0("significant.", contrast)]
+  sigs <- rowData(x)[, paste0("significant.", contrast)]
     tab <- rowData(x)[sigs,
                       c("mzmed", "rtmed", paste0("coef.", contrast),
                         paste0("adjp.", contrast),
@@ -481,6 +580,7 @@ res_table <- function(x, contrast) {
         caption = "Features with significant differences in abundances.")
     invisible(tab)
 }
+
 tab <- res_table(res, "CapvsVen")
 ```
 
