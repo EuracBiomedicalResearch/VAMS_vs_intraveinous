@@ -104,11 +104,11 @@ res_pos <- res_pos[, res_pos$source != "RBC"]
 res_pos$source <- factor(as.character(res_pos$source))
 res_pos$sex <- factor(as.character(res_pos$sex))
 
-col_source <- brewer.pal(6, name = "Set1")[c(6, 1, 2)]
+col_source <- brewer.pal(6, name = "Set1")[c(6, 2, 1)]
 names(col_source) <- c("plasma",        #' yellow
-                       "capillary",     #' red
-                       "venous")        #' blue
-
+                       "venous",        #' blue
+                       "capillary")     #' red
+                       
 col_sex <- brewer.pal(4, name = "Set1") [c(1, 2, 3)]
 names(col_sex) <- c("F",           # red
                     "M",           # blue
@@ -287,17 +287,80 @@ pc <- prcomp(t(log2(assay(res, "normalized_filled_imputed"))),
 
 ```{r pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on feature intensities.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
 par(mfrow = c(1, 2))
-plot_pca(pc, col = paste0(col_source[as.character(res$source)], 90),
-         pc_x = 1, pc_y = 2)
-plot_pca(pc, col = paste0(col_source[as.character(res$source)], 90),
-         pc_x = 3, pc_y = 4)
-legend("topleft", col = col_source, legend = names(col_source),
-       title = "phenotype", pch = 16, ncol = 2)
+col <- "#00000080"
+plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
+         pc_x = 1, pc_y = 2, pch = 21, col = col)
+legend("topright", col = col_source, legend = names(col_source),
+       pch = 16, ncol = 2)
+plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
+         pc_x = 3, pc_y = 4, pch = 21, col = col)
+
+```
+
+```{r, echo = FALSE}
+FIG_PATH <- paste0(IMAGE_PATH, "FIG/")
+dir.create(FIG_PATH, showWarnings = FALSE)
+png(paste0(FIG_PATH, "FIG_POS_PCA_untargeted.png"), width = 9, height = 4.5,
+    res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 2), mar = c(4.2, 4.5, 1.5, 1))
+plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
+         pc_x = 1, pc_y = 2, pch = 21, col = col, cex = 1.5)
+legend("topright", pt.bg = col_source, col = "#00000080",
+       legend = names(col_source), pch = 21)
+plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
+         pc_x = 3, pc_y = 4, pch = 21, col = col, cex = 1.5)
+dev.off()
+
 ```
 
 We see a clear separation by sample matrix for venous and plasma samples on PC1 
 and PC2, whereas 3 samples of the capillary blood samples are clustered apart 
 from the remaining cpillary blood samples on PC2.
+
+# Present and absent features
+
+We then wanted to check if there are compounds that are only present in some of
+the three matrices. For a metabolite to be *present* we require that a signal
+was detected by the MS instrument for that metabolite in a large fraction of
+samples of a certain sample matrix. We thus call a metabolite to be present, if
+a chromatographic peak was detected in 1/3 of the samples per matrix. Therefore,
+we use below the `raw` data of our three sample sources (which only contains
+intensity values for **detected** chromatographic peaks) and looked, which
+compounds are present in more than 1/3 of the samples.
+
+```{r Present and absent features, echo = FALSE}
+plas <- assay(res, "raw")[, res$source == "plasma"]
+plas_present <- moreAreValidThan(plas, prop = 1/3)
+
+ven <- assay(res, "raw")[, res$source == "venous"]
+ven_present <- moreAreValidThan(ven, prop = 1/3)
+
+cap <- assay(res, "raw")[, res$source == "capillary"]
+cap_present <- moreAreValidThan(cap, prop = 1/3)
+
+```
+
+We then create a plot an `UpSetR` plot to see the overlap of present features:
+
+```{r present-feature-comparison-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of present features across the 3 sample matrices.", echo = FALSE, eval = TRUE}
+
+#create an UpSetR plot
+library(UpSetR)
+listInput <- list(capillary = which(cap_present, useNames = TRUE),
+                  venous = which(ven_present, useNames = TRUE),
+                  plasma = which(plas_present, useNames = TRUE))
+upset(fromList(listInput), order.by = "freq", sets.bar.color = col_source[c("venous", "capillary", "plasma")])
+```
+
+```{r, echo = FALSE}
+dev.off()
+pdf(paste0(FIG_PATH, "FIG_POS_upset_detected_untargeted.pdf"),
+    width = 6, height = 3)
+upset(fromList(listInput), order.by = "freq",
+      sets.bar.color = col_source[c("venous", "capillary", "plasma")])
+dev.off()
+
+```
 
 
 # Differential abundance analysis
@@ -421,18 +484,9 @@ tab <- colSums(as.matrix(rowData(res)[, grep("significant",
                                              colnames(rowData(res)))]))
 pandoc.table(tab, style = "rmarkdown",
              caption = paste0("Number of significant features of the in",
-                              " total", nrow(res), "analyzed features."))
+                              " total ", nrow(res), " analyzed features."))
 ```
 
-
-TODO:
-- [x] volcano plots, all 3 in one plot.
-- [x] upset plot of the significant features
-- [ ] heatmap of coefficients for features found significant in at least one
-      comparison. Matrix would have 3 columns.
-- [ ] heatmap of individual log2 abundances for features found significant in at
-      least one comparison.
-- [ ] discuss the plots.
 
 ### Volcano plots
 
@@ -440,40 +494,60 @@ We first evaluate features found to be significantly different between two
 matrices visually by generating volcano plots:
 
 ```{r volcano, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results for the comparison between capillary and venous samples (left), capillary and plasma samples (mid) and venous and plasma samples (right)."}
-plot_volcano <- function(x, contrast = y) {
+plot_volcano <- function(x, contrast = y, main = "", xlim, ylim) {
     X <- rowData(x)[, paste0("coef.", contrast)]
     Y <- rowData(x)[, paste0("adjp.", contrast)]
     minp <- min(Y[Y > 0])
     Y[Y == 0] <- minp / 100
     Y <- -log10(Y)
+    if (missing(xlim))
+        xlim <- range(X)
+    if (missing(ylim))
+        ylim <- range(Y)
     plot(X, Y,
          xlab = expression(log[2]~difference),
-         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
+         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060",
+         xlim = xlim, ylim = ylim, main = main)
     rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
          border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
     rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
          border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
         sigs <- rowData(x)[, paste0("significant.", contrast)]
     if (any(sigs))
-        points(X[sigs], Y[sigs], col = "#0000ffcc")
+        points(X[sigs], Y[sigs], col = paste0(brewer.pal(3, "Set1")[2], "ce"))
 }
 par(mfrow = c(1, 3))
-y = "CapvsVen"
-plot_volcano(res, "CapvsVen")
-y = "CapvsPlas"
-plot_volcano(res, "CapvsPlas")
-y = "VenvsPlas"
-plot_volcano(res, "VenvsPlas")
-
+XL <- c(-15, 15)
+YL <- c(0, 60)
+plot_volcano(res, "CapvsVen", xlim = XL, ylim = YL,
+             main = "Capillary vs Venous")
+grid()
+plot_volcano(res, "CapvsPlas", xlim = XL, ylim = YL,
+             main = "Capillary vs Plasma")
+grid()
+plot_volcano(res, "VenvsPlas", xlim = XL, ylim = YL,
+             main = "Venous vs Plasma")
+grid()
 ```
 
-Fewer significant features are shown in the volcano plot of the matrix 
-comparison of capillary and venous samples (left) compared to the other two
-plots. Also, both sides of the volcano plot are more balanced, whereas the
-plots of the other two comparisons show a higher abundance of significant
-features on the positive side of the log2 scale. The analyses of significant
-features of capillary samples versus plasma samples and of venous samples 
-versus plasma samples seem more comparable according to the volcano plots.
+```{r, echo = FALSE}
+png(paste0(FIG_PATH, "FIG_POS_volcano_untargeted.png"),
+    width = 12, height = 4, units = "cm", res = 600, pointsize = 6)
+par(mfrow = c(1, 3), mar = c(4, 4.2, 1.5, 0.5))
+XL <- c(-15, 15)
+YL <- c(0, 60)
+plot_volcano(res, "CapvsVen", xlim = XL, ylim = YL,
+             main = "Capillary vs Venous")
+grid()
+plot_volcano(res, "CapvsPlas", xlim = XL, ylim = YL,
+             main = "Capillary vs Plasma")
+grid()
+plot_volcano(res, "VenvsPlas", xlim = XL, ylim = YL,
+             main = "Venous vs Plasma")
+grid()
+dev.off()
+
+```
 
 ### UpSetR plot of the significant features
 
@@ -481,9 +555,6 @@ We then compare the features found to be significant in the 1 vs 1 matrix
 comparison across all three analyses by creating an `UpSetR` plot:
 
 ```{r overlap-significant-ft-upset, fig.path = IMAGE_PATH, fig.cap = "Overlap of significant features for the comparison between capillary and venous samples, capillary and plasma samples and venous and plasma samples.", echo = FALSE, eval = TRUE}
-library(UpSetR)
-
-
 listInput <- list(CapvsVen = which(rowData(res)$significant.CapvsVen, 
                                    useNames = TRUE),
                   CapvsPlas = which(rowData(res)$significant.CapvsPlas, 
@@ -493,280 +564,53 @@ listInput <- list(CapvsVen = which(rowData(res)$significant.CapvsVen,
 upset(fromList(listInput), order.by = "freq")
 ```
 
-252 of the 584 features found to be significant in at least one of the matrix 
-comparisons are shared between the comparison of capillary and plasma samples
-and the comparison between venous and plasma samples, whereas 202 features are
-shared throughout all analyses. 33 features were found to be significant when
-comparing venous against plasma samples, 5 features are only found significant 
-when capillary and plasma samples are compared and only three features are 
-linked to the comparison of capillary and venous samples exclusively.
 
 ### Heatmap
 
-First, we want to plot a heatmap of the coefficients for the features that are
-found to be significant in at least one matrix comparison.
+We want to plot a heatmap for the features found to be significant in at least 
+one matrix comparison.
 
-```{r heatmap-coef, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of coefficients for significant features.", echo = FALSE}
+```{r heatmap-subset, echo = FALSE}
 
 sig_CV <- which(rowData(res)$significant.CapvsVen, useNames = TRUE)
 sig_CP <- which(rowData(res)$significant.CapvsPlas, useNames = TRUE)
 sig_VP <- which(rowData(res)$significant.VenvsPlas, useNames = TRUE)
 
-sig_ft <- unique(c(rowData(res)[sig_CV & sig_CP & sig_VP, ]))
+sig_ft <- unique(c(sig_CV, sig_CP, sig_VP))
 
 ```
 
-
-Then, we generate a heatmap of individual log2 abundances for features that are
-found significant in at least one matrix comparison.
+Therefore, we generate a heatmap of individual log2 abundances for these 
+features:
 
 ```{r heatmap-log2, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of log2 abundances for significant features.", echo = FALSE}
-
 ## Create heatmap
-tmp <- log2(assay(
-  res, "normalized_filled_imputed")[rownames(sig_ft), , drop = FALSE])
+tmp <- log2(assay(res, "normalized_filled_imputed")[sig_ft, , drop = FALSE])
 tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
-ann <- as.data.frame(colData(res)[, c("source", "sex")])
-pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
-               annotation_color = list(source = col_source,
-                                       sex = col_sex))
+ann <- data.frame(source = colData(res)[, c("source")])
+rownames(ann) <- colnames(tmp)
+pm <- pheatmap(tmp, annotation_col = ann, labels_col = res$sample,
+               annotation_color = list(source = col_source),
+               labels_row = rep("", nrow(tmp)))
 ```
+
+```{r, echo = FALSE}
+pheatmap(tmp, annotation_col = ann, labels_col = res$sample,
+         annotation_color = list(source = col_source),
+         labels_row = rep("", nrow(tmp)),
+         filename = paste0(FIG_PATH, "FIG_POS_heatmap_untargeted.png"),
+         width = 7, height = 10)
+
+```
+
 
 The data is separated into two main clusters, one containing all plasma samples
-and the other containing all capillary and venous samples which indicates a 
-higher similarity between the latter ones. 
-
-### Capillary *vs* venous
-
-We first evaluate features found to be significantly different between capillary
-and venous samples.
-
-```{r volcano-CapvsVen, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results for the comparison between capillary and venous samples."}
-plot_volcano <- function(x, contrast = "CapvsVen") {
-    par(mfrow = c(1, 1))
-    X <- rowData(x)[, paste0("coef.", contrast)]
-    Y <- rowData(x)[, paste0("adjp.", contrast)]
-    minp <- min(Y[Y > 0])
-    Y[Y == 0] <- minp / 100
-    Y <- -log10(Y)
-    plot(X, Y,
-         xlab = expression(log[2]~difference),
-         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060")
-    rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
-         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-    rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
-         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
-        sigs <- rowData(x)[, paste0("significant.", contrast)]
-    if (any(sigs))
-        points(X[sigs], Y[sigs], col = "#0000ffcc")
-}
-plot_volcano(res, "CapvsVen")
-```
-
-The table below lists the significant features (or the 20 features with the
-smallest p-values if no feature was found significant).
-
-```{r result-table-CapvsVen, echo = FALSE, results = "asis"}
-res_table <- function(x, contrast) {
-    ## Write result table
-  sigs <- rowData(x)[, paste0("significant.", contrast)]
-    tab <- rowData(x)[sigs,
-                      c("mzmed", "rtmed", paste0("coef.", contrast),
-                        paste0("adjp.", contrast),
-                        "avg.Cap", "avg.Ven", "avg.Plas", "RSD_QC", "Dratio")]
-    tab <- tab[order(tab$adjp, abs(tab$coef)), ]
-    pandoc.table(
-        as.data.frame(tab), style = "rmarkdown",
-        caption = "Features with significant differences in abundances.")
-    invisible(tab)
-}
-
-tab <- res_table(res, "CapvsVen")
-```
-
-Next, we generate a heatmap containing only the signals from the features
-identified above to identify any similarities among samples.
-
-```{r heatmap-CapvsVen, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features found to be significantly different between capillary and venous samples.", echo = FALSE}
-## Create heatmap
-tmp <- log2(assay(
-  res, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
-tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
-ann <- as.data.frame(colData(res)[, c("source", "sex")])
-pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
-               annotation_color = list(source = col_source,
-                                       sex = col_sex))
-```
-
-Finally, we extract EICs for all these features and save them.
-
-```{r peak-shape CapvsVen, echo = FALSE, eval = FALSE}
-load("data/RData/vams_normalization_pos/data_pos_filled.RData")
-pData(data_pos) <- as.data.frame(pData(data_pos))
-chrs <- featureChromatograms(data_pos, expandRt = 2,
-                             features = rownames(tab),
-                             filled = TRUE)
-dr <- paste0(IMAGE_PATH, "features_CapvsVen/")
-dir.create(dr, recursive = TRUE, showWarnings = FALSE)
-for (i in seq_len(nrow(chrs))) {
-    chr <- chrs[i, ]
-    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
-    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
-        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
-    plotChromPeakDensity(chr, peakPch = 16,
-                         peakCol = paste0(pk_col, 80),
-                         peakBg = paste0(pk_col, 10),
-                         main = paste0(rownames(tab)[i], ": ",
-                         format(mz(chr)[1], digits = 6), "-",
-                         format(mz(chr)[2], digits = 6)),
-                         simulate = FALSE)
-dev.off()
-chr <- chr[, colnames(res)]
-chr <- chr[, seq_len(ncol(res))]
-    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
-    png(file = paste0(dr, rownames(tab)[i], ".png"),
-        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
-    plot(chr, peakPch = 16,
-         peakCol = paste0(pk_col, 80),
-         peakBg = paste0(pk_col, 10),
-         main = paste0(rownames(tab)[i], ": ",
-                       format(mz(chr)[1], digits = 6), "-",
-                       format(mz(chr)[2], digits = 6)))
-    dev.off()
-}
-```
-
-### Capillary **vs** plasma
-
-We then want to compare the capillary blood samples against plasma samples. 
-Since the code to perform the analysis is essentially identical to the one for
-the comparison of capillary samples against venous samples, it is not shown 
-again.
-
-```{r volcano-VBS, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results."}
-plot_volcano(res, "CapvsPlas")
-```
-
-
-```{r result-table CapvsPlas, echo = FALSE, results = "asis"}
-tab <- res_table(res, "CapvsPlas")
-```
-
-Next, we generate a heatmap containing only the signals from the features
-identified above to identify any similarities among samples.
-
-```{r heatmap-CapvsPlas, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features found significantly different between capillary and plasma samples.", echo = FALSE}
-## Create heatmap
-tmp <- log2(assay(
-            res, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
-tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
-ann <- as.data.frame(colData(CapvsPlas)[, c("source", "sex")])
-pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
-               annotation_color = list(source = col_source,
-                                   sex = col_sex))
-```
-
-```{r peak-shape CapvsPlas, echo = FALSE, eval = FALSE}
-load("data/RData/vams_normalization_pos/data_pos_filled.RData")
-pData(data_pos) <- as.data.frame(pData(data_pos))
-chrs <- featureChromatograms(data_pos, expandRt = 2,
-                             features = rownames(tab),
-                             filled = TRUE)
-dr <- paste0(IMAGE_PATH, "features_CapvsPlas/")
-dir.create(dr, recursive = TRUE, showWarnings = FALSE)
-for (i in seq_len(nrow(chrs))) {
-    chr <- chrs[i, ]
-    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
-    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
-        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
-    plotChromPeakDensity(chr, peakPch = 16,
-                         peakCol = paste0(pk_col, 80),
-                         peakBg = paste0(pk_col, 10),
-                         main = paste0(rownames(tab)[i], ": ",
-                         format(mz(chr)[1], digits = 6), "-",
-                         format(mz(chr)[2], digits = 6)),
-                         simulate = FALSE)
-    dev.off()
-    chr <- chr[, colnames(res)]
-    chr <- chr[, seq_len(ncol(res))]
-    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
-    png(file = paste0(dr, rownames(tab)[i], ".png"),
-        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
-    plot(chr, peakPch = 16,
-         peakCol = paste0(pk_col, 80),
-         peakBg = paste0(pk_col, 10),
-         main = paste0(rownames(tab)[i], ": ",
-                       format(mz(chr)[1], digits = 6), "-",
-                       format(mz(chr)[2], digits = 6)))
-    dev.off()
-}
-```
-
-### Venous **vs** plasma
-
-Lastly, we compare plasma samples against venous blood samples:
-
-
-```{r volcano-VenvsPlas, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 10, fig.height = 10, fig.cap = "Volcano plot showing the analysis results for the comparison between venous and plasma samples."}
-plot_volcano(res, "VenvsPlas")
-```
-
-```{r result-table VenvsPlas, echo = FALSE, results = "asis"}
-tab <- res_table(res, "VenvsPlas")
-```
-
-Next, we generate a heatmap containing only the signals from the features
-identified above to identify any similarities among samples.
-
-```{r heatmap-VenvsPlas, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Heatmap of features significant between venous and plasma samples.", echo = FALSE}
-## Create heatmap
-tmp <- log2(assay(
-            res, "normalized_filled_imputed")[rownames(tab), , drop = FALSE])
-tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
-ann <- as.data.frame(colData(VenvsPlas)[, c("source", "sex")])
-##pm <- pheatmap(tmp, annotation_col = ann, labels_col = 1:ncol(res),
-#               annotation_color = list(group = col_group,
-#                                   sex = col_sex))
-pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
-               annotation_color = list(source = col_source,
-                                   sex = col_sex))
-```
-
-```{r peak-shape-VenvsPlas, echo = FALSE, eval = FALSE}
-load("data/RData/vams_normalization_pos/data_pos_filled.RData")
-pData(data_pos) <- as.data.frame(pData(data_pos))
-chrs <- featureChromatograms(data_pos, expandRt = 2,
-                             features = rownames(tab),
-                             filled = TRUE)
-dr <- paste0(IMAGE_PATH, "features_VenvsPlas/")
-dir.create(dr, recursive = TRUE, showWarnings = FALSE)
-for (i in seq_len(nrow(chrs))) {
-    chr <- chrs[i, ]
-    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
-    png(file = paste0(dr, rownames(tab)[i], "-all.png"),
-        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
-    plotChromPeakDensity(chr, peakPch = 16,
-                         peakCol = paste0(pk_col, 80),
-                         peakBg = paste0(pk_col, 10),
-                         main = paste0(rownames(tab)[i], ": ",
-                         format(mz(chr)[1], digits = 6), "-",
-                         format(mz(chr)[2], digits = 6)),
-                         simulate = FALSE)
-    dev.off()
-    chr <- chr[, colnames(res)]
-    chr <- chr[, seq_len(ncol(res))]
-    pk_col <- col_source[as.character(chr$source[chromPeaks(chr)[, "column"]])]
-    png(file = paste0(dr, rownames(tab)[i], ".png"),
-        width = 12, height = 8, units = "cm", res = 300, pointsize = 4)
-    plot(chr, peakPch = 16,
-         peakCol = paste0(pk_col, 80),
-         peakBg = paste0(pk_col, 10),
-         main = paste0(rownames(tab)[i], ": ",
-                       format(mz(chr)[1], digits = 6), "-",
-                       format(mz(chr)[2], digits = 6)))
-    dev.off()
-}
-```
+and the other containing all capillary and venous samples which indicates a
+higher similarity between the latter ones.  In the heatmap we observe a cluster
+of features that are highly abundant in capillary samples, but lower in plasma
+and/or in venous blood in the upper part, whereas in the lower part of the map a
+cluster of features, that are low in intensity in capillary blood and higher in
+intensity in plasma and venous blood.
 
 
 # Session information
