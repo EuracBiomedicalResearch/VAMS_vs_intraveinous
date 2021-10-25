@@ -352,16 +352,12 @@ listInput <- list(capillary = which(cap_present, useNames = TRUE),
 upset(fromList(listInput), order.by = "freq", sets.bar.color = col_source[c("venous", "capillary", "plasma")])
 ```
 
-```{r, echo = FALSE}
-dev.off()
-pdf(paste0(FIG_PATH, "FIG_POS_upset_detected_untargeted.pdf"),
-    width = 6, height = 3)
-upset(fromList(listInput), order.by = "freq",
-      sets.bar.color = col_source[c("venous", "capillary", "plasma")])
-dev.off()
-
-```
-
+292 of the 705 features found to be significant in at least one of the matrices 
+are shared between capillary and venous samples, whereas 206 features are
+shared throughout all matrices. 62 features were found in venous and plasma 
+samples, 13 features were found in capillary and plasma samples. 76 features
+were only present in venous samples, 43 features in capillary samples and 13
+were linked to plasma sample exclusively. 
 
 # Differential abundance analysis
 
@@ -612,6 +608,243 @@ and/or in venous blood in the upper part, whereas in the lower part of the map a
 cluster of features, that are low in intensity in capillary blood and higher in
 intensity in plasma and venous blood.
 
+# Feature grouping
+
+We now want to group the significant features that derive from the same ion 
+into one bin. This analysis is performed on a subset in three steps; we start 
+by grouping the features according to their retention time, we then proceed by 
+separating features within their groups according to their coefficients, which 
+is an indicator for the abundance of each feature, and lastly, we refine the 
+groups by similarity of their EIcs.
+
+First, we have to create a subset of the features, we want to consider for our 
+analysis:
+
+```{r subset-feature-groups}
+register(SerialParam())
+load("data/RData/vams_normalization_pos/data_pos_filled.RData")
+
+data_study <- filterFile(data_pos, match(res$mzML_file, data_pos$mzML_file),
+                         keepFeatures = TRUE)
+
+## Define the initial feature groups, i.e. assign all significant features
+## to "FG" keeping all others to NA
+fgs <- rep(NA_character_, nrow(featureDefinitions(data_study)))
+names(fgs) <- rownames(featureDefinitions(data_study))
+fgs[rownames(rowData(res))[rowData(res)$significant.CapvsVen]] <- "FG"
+featureGroups(data_study) <- fgs
+```
+
+We now group the features based on their retention time. Therefore, we evaluate
+retention times and m/z of all features in the present data set.
+
+```{r plot-retention-time, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Distribution of retention time and m/z of all features.", echo = FALSE}
+plot(featureDefinitions(data_study)$rtmed, featureDefinitions(data_study)$mzmed,
+     xlab = "retention time", ylab = "m/z", main = "features",
+     col = "#00000080")
+grid()
+```
+
+There are several features with about the same retention time but different m/z
+seen in the plot, especially at the beginning of the LC, but also at rt about
+160. Below, we group features within a retention time of 5 seconds into 
+*feature groups*.
+
+```{r}
+data_study <- groupFeatures(data_study, param = SimilarRtimeParam(5))
+```
+
+The significant features were grouped into in total
+`r length(table(featureGroups(data_study)))` groups. We now determine the size
+of each feature group (i.e. how many features are grouped together).
+
+```{r, echo = FALSE, results = "asis"}
+
+table(featureGroups(data_study))
+```
+
+In addition, we visualize these feature groups showing all features in the 
+m/z-retention time space with grouped features being connected with a line.
+
+```{r feature-grouping-retention-time, fig.path = IMAGE_PATH, fig.width = 5 * phi, fig.height = 5, fig.cap = "Feature groups defined with a retention time window of 5 seconds."}
+plotFeatureGroups(data_study)
+grid()
+```
+After this first grouping step, we evaluate the correlation of features based 
+on their (log2 transformed) abundances across samples with a heatmap.
+
+```{r feature-grouping-cormat, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of feature abundances across samples.", echo = FALSE, fig.height = 10, fig.width = 10}
+fvals <- log2(featureValues(data_study, filled = TRUE))
+
+cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+ann <- data.frame(fgroup = featureGroups(data_study))
+rownames(ann) <- rownames(cormat)
+
+res <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+                cluster_cols = TRUE)
+```
+The feature groups are divided into smaller clusters according to their log2
+transformed abundances.
+
+We then refine our feature groups using the *groupFeatures* with the
+*AbundanceSimilarityParam* to group features with a correlation higher than 0.5 
+including both detected and filled-in signal. 
+
+```{r correlation-analysis}
+data_study <- groupFeatures(data_study, AbundanceSimilarityParam(
+  threshold = 0.7, transform = log2), filled = TRUE)
+```
+
+The table below shows the significant features and their assigned feature group.
+In total `r length(table(featureGroups(data_study)))` groups have been found at
+this point.
+
+```{r, echo = FALSE, results = "asis"}
+table(featureGroups(data_study))
+```
+
+Many of the larger retention time-based feature groups have been split into 
+two or more sub-groups based on the correlation of their feature abundances. 
+We evaluate this for one specific feature group "FG.0082" by plotting their 
+pairwise correlation.
+
+```{r pairwise-correlation, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.0082.", echo = FALSE, fig.height = 10, fig.width = 10}
+fts <- grep("FG.034", featureGroups(data_study))
+pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.034")
+```
+
+Correlations can't be seen between some the features in this retention 
+time feature group.
+
+In the last step of the feature grouping analysis, we perform the grouping based
+on similarity of the EICs. The chromatographic peak shape of an ion of a 
+compound should be highly similar to the elution pattern of this compound. 
+Thus, features from the same compound are assumed to have similar peak shapes 
+of their EICs within the same sample (sneumann). 
+As peak shape correlation is computationally intense, we perform this analysis 
+on a subset of samples with highest intensity per feature abundance within a
+feature group. So, we first identify the 10 amples with highest intensity, then
+a pairwise similarity calculation is performed and the resulting similarity
+score is aggregated. If this value is greater than the cut-off threshold 0.7, 
+the peaks are assigned to the same feature group.
+
+```{r eic-similarity}
+data_study <- groupFeatures(
+    data_study, EicSimilarityParam(threshold = 0.7, n = 3))
+```
+
+The table below shows the significant features and their assigned feature group.
+In the end, the features have been split into
+`r length(table(featureGroups(data_study)))` groups.
+
+```{r, echo = FALSE, results = "asis"}
+table(featureGroups(data_study))
+```
+In most cases, pre-defined feature groups (by the abundance correlation) were 
+not further subdivided. Below we evaluate some of the feature groups, starting 
+with FG.011.001 which was split into two different feature groups based on EIC 
+correlation. We first extract the EICs for all features from this initial 
+feature group. With n = 1 we specify to extract the EIC only from the sample 
+with the highest intensity.
+
+```{r EIC-extraction-FG, echo = TRUE}
+fts <- grep("FG.011.001", featureGroups(data_study))
+eics <- featureChromatograms(data_study, features = fts,
+                             filled = TRUE, n = 1)
+```
+
+Next we plot the EICs using a different color for each of the subgroups. With 
+peakType = "none" we disable the highlighting of the detected chromatographic 
+peaks.
+
+```{r EICs-FG.011.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.011.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
+cols <- c("#ff000080", "#00ff0080")
+names(cols) <- unique(featureGroups(data_study)[fts])
+
+par(mfrow = c(1, 2))
+plotChromatogramsOverlay(eics, col = cols[featureGroups(data_study)[fts]],
+                         lwd = 2, peakType = "none")
+plotChromatogramsOverlay(normalize(eics),
+                         col = cols[featureGroups(data_study)[fts]],
+                         lwd = 2, peakType = "none")
+```
+On the left side we see the actual intensities, the normalized are shown on the
+right.
+
+We evaluate next the sub-grouping in another feature group.
+
+```{r EIC-extraction-FG2, echo = TRUE}
+fts <- grep("FG.080.001", featureGroups(data_study))
+eics <- featureChromatograms(data_study, features = fts,
+                             filled = TRUE, n = 1)
+```
+
+Next we plot the EICs using a different color for each of the subgroups. With 
+peakType = "none" we disable the highlighting of the detected chromatographic 
+peaks.
+
+```{r EICs-FG.080.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.011.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
+cols <- c("#ff000080", "#00ff0080")
+names(cols) <- unique(featureGroups(data_study)[fts])
+
+par(mfrow = c(1, 2))
+plotChromatogramsOverlay(eics, col = cols[featureGroups(data_study)[fts]],
+                         lwd = 2, peakType = "none")
+plotChromatogramsOverlay(normalize(eics),
+                         col = cols[featureGroups(data_study)[fts]],
+                         lwd = 2, peakType = "none")
+```
+At last, we create such overview plots for all feature groups (code hidden).
+
+```{r feature-grouping-overview-plots, echo = FALSE}
+fgs <- unique(featureGroups(data_study))
+fgs <- fgs[!is.na(fgs)]
+dr <- paste0(IMAGE_PATH, "feature_groups/")
+dir.create(dr, showWarnings = FALSE)
+for (fg in fgs) {
+    fts_idx <- which(featureGroups(data_study) == fg)
+    eics <- featureChromatograms(data_study, features = fts_idx,
+                                 expandRt = 2, filled = TRUE, n = 2)
+    png(paste0(dr, fg, ".png"), width = 12, height = 6, units = "cm",
+        res = 300, pointsize = 4)
+    par(mfrow = c(2, 2))
+    ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
+    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[1]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                col = paste0(ft_cols, 80),
+                main = paste0(fg, ": ", colnames(eics)[2]))
+    legend("topright",
+           legend = rownames(featureDefinitions(data_study))[fts_idx],
+           col = ft_cols, lty = 1)
+    if (nrow(eics) > 1) {
+        mz_y <- joyPlot(eics[, 1, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+        mz_y <- joyPlot(eics[, 2, drop = FALSE], col = ft_cols)
+        abline(h = mz_y, col = paste0(ft_cols, 40), lty = 3)
+        text(x = rep(min(unlist(lapply(eics, rtime))), length(mz_y)),
+             y = mz_y, labels = format(mz(eics)[, 1], digits = 6),
+             col = ft_cols, pos = 4)
+    }
+    dev.off()
+    if (nrow(eics) > 1) {
+        fvals <- log2(featureValues(data_study, filled = TRUE)[fts_idx, ])
+        cormat <- cor(t(fvals), use = "pairwise.complete.obs")
+        ann <- data.frame(fgroup = featureGroups(data_study)[fts_idx])
+        rownames(ann) <- rownames(cormat)
+        hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+                       cluster_cols = TRUE,
+                       filename = paste0(dr, fg, "_heatmap.png"))
+    }
+}
+```
 
 # Session information
 
