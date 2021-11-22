@@ -129,6 +129,7 @@ averageSE <- function(x, column = character(), mainAssay = character()) {
     f <- factor(colData(x)[, column], levels = unique(colData(x)[, column]))
     ## new colData: take the first element for each replicate.
     cd <- colData(x)[match(levels(f), f), ]
+    rownames(cd) <- cd[, column]
     ## loop over the assays and average them.
     a <- lapply(assays(x), function(z) {
         z <- split.data.frame(t(z), f = f)
@@ -156,7 +157,7 @@ The samples used in this analysis are listed below.
 
 ```{r, echo = FALSE, results = "asis"}
 tab <- colData(res_pos)[, c("source", "sex", "age")]
-pandoc.table(as.data.frame(tab), style = "rmarkdown",
+pandoc.table(as.data.frame(tab), style = "rmarkdown", split.tables = Inf,
              caption = "Samples used in this analysis")
 ```
 
@@ -317,6 +318,7 @@ We see a clear separation by sample matrix for venous and plasma samples on PC1
 and PC2, whereas 3 samples of the capillary blood samples are clustered apart 
 from the remaining cpillary blood samples on PC2.
 
+
 # Present and absent features
 
 We then wanted to check if there are compounds that are only present in some of
@@ -418,7 +420,6 @@ document to `r p.cut`. This means we accept `r p.cut * 100`% false positives
 among the features called *significant*.
 
 ```{r analysis}
-
 ## Factor sample source, sex and age
 source <- factor(res$source)
 sex <- factor(res$sex)
@@ -442,6 +443,8 @@ tmp <- data.frame(
     adjp = adjp,
     significant = adjp < p.cut & abs(fit$coefficient) > m.cut
 )
+tmp$RSD <- rsds[rownames(tmp)]
+tmp$Dratio <- dratios[rownames(tmp)]
 tmp$avg.Cap <- rowMeans(
     log2(assay(res, "normalized_filled_imputed")[, res$source == "capillary"]))
 tmp$avg.Ven <- rowMeans(
@@ -471,6 +474,7 @@ hist(rowData(res)$adjp.CapvsVen, breaks = 64,
      xlab = expression(p[BH]~value),
      main = "Capillary vs venous")
 ```
+
 Thus, most of the metabolites were identified to have significantly different
 concentrations between the comparison. A table with the number of significant
 metabolites is shown below.
@@ -608,14 +612,21 @@ and/or in venous blood in the upper part, whereas in the lower part of the map a
 cluster of features, that are low in intensity in capillary blood and higher in
 intensity in plasma and venous blood.
 
+
 # Feature grouping
 
-We now want to group the significant features that derive from the same ion 
-into one bin. This analysis is performed on a subset in three steps; we start 
-by grouping the features according to their retention time, we then proceed by 
-separating features within their groups according to their coefficients, which 
-is an indicator for the abundance of each feature, and lastly, we refine the 
-groups by similarity of their EIcs.
+We now want to group significant features representing signals from
+isotopologues or different ions/adducts of the same compound into one bin. This
+aims at reducing the complexity of the data set and could help or simplify the
+annotation of the features. The analysis is performed on subset of features
+found significant in any of the 3 comparisons in three steps: we start by
+grouping the features according to their retention time, we then proceed by
+separating features within their groups according to their signal across all
+samples, and lastly, we refine the groups by similarity of their EIcs. The
+reasoning behind this is that signals representing isotopes or ions/adducts
+originating from the same compound are expected to have the same abundance per
+sample and are expected to elute at the same retention time from the LC, with
+their elution pattern (=EIC) being highly similar.
 
 First, we have to create a subset of the features, we want to consider for our 
 analysis:
@@ -631,17 +642,23 @@ data_study <- filterFile(data_pos, match(res$mzML_file, data_pos$mzML_file),
 ## to "FG" keeping all others to NA
 fgs <- rep(NA_character_, nrow(featureDefinitions(data_study)))
 names(fgs) <- rownames(featureDefinitions(data_study))
-fgs[rownames(rowData(res))[rowData(res)$significant.CapvsVen]] <- "FG"
+sig_in_any <- rowData(res)$significant.CapvsVen |
+                         rowData(res)$significant.CapvsPlas |
+                                    rowData(res)$significant.VenvsPlas
+fgs[rownames(rowData(res))[sig_in_any]] <- "FG"
 featureGroups(data_study) <- fgs
 ```
 
 We now group the features based on their retention time. Therefore, we evaluate
 retention times and m/z of all features in the present data set.
 
-```{r plot-retention-time, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Distribution of retention time and m/z of all features.", echo = FALSE}
+```{r plot-retention-time, fig.path = IMAGE_PATH, fig.width = 15, fig.height = 10, fig.cap = "Distribution of retention time and m/z of all features. Significant features are highlighted with a red color.", echo = FALSE}
 plot(featureDefinitions(data_study)$rtmed, featureDefinitions(data_study)$mzmed,
-     xlab = "retention time", ylab = "m/z", main = "features",
-     col = "#00000080")
+     xlab = "retention time", ylab = "m/z", main = "features", pch = 16,
+     col = "#00000040")
+points(featureDefinitions(data_study)$rtmed[!is.na(fgs)],
+       featureDefinitions(data_study)$mzmed[!is.na(fgs)],
+       col = "#ff000080")
 grid()
 ```
 
@@ -659,8 +676,15 @@ The significant features were grouped into in total
 of each feature group (i.e. how many features are grouped together).
 
 ```{r, echo = FALSE, results = "asis"}
-
-table(featureGroups(data_study))
+tmp <- table(featureGroups(data_study))
+## average retention time per group
+rts <- aggregate(featureDefinitions(data_study)$rtmed,
+                 by = list(featureGroups(data_study)), FUN = mean)
+tab <- data.frame(group_id = names(tmp),
+                  count = as.integer(tmp),
+                  rt = rts[match(names(tmp), rts[, 1]), 2])
+pandoc.table(tab, style = "rmarkdown",
+             caption = "Feature groups after grouping by retention time.")
 ```
 
 In addition, we visualize these feature groups showing all features in the 
@@ -670,29 +694,37 @@ m/z-retention time space with grouped features being connected with a line.
 plotFeatureGroups(data_study)
 grid()
 ```
+
 After this first grouping step, we evaluate the correlation of features based 
-on their (log2 transformed) abundances across samples with a heatmap.
+on their (raw, log2 transformed) abundances across samples with a heatmap.
 
 ```{r feature-grouping-cormat, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of feature abundances across samples.", echo = FALSE, fig.height = 10, fig.width = 10}
 fvals <- log2(featureValues(data_study, filled = TRUE))
+## subset to significant features
+fvals <- fvals[!is.na(featureGroups(data_study)), ]
 
 cormat <- cor(t(fvals), use = "pairwise.complete.obs")
-ann <- data.frame(fgroup = featureGroups(data_study))
+ann <- data.frame(
+    fgroup = featureGroups(data_study)[!is.na(featureGroups(data_study))])
 rownames(ann) <- rownames(cormat)
-
-res <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
-                cluster_cols = TRUE)
+hm <- pheatmap(cormat, annotation_row = ann, cluster_rows = TRUE,
+               cluster_cols = TRUE, show_colnames = FALSE,
+               show_rownames = FALSE)
 ```
-The feature groups are divided into smaller clusters according to their log2
-transformed abundances.
+
+A high correlation between sets of features can be observed. The feature groups
+are divided into smaller clusters according to their log2 transformed
+abundances. To restrict feature groups to only highly correlated features we use
+an arbitrary correlation coefficient cut-off of 0.7. 
 
 We then refine our feature groups using the *groupFeatures* with the
-*AbundanceSimilarityParam* to group features with a correlation higher than 0.5 
-including both detected and filled-in signal. 
+*AbundanceSimilarityParam* to group features with a correlation higher than 0.7
+including both detected and filled-in signal.
 
 ```{r correlation-analysis}
-data_study <- groupFeatures(data_study, AbundanceSimilarityParam(
-  threshold = 0.7, transform = log2), filled = TRUE)
+data_study <- groupFeatures(
+    data_study, AbundanceSimilarityParam(threshold = 0.7, transform = log2),
+    filled = TRUE)
 ```
 
 The table below shows the significant features and their assigned feature group.
@@ -700,21 +732,61 @@ In total `r length(table(featureGroups(data_study)))` groups have been found at
 this point.
 
 ```{r, echo = FALSE, results = "asis"}
-table(featureGroups(data_study))
+tmp <- table(featureGroups(data_study))
+rts <- aggregate(featureDefinitions(data_study)$rtmed,
+                 by = list(featureGroups(data_study)), FUN = mean)
+tab <- data.frame(group_id = names(tmp),
+                  count = as.integer(tmp),
+                  rt = rts[match(names(tmp), rts[, 1]), 2])
+pandoc.table(tab, style = "rmarkdown",
+             caption = paste0("Feature groups after grouping by retention time",
+                              " and similarity of abundance across samples."))
 ```
 
 Many of the larger retention time-based feature groups have been split into 
-two or more sub-groups based on the correlation of their feature abundances. 
-We evaluate this for one specific feature group "FG.0082" by plotting their 
-pairwise correlation.
+two or more sub-groups based on the correlation of their feature abundances,
+such as *FG.001*, *FG.034* or *FG.175*. 
 
-```{r pairwise-correlation, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.0082.", echo = FALSE, fig.height = 10, fig.width = 10}
-fts <- grep("FG.034", featureGroups(data_study))
+```{r pairwise-correlation-fg001, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.001.", echo = FALSE, fig.height = 10, fig.width = 10}
+fts <- rownames(featureDefinitions(data_study))[
+    grep("FG.001", featureGroups(data_study))]
+pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.0.01")
+```
+
+Correlation can be seen for some features (between FT0577 and FT0582 as well as
+between FT0716, FT0909 and FT0204), but most are uncorrelated to each
+other in this initial feature group.
+
+```{r pairwise-correlation-fg034, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.034.", echo = FALSE, fig.height = 10, fig.width = 10}
+fts <- rownames(featureDefinitions(data_study))[
+    grep("FG.034", featureGroups(data_study))]
 pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.034")
 ```
 
 Correlations can't be seen between some the features in this retention 
 time feature group.
+
+```{r pairwise-correlation-fg175, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.175.", echo = FALSE, fig.height = 10, fig.width = 10}
+fts <- rownames(featureDefinitions(data_study))[
+    grep("FG.175", featureGroups(data_study))]
+pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.175")
+```
+
+Other feature groups, such as *FG.082* were not splitted.
+
+```{r pairwise-correlation-fg082, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.082.", echo = FALSE, fig.height = 10, fig.width = 10}
+fts <- rownames(featureDefinitions(data_study))[
+    grep("FG.082", featureGroups(data_study))]
+pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.082")
+```
+
+We visualize again the feature groups after the sub-grouping by similarity in
+abundance across samples.
+
+```{r feature-grouping-abundance-correlation, fig.path = IMAGE_PATH, fig.width = 5 * phi, fig.height = 5, fig.cap = "Feature groups after sub-grouping by abundance similarity."}
+plotFeatureGroups(data_study)
+grid()
+```
 
 In the last step of the feature grouping analysis, we perform the grouping based
 on similarity of the EICs. The chromatographic peak shape of an ion of a 
@@ -723,12 +795,13 @@ Thus, features from the same compound are assumed to have similar peak shapes
 of their EICs within the same sample (sneumann). 
 As peak shape correlation is computationally intense, we perform this analysis 
 on a subset of samples with highest intensity per feature abundance within a
-feature group. So, we first identify the 10 amples with highest intensity, then
+feature group. So, we first identify the 3 samples with highest intensity, then
 a pairwise similarity calculation is performed and the resulting similarity
 score is aggregated. If this value is greater than the cut-off threshold 0.7, 
 the peaks are assigned to the same feature group.
 
 ```{r eic-similarity}
+orig <- data_study
 data_study <- groupFeatures(
     data_study, EicSimilarityParam(threshold = 0.7, n = 3))
 ```
@@ -738,17 +811,28 @@ In the end, the features have been split into
 `r length(table(featureGroups(data_study)))` groups.
 
 ```{r, echo = FALSE, results = "asis"}
-table(featureGroups(data_study))
+tmp <- table(featureGroups(data_study))
+rts <- aggregate(featureDefinitions(data_study)$rtmed,
+                 by = list(featureGroups(data_study)), FUN = mean)
+tab <- data.frame(group_id = names(tmp),
+                  count = as.integer(tmp),
+                  rt = rts[match(names(tmp), rts[, 1]), 2])
+pandoc.table(tab, style = "rmarkdown",
+             caption = paste0("Feature groups after grouping by retention time",
+                              ", similarity of abundance across samples and ",
+                              "EIC similarity."))
 ```
+
 In most cases, pre-defined feature groups (by the abundance correlation) were 
 not further subdivided. Below we evaluate some of the feature groups, starting 
-with FG.011.001 which was split into two different feature groups based on EIC 
+with *FG.007.001* which was split into 2 different feature groups based on EIC 
 correlation. We first extract the EICs for all features from this initial 
 feature group. With n = 1 we specify to extract the EIC only from the sample 
 with the highest intensity.
 
+
 ```{r EIC-extraction-FG, echo = TRUE}
-fts <- grep("FG.011.001", featureGroups(data_study))
+fts <- grep("FG.007.001", featureGroups(data_study))
 eics <- featureChromatograms(data_study, features = fts,
                              filled = TRUE, n = 1)
 ```
@@ -757,24 +841,31 @@ Next we plot the EICs using a different color for each of the subgroups. With
 peakType = "none" we disable the highlighting of the detected chromatographic 
 peaks.
 
-```{r EICs-FG.011.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.011.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
-cols <- c("#ff000080", "#00ff0080")
-names(cols) <- unique(featureGroups(data_study)[fts])
+```{r EICs-FG.007.001, fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.007.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
+cols <- brewer.pal(n = 9, "Set1")
+fgs <- unique(featureGroups(data_study)[fts])
+cols <- cols[seq_along(fgs)]
+names(cols) <- fgs
 
 par(mfrow = c(1, 2))
-plotChromatogramsOverlay(eics, col = cols[featureGroups(data_study)[fts]],
-                         lwd = 2, peakType = "none")
-plotChromatogramsOverlay(normalize(eics),
-                         col = cols[featureGroups(data_study)[fts]],
-                         lwd = 2, peakType = "none")
+plotChromatogramsOverlay(
+    eics, col = paste0(cols[featureGroups(data_study)[fts]], 80),
+    lwd = 2, peakType = "none")
+legend("topright", legend = names(cols), lty = 1, lwd = 2, col = cols,
+       title = "feature group")
+plotChromatogramsOverlay(
+    normalize(eics), col = paste0(cols[featureGroups(data_study)[fts]], 80),
+    lwd = 2, peakType = "none")
 ```
+
 On the left side we see the actual intensities, the normalized are shown on the
 right.
 
-We evaluate next the sub-grouping in another feature group.
+We evaluate next the sub-grouping in another feature group (*FG.085.001*) that
+was split into 3 distinct groups.
 
-```{r EIC-extraction-FG2, echo = TRUE}
-fts <- grep("FG.080.001", featureGroups(data_study))
+```{r EIC-extraction-FG.085.001, echo = TRUE}
+fts <- grep("FG.085.001", featureGroups(data_study))
 eics <- featureChromatograms(data_study, features = fts,
                              filled = TRUE, n = 1)
 ```
@@ -783,17 +874,23 @@ Next we plot the EICs using a different color for each of the subgroups. With
 peakType = "none" we disable the highlighting of the detected chromatographic 
 peaks.
 
-```{r EICs-FG.080.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.011.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
-cols <- c("#ff000080", "#00ff0080")
-names(cols) <- unique(featureGroups(data_study)[fts])
+```{r EICs-FG.085.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.085.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
+cols <- brewer.pal(n = 9, "Set1")
+fgs <- unique(featureGroups(data_study)[fts])
+cols <- cols[seq_along(fgs)]
+names(cols) <- fgs
 
 par(mfrow = c(1, 2))
-plotChromatogramsOverlay(eics, col = cols[featureGroups(data_study)[fts]],
-                         lwd = 2, peakType = "none")
-plotChromatogramsOverlay(normalize(eics),
-                         col = cols[featureGroups(data_study)[fts]],
-                         lwd = 2, peakType = "none")
+plotChromatogramsOverlay(
+    eics, col = paste0(cols[featureGroups(data_study)[fts]], 80),
+    lwd = 2, peakType = "none")
+legend("topright", legend = names(cols), lty = 1, lwd = 2, col = cols,
+       title = "feature group")
+plotChromatogramsOverlay(
+    normalize(eics), col = paste0(cols[featureGroups(data_study)[fts]], 80),
+    lwd = 2, peakType = "none")
 ```
+
 At last, we create such overview plots for all feature groups (code hidden).
 
 ```{r feature-grouping-overview-plots, echo = FALSE}
@@ -844,6 +941,47 @@ for (fg in fgs) {
                        filename = paste0(dr, fg, "_heatmap.png"))
     }
 }
+```
+
+Few feature group were not splitted but seems to contain signal from
+different ions (signal shifted by ~ one scan). Increasing the required
+correlation coefficient or a different similarity measure might work better.
+
+```{r echo = FALSE}
+knitr::include_graphics(paste0(dr, c("FG.001.002.001.png",
+                                     "FG.006.002.001.png",
+                                     "FG.018.001.001.png",
+                                     "FG.039.001.001.png",
+                                     "FG.045.001.001.png",
+                                     "FG.054.001.001.png",
+                                     "FG.054.001.002.png",
+                                     "FG.056.002.001.png",
+                                     "FG.057.001.001.png",
+                                     "FG.065.001.001.png",
+                                     "FG.089.001.001.png",
+                                     "FG.096.001.001.png",
+                                     "FG.121.001.001.png",
+                                     "FG.133.001.001.png",
+                                     "FG.133.001.002.png",
+                                     "FG.152.001.001.png",
+                                     "FG.156.001.001.png",
+                                     "FG.163.001.001.png",
+                                     "FG.175.001.001.png")))
+
+
+```
+
+Some feature groups consisting of many features seem to be correctly grouped.
+
+```{r echo = FALSE}
+
+knitr::include_graphics(paste0(dr, c("FG.041.001.001.png",
+                                     "FG.048.001.001.png",
+                                     "FG.053.001.001.png",
+                                     "FG.063.001.001.png",
+                                     "FG.067.001.001.png",
+                                     "FG.069.001.001.png",
+                                     "FG.095.001.001.png")))
 ```
 
 # Session information
