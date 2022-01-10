@@ -123,6 +123,7 @@ averageSE <- function(x, column = character(), mainAssay = character()) {
     f <- factor(colData(x)[, column], levels = unique(colData(x)[, column]))
     ## new colData: take the first element for each replicate.
     cd <- colData(x)[match(levels(f), f), ]
+    rownames(cd) <- cd[, column]
     ## loop over the assays and average them.
     a <- lapply(assays(x), function(z) {
         z <- split.data.frame(t(z), f = f)
@@ -747,28 +748,35 @@ Many of the larger retention time-based feature groups have been split into
 two or more sub-groups based on the correlation of their feature abundances, 
 such as *FG.001*, *FG.114* or *FG.224*. 
 
-```{r pairwise-correlation, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.0082.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r pairwise-correlation, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.001.", echo = FALSE, fig.height = 10, fig.width = 10}
 fts <- rownames(featureDefinitions(data_study))[
     grep("FG.001", featureGroups(data_study))]
 pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.0.01")
 ```
 
-Correlation can be seen for some features (between FT00626 and FT05508), but 
-most are uncorrelated to each other in this initial feature group.
+Features seem to be uncorrelated to each other in this initial feature.
 
-```{r pairwise-correlation-fg114, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.034.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r pairwise-correlation-fg114, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.114.", echo = FALSE, fig.height = 10, fig.width = 10}
 fts <- rownames(featureDefinitions(data_study))[
     grep("FG.114", featureGroups(data_study))]
 pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.114")
 ```
 
-Correlation can be seen for some features (between FT11396 and FT13447 as well
-as between FT1447 and FT13635), but most are uncorrelated to each
-other in this initial feature group.
+Correlation can be seen for some features (between FT11396 and FT13447) but most
+are uncorrelated to each other in this initial feature group.
+
+```{r pairwise-correlation-fg224, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.224.", echo = FALSE, fig.height = 10, fig.width = 10}
+fts <- rownames(featureDefinitions(data_study))[
+    grep("FG.224", featureGroups(data_study))]
+pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.224")
+```
+
+Also for this feature group, only two features are correlated while all others
+are uncorrelated.
 
 Other feature groups, such as *FG.210* were not splitted.
 
-```{r pairwise-correlation-fg236, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.082.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r pairwise-correlation-fg210, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.210.", echo = FALSE, fig.height = 10, fig.width = 10}
 fts <- rownames(featureDefinitions(data_study))[
     grep("FG.210", featureGroups(data_study))]
 pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.210")
@@ -833,7 +841,7 @@ Next we plot the EICs using a different color for each of the subgroups. With
 peakType = "none" we disable the highlighting of the detected chromatographic 
 peaks.
 
-```{r EICs-FG.171.001, fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.007.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r EICs-FG.171.001, fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feature group FG.071.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
 cols <- brewer.pal(n = 9, "Set1")
 fgs <- unique(featureGroups(data_study)[fts])
 cols <- cols[seq_along(fgs)]
@@ -854,7 +862,7 @@ On the left side we see the actual intensities, the normalized are shown on the
 right.
 
 We evaluate next the sub-grouping in another feature group (*FG.216.001*) that
-was split into 3 distinct groups.
+was split into 2 distinct groups.
 
 ```{r EIC-extraction-FG.216.001, echo = TRUE}
 fts <- grep("FG.216.001", featureGroups(data_study))
@@ -862,12 +870,11 @@ eics <- featureChromatograms(data_study, features = fts,
                              filled = TRUE, n = 1)
 ```
 
-
 Next we plot the EICs using a different color for each of the subgroups. With 
-peakType = "none" we disable the highlighting of the detected chromatographic 
+`peakType = "none"` we disable the highlighting of the detected chromatographic 
 peaks.
 
-```{r EICs-FG.216.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.216.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r EICs-FG.216.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feature group FG.216.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
 cols <- brewer.pal(n = 9, "Set1")
 fgs <- unique(featureGroups(data_study)[fts])
 cols <- cols[seq_along(fgs)]
