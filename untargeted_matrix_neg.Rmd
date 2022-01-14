@@ -936,6 +936,46 @@ for (fg in fgs) {
 }
 ```
 
+Few feature groups were not splitted but seem to contain signal from
+different ions (signal shifted by ~ one scan). Increasing the required
+correlation coefficient or a different similarity measure might work better.
+
+```{r echo = FALSE}
+knitr::include_graphics(paste0(dr, c("FG.001.002.001.png",
+                                     "FG.006.002.001.png",
+                                     "FG.018.001.001.png",
+                                     "FG.039.001.001.png",
+                                     "FG.045.001.001.png",
+                                     "FG.054.001.001.png",
+                                     "FG.054.001.002.png",
+                                     "FG.056.002.001.png",
+                                     "FG.057.001.001.png",
+                                     "FG.065.001.001.png",
+                                     "FG.089.001.001.png",
+                                     "FG.096.001.001.png",
+                                     "FG.121.001.001.png",
+                                     "FG.133.001.001.png",
+                                     "FG.133.001.002.png",
+                                     "FG.152.001.001.png",
+                                     "FG.156.001.001.png",
+                                     "FG.163.001.001.png",
+                                     "FG.175.001.001.png")))
+
+
+```
+
+Some feature groups consisting of many features seem to be correctly grouped.
+
+```{r echo = FALSE}
+
+knitr::include_graphics(paste0(dr, c("FG.041.001.001.png",
+                                     "FG.048.001.001.png",
+                                     "FG.053.001.001.png",
+                                     "FG.063.001.001.png",
+                                     "FG.067.001.001.png",
+                                     "FG.069.001.001.png",
+                                     "FG.095.001.001.png")))
+```
 
 
 # Session information
