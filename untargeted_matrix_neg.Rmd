@@ -41,6 +41,8 @@ RDATA_PATH <- paste0("data/RData/", FILE_NAME, "/")
 dir.create(RDATA_PATH, recursive = TRUE, showWarnings = FALSE)
 RESULT_PATH <- paste0("data/results/", FILE_NAME, "/")
 dir.create(RESULT_PATH, recursive = TRUE, showWarnings = FALSE)
+FIG_PATH <- paste0(IMAGE_PATH, "FIG/")
+dir.create(FIG_PATH, showWarnings = FALSE)
 ```
 
 # Introduction
@@ -74,6 +76,7 @@ library(RColorBrewer)
 library(MsFeatures)
 library(CompMetaboTools)
 library(pander)
+setMSnbaseFastLoad(FALSE)
 load("data/RData/vams_normalization_neg/res_neg.RData")
 res_neg$sample_pair <- paste0(res_neg$source, ".", res_neg$sample)
 ```
@@ -110,6 +113,20 @@ names(col_sex) <- c("F",           # red
 
 ## Setting golden ratio to save images
 phi <- (1+sqrt(5))/2
+```
+
+```{r, echo = FALSE}
+## Calculate variability across samples/replicates.
+samps <- unique(res_neg$sample_pair)
+M <- lapply(samps, function(z) {
+    idx <- which(res_neg$sample_pair == z)
+    if (length(idx) > 1) {
+        abs(log2(assay(res_neg, "normalized_filled_imputed")[, idx[1L]]) -
+            log2(assay(res_neg, "normalized_filled_imputed")[, idx[2L]]))
+    } else NULL
+})
+names(M) <- samps
+M <- do.call(cbind, M)
 ```
 
 At last we also average the *technical* replicates for each individual to 
@@ -264,6 +281,45 @@ this result shows that most features have been retained even after pre-
 filtering, thus ensuring a dataset where features have a D-ratio lower than 0.5
 and have less than 70% missing values.
 
+```{r, echo = FALSE}
+## Variability across data sets.
+matrices <- vapply(strsplit(colnames(M), split = ".", fixed = TRUE),
+                   function(z) z[1], character(1))
+png(paste0(FIG_PATH, "FIG_8_NEG_untargeted_diff_rep_A.png"),
+    width = 10, height = 5, res = 600, pointsize = 4, units = "cm")
+library(vioplot)
+par(mfrow = c(1, 2))
+m <- split(colMeans(M), matrices)
+vioplot(m, main = "All features", las = 2,
+        ylab = expression(log[2]~average~difference))
+grid(nx = NA, ny = NULL)
+##
+m <- split(colMeans(M[rownames(res), ]), matrices)
+vioplot(m, main = "Features passed pre-filtering", las = 2,
+        ylab = expression(log[2]~average~difference))
+grid(nx = NA, ny = NULL)
+dev.off()
+
+## The same plot, but average per feature.
+png(paste0(FIG_PATH, "FIG_8_NEG_untargeted_diff_rep_B.png"),
+    width = 10, height = 5, res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 2))
+m <- t(M)
+m <- split.data.frame(m, matrices)
+m <- lapply(m, colMeans)
+vioplot(m, main = "All features", las = 2, ylab = expression(log[2]~difference))
+grid(nx = NA, ny = NULL)
+m <- t(M[rownames(res), ])
+m <- split.data.frame(m, matrices)
+m <- lapply(m, colMeans)
+vioplot(m, main = "Features passed pre-filtering", las = 2,
+        ylab = expression(log[2]~difference))
+grid(nx = NA, ny = NULL)
+dev.off()
+
+```
+
+
 # Exploratory analysis: PCA
 
 Next, we perform a PCA analysis: this allows us to gather information about any
@@ -290,17 +346,15 @@ plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
 We see a clear separation by sample matrix for all three sample sources in PC1 and PC2.
 
 ```{r, echo = FALSE}
-FIG_PATH <- paste0(IMAGE_PATH, "FIG/")
-dir.create(FIG_PATH, showWarnings = FALSE)
-png(paste0(FIG_PATH, "FIG_NEG_PCA_untargeted.png"), width = 9, height = 4.5,
+png(paste0(FIG_PATH, "FIG_2_NEG_PCA_untargeted.png"), width = 5, height = 5,
     res = 600, pointsize = 4, units = "cm")
-par(mfrow = c(1, 2), mar = c(4.2, 4.5, 1.5, 1))
+par(mfrow = c(1, 1), mar = c(4.2, 4.5, 1.5, 1), cex.lab = 1.5)
 plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
          pc_x = 1, pc_y = 2, pch = 21, col = col, cex = 1.5)
-legend("topright", pt.bg = col_source, col = "#00000080",
-       legend = names(col_source), pch = 21)
-plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
-         pc_x = 3, pc_y = 4, pch = 21, col = col, cex = 1.5)
+legend("bottomright", pt.bg = col_source, col = "#00000080",
+       legend = names(col_source), pch = 21, cex = 1.5)
+## plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
+##          pc_x = 3, pc_y = 4, pch = 21, col = col, cex = 1.5)
 dev.off()
 
 ```
@@ -338,6 +392,17 @@ listInput <- list(capillary = which(cap_present, useNames = TRUE),
                   venous = which(ven_present, useNames = TRUE),
                   plasma = which(plas_present, useNames = TRUE))
 upset(fromList(listInput), order.by = "freq", sets.bar.color = col_source[c("venous", "capillary", "plasma")])
+```
+
+```{r, echo = FALSE}
+png(paste0(FIG_PATH, "FIG_2_NEG_upset_untargeted.png"), width = 7, height = 7,
+    res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 1), mar = c(4.2, 4.5, 1.5, 1), cex.lab = 1.5)
+upset(fromList(listInput), keep.order = FALSE,
+      sets.bar.color = col_source[c("capillary", "venous", "plasma")],
+      order.by = "freq")
+dev.off()
+
 ```
 
 

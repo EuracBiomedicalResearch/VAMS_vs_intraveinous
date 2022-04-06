@@ -21,11 +21,6 @@ BiocStyle::markdown()
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, dev = c("png", "pdf"))
 ```
 
-<!--
-**Modified**: `r file.info("differential_abundance_NEG.Rmd")$mtime`<br />
-**Compiled**: `r date()`
--->
-
 ```{r parameters, echo = FALSE, warning = FALSE}
 ## Set general parameters
 polarity <- "NEG" # specify "POS" or "NEG"
@@ -43,6 +38,8 @@ RDATA_PATH <- paste0("data/RData/", FILE_NAME, "/")
 dir.create(RDATA_PATH, recursive = TRUE, showWarnings = FALSE)
 RESULT_PATH <- paste0("data/results/", FILE_NAME, "/")
 dir.create(RESULT_PATH, recursive = TRUE, showWarnings = FALSE)
+FIG_PATH <- paste0(IMAGE_PATH, "FIG/")
+dir.create(FIG_PATH, showWarnings = FALSE)
 ```
 
 # Introduction
@@ -77,6 +74,7 @@ library(RColorBrewer)
 library(MsFeatures)
 library(CompMetaboTools)
 library(pander)
+setMSnbaseFastLoad(FALSE)
 load("data/RData/vams_normalization_neg/res_neg.RData")
 res_neg$sample_pair <- paste0(res_neg$source, ".", res_neg$sample)
 ```
@@ -99,12 +97,12 @@ res_neg <- res_neg[, res_neg$source != "all"]
 res_neg <- res_neg[, res_neg$source != "RBC"]
 res_neg$source <- factor(as.character(res_neg$source))
 res_neg$sex <- factor(as.character(res_neg$sex))
-col_source <- brewer.pal(5, name = "Set1")
-names(col_source) <- c("RBC",           #' red
-                       "plasma",        #' blue
-                       "all",           #' green
-                       "capillary",     #' purple
-                       "venous")        #' orange
+
+col_source <- brewer.pal(6, name = "Set1")[c(6, 2, 1)]
+names(col_source) <- c("plasma",        #' yellow
+                       "venous",        #' blue
+                       "capillary")     #' red
+
 col_sex <- brewer.pal(4, name = "Set1") [c(1, 2, 3)]
 names(col_sex) <- c("F",           # red
                     "M",           # blue
@@ -123,6 +121,7 @@ averageSE <- function(x, column = character(), mainAssay = character()) {
     f <- factor(colData(x)[, column], levels = unique(colData(x)[, column]))
     ## new colData: take the first element for each replicate.
     cd <- colData(x)[match(levels(f), f), ]
+    rownames(cd) <- cd[, column]
     ## loop over the assays and average them.
     a <- lapply(assays(x), function(z) {
         z <- split.data.frame(t(z), f = f)
@@ -421,13 +420,22 @@ tmp <- log2(assay(
     std_res, "normalized_filled_imputed")[rownames(std_res), , drop = FALSE])
 tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
 rownames(tmp) <- rowData(std_res)$name
-colnames(tmp) <- std_res$source_sample
-ann <- as.data.frame(colData(std_res)[, c("source", "sex")])
+colnames(tmp) <- seq_len(ncol(tmp))
+ann <- data.frame(matrix = colData(std_res)[, c("source")])
 rownames(ann) <- colnames(tmp)
 pm <- pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
                breaks = seq(-5, 5, length.out = 101),
-               annotation_color = list(source = col_source,
-                                   sex = col_sex))
+               annotation_color = list(matrix = col_source),
+               show_colnames = FALSE)
+```
+
+```{r, echo = FALSE}
+pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+         breaks = seq(-5, 5, length.out = 101),
+         annotation_color = list(matrix = col_source),
+         show_colnames = FALSE,
+         filename = paste0(FIG_PATH, "FIG_3_NEG_heatmap_semitargeted.png"),
+         width = 10, height = 7.5)
 ```
 
 In the heatmap we see two main cluster, one containing all plasma samples and 
@@ -476,6 +484,18 @@ listInput <- list(capillary = which(cap_present, useNames = TRUE),
                   plasma = which(plas_present, useNames = TRUE))
 upset(fromList(listInput), order.by = "freq")
 ```
+
+```{r, echo = FALSE}
+png(paste0(FIG_PATH, "FIG_4_NEG_upset_semitargeted.png"), width = 7, height = 7,
+    res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 1), mar = c(4.2, 4.5, 1.5, 1), cex.lab = 1.5)
+upset(fromList(listInput), keep.order = FALSE,
+      sets.bar.color = col_source[c("capillary", "venous", "plasma")],
+      order.by = "freq")
+dev.off()
+
+```
+
 
 The majority of known compounds, 48 features, are present in all three sample
 sources, whereas 17 features are only present in capillary and venous blood 
@@ -1070,6 +1090,27 @@ pandoc.table(tab, style = "rmarkdown",
 ```
 
 
+```{r, echo = FALSE}
+## significant.
+sel <- rowData(std_res)$significant.CapvsVen |
+                      rowData(std_res)$significant.CapvsPlas |
+                                     rowData(std_res)$significant.VenvsPlas
+tmp <- log2(assay(
+    std_res, "normalized_filled_imputed")[sel, , drop = FALSE])
+tmp <- tmp - rowMeans(tmp, na.rm = TRUE)
+rownames(tmp) <- rowData(std_res)$name[sel]
+colnames(tmp) <- seq_len(ncol(tmp))
+ann <- data.frame(matrix = colData(std_res)[, c("source")])
+rownames(ann) <- colnames(tmp)
+pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
+         breaks = seq(-5, 5, length.out = 101),
+         annotation_color = list(matrix = col_source),
+         show_colnames = FALSE,
+         filename = paste0(FIG_PATH, "FIG_7_NEG_heatmap_semitargeted_significant.png"),
+         width = 9.5, height = 7.5)
+```
+
+
 ### Capillary *vs* venous
 
 The volcano plot below shows the results for the comparison of capillary and
@@ -1077,12 +1118,12 @@ venous samples.
 
 ```{r standards-volcano-cap-ven, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 6, fig.height = 6, fig.cap = "Volcano plot for the comparison of capillary against venous samples."}
 par(mfrow = c(1, 1))
-plot_volc <- function(x, main) {
+plot_volc <- function(x, main, cex = 1, pch = 16, ...) {
     plot(rowData(std_res)[, paste0("coef.", x)],
          -log10(rowData(std_res)[, paste0("adjp.", x)]),
          xlab = expression(log[2]~difference),
-         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060",
-         main = main)
+         ylab = expression(-log[10]~p[BH]), pch = pch, col = "#00000060",
+         main = main, cex = cex, ...)
     rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
          border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
     rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
@@ -1091,7 +1132,7 @@ plot_volc <- function(x, main) {
     if (any(sigs))
         points(rowData(std_res)[sigs, paste0("coef.", x)],
                -log10(rowData(std_res)[sigs, paste0("adjp.", x)]),
-               col = "#0000ffcc")
+               col = "#377EB880", cex = cex, pch = pch)
 }
 plot_volc("CapvsVen", main = "Capillary vs venous")
 ```
@@ -1116,6 +1157,22 @@ sig_table <- function(x, caption = "") {
 }
 tab <- sig_table(
     "CapvsVen", "Metabolites significant between capillary and venous samples.")
+```
+
+```{r, echo = FALSE}
+png(paste0(FIG_PATH, "FIG_5_NEG_volcano_semitargeted.png"), width = 13.5,
+    height = 4.5, res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 3), mar = c(4.2, 4.5, 2.5, 1), cex.lab = 2,
+    cex.axis = 1.5, cex.main = 2)
+xl <- c(-10, 15)
+yl <- c(0, 70)
+plot_volc("CapvsVen", main = "Capillary vs venous", xlim = xl,
+          ylim = yl, cex = 2)
+plot_volc("CapvsPlas", main = "Capillary vs plasma", xlim = xl,
+          ylim = yl, cex = 2)
+plot_volc("VenvsPlas", main = "Venous vs plasma", xlim = xl,
+          ylim = yl, cex = 2)
+dev.off()
 ```
 
 We now create the beeswarm plot:
@@ -1300,6 +1357,16 @@ listInput <- list(
     capillaryVSplasma = which(rowData(std_res)$significant.CapvsPlas),
     venousVSplasma = which(rowData(std_res)$significant.VenvsPlas))
 upset(fromList(listInput), order.by = "freq")
+```
+
+```{r, echo = FALSE}
+png(paste0(FIG_PATH, "FIG_4_NEG_upset_semitargeted-sig.png"), width = 7,
+    height = 7, res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 1), mar = c(4.2, 4.5, 1.5, 1), cex.lab = 1.5)
+upset(fromList(listInput),
+      order.by = "freq")
+dev.off()
+
 ```
 
 ```{r, echo = FALSE}
