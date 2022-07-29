@@ -1,7 +1,7 @@
 ---
 title: "Differential abundance analysis, untargeted approach"
 subtitle: "Positive polarity"
-author: "Christa Malfertheiner"
+author: "Christa Malfertheiner, Johannes Rainer"
 date: "1 October 2021"
 output:
   BiocStyle::html_document:
@@ -46,6 +46,9 @@ dir.create(RDATA_PATH, recursive = TRUE, showWarnings = FALSE)
 
 RESULT_PATH <- paste0("data/results/", FILE_NAME, "/")
 dir.create(RESULT_PATH, recursive = TRUE, showWarnings = FALSE)
+
+FIG_PATH <- paste0(IMAGE_PATH, "FIG/")
+dir.create(FIG_PATH, showWarnings = FALSE)
 ```
 
 # Introduction
@@ -80,7 +83,7 @@ library(RColorBrewer)
 library(MsFeatures)
 library(CompMetaboTools)
 library(pander)
-
+setMSnbaseFastLoad(FALSE)
 load("data/RData/vams_normalization_pos/res_pos.RData")
 res_pos$sample_pair <- paste0(res_pos$source, ".", res_pos$sample)
 ```
@@ -116,6 +119,20 @@ names(col_sex) <- c("F",           # red
 
 ## Setting golden ratio to save images
 phi <- (1+sqrt(5))/2
+```
+
+```{r, echo = FALSE}
+## Calculate variability across samples/replicates.
+samps <- unique(res_pos$sample_pair)
+M <- lapply(samps, function(z) {
+    idx <- which(res_pos$sample_pair == z)
+    if (length(idx) > 1) {
+        abs(log2(assay(res_pos, "normalized_filled_imputed")[, idx[1L]]) -
+            log2(assay(res_pos, "normalized_filled_imputed")[, idx[2L]]))
+    } else NULL
+})
+names(M) <- samps
+M <- do.call(cbind, M)
 ```
 
 At last we also average the *technical* replicates for each individual to
@@ -275,6 +292,45 @@ pre-filtering, thus ensuring a dataset where features have a D-ratio lower than
 0.5 and have less than 70% missing values.
 
 
+```{r, echo = FALSE}
+## Variability across data sets.
+matrices <- vapply(strsplit(colnames(M), split = ".", fixed = TRUE),
+                   function(z) z[1], character(1))
+png(paste0(FIG_PATH, "FIG_8_POS_untargeted_diff_rep_A.png"),
+    width = 10, height = 5, res = 600, pointsize = 4, units = "cm")
+library(vioplot)
+par(mfrow = c(1, 2))
+m <- split(colMeans(M), matrices)
+vioplot(m, main = "All features", las = 2,
+        ylab = expression(log[2]~average~difference))
+grid(nx = NA, ny = NULL)
+##
+m <- split(colMeans(M[rownames(res), ]), matrices)
+vioplot(m, main = "Features passed pre-filtering", las = 2,
+        ylab = expression(log[2]~average~difference))
+grid(nx = NA, ny = NULL)
+dev.off()
+
+## The same plot, but average per feature.
+png(paste0(FIG_PATH, "FIG_8_POS_untargeted_diff_rep_B.png"),
+    width = 10, height = 5, res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 2))
+m <- t(M)
+m <- split.data.frame(m, matrices)
+m <- lapply(m, colMeans)
+vioplot(m, main = "All features", las = 2, ylab = expression(log[2]~difference))
+grid(nx = NA, ny = NULL)
+m <- t(M[rownames(res), ])
+m <- split.data.frame(m, matrices)
+m <- lapply(m, colMeans)
+vioplot(m, main = "Features passed pre-filtering", las = 2,
+        ylab = expression(log[2]~difference))
+grid(nx = NA, ny = NULL)
+dev.off()
+
+```
+
+
 # Exploratory analysis: PCA
 
 Next, we perform a PCA analysis: this allows us to gather information about any
@@ -299,17 +355,15 @@ plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
 ```
 
 ```{r, echo = FALSE}
-FIG_PATH <- paste0(IMAGE_PATH, "FIG/")
-dir.create(FIG_PATH, showWarnings = FALSE)
-png(paste0(FIG_PATH, "FIG_POS_PCA_untargeted.png"), width = 9, height = 4.5,
+png(paste0(FIG_PATH, "FIG_2_POS_PCA_untargeted.png"), width = 5, height = 5,
     res = 600, pointsize = 4, units = "cm")
-par(mfrow = c(1, 2), mar = c(4.2, 4.5, 1.5, 1))
+par(mfrow = c(1, 1), mar = c(4.2, 4.5, 1.5, 1), cex.lab = 1.5)
 plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
          pc_x = 1, pc_y = 2, pch = 21, col = col, cex = 1.5)
 legend("topright", pt.bg = col_source, col = "#00000080",
-       legend = names(col_source), pch = 21)
-plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
-         pc_x = 3, pc_y = 4, pch = 21, col = col, cex = 1.5)
+       legend = names(col_source), pch = 21, cex = 1.5)
+## plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
+##          pc_x = 3, pc_y = 4, pch = 21, col = col, cex = 1.5)
 dev.off()
 
 ```
@@ -352,6 +406,17 @@ listInput <- list(capillary = which(cap_present, useNames = TRUE),
                   venous = which(ven_present, useNames = TRUE),
                   plasma = which(plas_present, useNames = TRUE))
 upset(fromList(listInput), order.by = "freq", sets.bar.color = col_source[c("venous", "capillary", "plasma")])
+```
+
+```{r, echo = FALSE}
+png(paste0(FIG_PATH, "FIG_2_POS_upset_untargeted.png"), width = 7, height = 7,
+    res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 1), mar = c(4.2, 4.5, 1.5, 1), cex.lab = 1.5)
+upset(fromList(listInput), keep.order = FALSE,
+      sets.bar.color = col_source[c("capillary", "venous", "plasma")],
+      order.by = "freq")
+dev.off()
+
 ```
 
 292 of the 705 features found to be significant in at least one of the matrices 
@@ -906,15 +971,15 @@ for (fg in fgs) {
         res = 300, pointsize = 4)
     par(mfrow = c(2, 2))
     ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
-    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
-                col = paste0(ft_cols, 80),
-                main = paste0(fg, ": ", colnames(eics)[1]))
+    plotChromatogramsOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                             col = paste0(ft_cols, 80),
+                             main = paste0(fg, ": ", colnames(eics)[1]))
     legend("topright",
            legend = rownames(featureDefinitions(data_study))[fts_idx],
            col = ft_cols, lty = 1)
-    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
-                col = paste0(ft_cols, 80),
-                main = paste0(fg, ": ", colnames(eics)[2]))
+    plotChromatogramsOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                             col = paste0(ft_cols, 80),
+                             main = paste0(fg, ": ", colnames(eics)[2]))
     legend("topright",
            legend = rownames(featureDefinitions(data_study))[fts_idx],
            col = ft_cols, lty = 1)
@@ -948,40 +1013,75 @@ different ions (signal shifted by ~ one scan). Increasing the required
 correlation coefficient or a different similarity measure might work better.
 
 ```{r echo = FALSE}
+## knitr::include_graphics(paste0(dr, c("FG.001.002.001.png",
+##                                      "FG.006.002.001.png",
+##                                      "FG.018.001.001.png",
+##                                      "FG.039.001.001.png",
+##                                      "FG.045.001.001.png",
+##                                      "FG.054.001.001.png",
+##                                      "FG.054.001.002.png",
+##                                      "FG.056.002.001.png",
+##                                      "FG.057.001.001.png",
+##                                      "FG.065.001.001.png",
+##                                      "FG.089.001.001.png",
+##                                      "FG.096.001.001.png",
+##                                      "FG.121.001.001.png",
+##                                      "FG.133.001.001.png",
+##                                      "FG.133.001.002.png",
+##                                      "FG.152.001.001.png",
+##                                      "FG.156.001.001.png",
+##                                      "FG.163.001.001.png",
+##                                      "FG.175.001.001.png")))
+
 knitr::include_graphics(paste0(dr, c("FG.001.002.001.png",
-                                     "FG.006.002.001.png",
+                                     "FG.004.002.001.png",
                                      "FG.018.001.001.png",
-                                     "FG.039.001.001.png",
-                                     "FG.045.001.001.png",
-                                     "FG.054.001.001.png",
-                                     "FG.054.001.002.png",
-                                     "FG.056.002.001.png",
-                                     "FG.057.001.001.png",
-                                     "FG.065.001.001.png",
-                                     "FG.089.001.001.png",
-                                     "FG.096.001.001.png",
+                                     "FG.022.001.001.png",
+                                     "FG.030.001.001.png",
+                                     "FG.046.001.001.png",
+                                     "FG.087.001.001.png",
+                                     "FG.118.001.001.png",
                                      "FG.121.001.001.png",
-                                     "FG.133.001.001.png",
-                                     "FG.133.001.002.png",
-                                     "FG.152.001.001.png",
-                                     "FG.156.001.001.png",
-                                     "FG.163.001.001.png",
-                                     "FG.175.001.001.png")))
-
-
+                                     "FG.135.001.002.png",
+                                     "FG.154.001.001.png",
+                                     "FG.161.001.001.png",
+                                     "FG.167.001.001.png",
+                                     "FG.170.001.001.png")))
 ```
 
-Some feature groups consisting of many features seem to be correctly grouped.
+Some feature groups consisting of many features (at least 4) seem to be
+correctly grouped.
 
 ```{r echo = FALSE}
 
-knitr::include_graphics(paste0(dr, c("FG.041.001.001.png",
-                                     "FG.048.001.001.png",
-                                     "FG.053.001.001.png",
-                                     "FG.063.001.001.png",
+## knitr::include_graphics(paste0(dr, c("FG.041.001.001.png",
+##                                      "FG.048.001.001.png",
+##                                      "FG.053.001.001.png",
+##                                      "FG.063.001.001.png",
+##                                      "FG.067.001.001.png",
+##                                      "FG.069.001.001.png",
+##                                      "FG.095.001.001.png")))
+
+knitr::include_graphics(paste0(dr, c("FG.010.001.001.png",
+                                     "FG.020.001.001.png",
+                                     "FG.027.001.001.png",
+                                     "FG.028.001.001.png",
+                                     "FG.029.001.001.png",
+                                     "FG.034.001.001.png",
+                                     "FG.041.001.001.png",
+                                     "FG.049.001.001.png",
+                                     "FG.056.001.001.png",
+                                     "FG.060.001.001.png",
                                      "FG.067.001.001.png",
-                                     "FG.069.001.001.png",
-                                     "FG.095.001.001.png")))
+                                     "FG.068.001.001.png",
+                                     "FG.072.001.001.png",
+                                     "FG.073.001.001.png",
+                                     "FG.094.001.001.png",
+                                     "FG.099.001.001.png",
+                                     "FG.109.001.001.png",
+                                     "FG.119.001.001.png",
+                                     "FG.134.001.001.png")))
+
 ```
 
 # Session information

@@ -41,6 +41,8 @@ RDATA_PATH <- paste0("data/RData/", FILE_NAME, "/")
 dir.create(RDATA_PATH, recursive = TRUE, showWarnings = FALSE)
 RESULT_PATH <- paste0("data/results/", FILE_NAME, "/")
 dir.create(RESULT_PATH, recursive = TRUE, showWarnings = FALSE)
+FIG_PATH <- paste0(IMAGE_PATH, "FIG/")
+dir.create(FIG_PATH, showWarnings = FALSE)
 ```
 
 # Introduction
@@ -74,6 +76,7 @@ library(RColorBrewer)
 library(MsFeatures)
 library(CompMetaboTools)
 library(pander)
+setMSnbaseFastLoad(FALSE)
 load("data/RData/vams_normalization_neg/res_neg.RData")
 res_neg$sample_pair <- paste0(res_neg$source, ".", res_neg$sample)
 ```
@@ -112,6 +115,20 @@ names(col_sex) <- c("F",           # red
 phi <- (1+sqrt(5))/2
 ```
 
+```{r, echo = FALSE}
+## Calculate variability across samples/replicates.
+samps <- unique(res_neg$sample_pair)
+M <- lapply(samps, function(z) {
+    idx <- which(res_neg$sample_pair == z)
+    if (length(idx) > 1) {
+        abs(log2(assay(res_neg, "normalized_filled_imputed")[, idx[1L]]) -
+            log2(assay(res_neg, "normalized_filled_imputed")[, idx[2L]]))
+    } else NULL
+})
+names(M) <- samps
+M <- do.call(cbind, M)
+```
+
 At last we also average the *technical* replicates for each individual to 
 generate the final data set.
 
@@ -123,6 +140,7 @@ averageSE <- function(x, column = character(), mainAssay = character()) {
     f <- factor(colData(x)[, column], levels = unique(colData(x)[, column]))
     ## new colData: take the first element for each replicate.
     cd <- colData(x)[match(levels(f), f), ]
+    rownames(cd) <- cd[, column]
     ## loop over the assays and average them.
     a <- lapply(assays(x), function(z) {
         z <- split.data.frame(t(z), f = f)
@@ -263,6 +281,45 @@ this result shows that most features have been retained even after pre-
 filtering, thus ensuring a dataset where features have a D-ratio lower than 0.5
 and have less than 70% missing values.
 
+```{r, echo = FALSE}
+## Variability across data sets.
+matrices <- vapply(strsplit(colnames(M), split = ".", fixed = TRUE),
+                   function(z) z[1], character(1))
+png(paste0(FIG_PATH, "FIG_8_NEG_untargeted_diff_rep_A.png"),
+    width = 10, height = 5, res = 600, pointsize = 4, units = "cm")
+library(vioplot)
+par(mfrow = c(1, 2))
+m <- split(colMeans(M), matrices)
+vioplot(m, main = "All features", las = 2,
+        ylab = expression(log[2]~average~difference))
+grid(nx = NA, ny = NULL)
+##
+m <- split(colMeans(M[rownames(res), ]), matrices)
+vioplot(m, main = "Features passed pre-filtering", las = 2,
+        ylab = expression(log[2]~average~difference))
+grid(nx = NA, ny = NULL)
+dev.off()
+
+## The same plot, but average per feature.
+png(paste0(FIG_PATH, "FIG_8_NEG_untargeted_diff_rep_B.png"),
+    width = 10, height = 5, res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 2))
+m <- t(M)
+m <- split.data.frame(m, matrices)
+m <- lapply(m, colMeans)
+vioplot(m, main = "All features", las = 2, ylab = expression(log[2]~difference))
+grid(nx = NA, ny = NULL)
+m <- t(M[rownames(res), ])
+m <- split.data.frame(m, matrices)
+m <- lapply(m, colMeans)
+vioplot(m, main = "Features passed pre-filtering", las = 2,
+        ylab = expression(log[2]~difference))
+grid(nx = NA, ny = NULL)
+dev.off()
+
+```
+
+
 # Exploratory analysis: PCA
 
 Next, we perform a PCA analysis: this allows us to gather information about any
@@ -289,17 +346,15 @@ plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
 We see a clear separation by sample matrix for all three sample sources in PC1 and PC2.
 
 ```{r, echo = FALSE}
-FIG_PATH <- paste0(IMAGE_PATH, "FIG/")
-dir.create(FIG_PATH, showWarnings = FALSE)
-png(paste0(FIG_PATH, "FIG_NEG_PCA_untargeted.png"), width = 9, height = 4.5,
+png(paste0(FIG_PATH, "FIG_2_NEG_PCA_untargeted.png"), width = 5, height = 5,
     res = 600, pointsize = 4, units = "cm")
-par(mfrow = c(1, 2), mar = c(4.2, 4.5, 1.5, 1))
+par(mfrow = c(1, 1), mar = c(4.2, 4.5, 1.5, 1), cex.lab = 1.5)
 plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
          pc_x = 1, pc_y = 2, pch = 21, col = col, cex = 1.5)
-legend("topright", pt.bg = col_source, col = "#00000080",
-       legend = names(col_source), pch = 21)
-plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
-         pc_x = 3, pc_y = 4, pch = 21, col = col, cex = 1.5)
+legend("bottomright", pt.bg = col_source, col = "#00000080",
+       legend = names(col_source), pch = 21, cex = 1.5)
+## plot_pca(pc, bg = paste0(col_source[as.character(res$source)], 90),
+##          pc_x = 3, pc_y = 4, pch = 21, col = col, cex = 1.5)
 dev.off()
 
 ```
@@ -337,6 +392,17 @@ listInput <- list(capillary = which(cap_present, useNames = TRUE),
                   venous = which(ven_present, useNames = TRUE),
                   plasma = which(plas_present, useNames = TRUE))
 upset(fromList(listInput), order.by = "freq", sets.bar.color = col_source[c("venous", "capillary", "plasma")])
+```
+
+```{r, echo = FALSE}
+png(paste0(FIG_PATH, "FIG_2_NEG_upset_untargeted.png"), width = 7, height = 7,
+    res = 600, pointsize = 4, units = "cm")
+par(mfrow = c(1, 1), mar = c(4.2, 4.5, 1.5, 1), cex.lab = 1.5)
+upset(fromList(listInput), keep.order = FALSE,
+      sets.bar.color = col_source[c("capillary", "venous", "plasma")],
+      order.by = "freq")
+dev.off()
+
 ```
 
 
@@ -747,28 +813,35 @@ Many of the larger retention time-based feature groups have been split into
 two or more sub-groups based on the correlation of their feature abundances, 
 such as *FG.001*, *FG.114* or *FG.224*. 
 
-```{r pairwise-correlation, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.0082.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r pairwise-correlation, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.001.", echo = FALSE, fig.height = 10, fig.width = 10}
 fts <- rownames(featureDefinitions(data_study))[
     grep("FG.001", featureGroups(data_study))]
 pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.0.01")
 ```
 
-Correlation can be seen for some features (between FT00626 and FT05508), but 
-most are uncorrelated to each other in this initial feature group.
+Features seem to be uncorrelated to each other in this initial feature.
 
-```{r pairwise-correlation-fg114, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.034.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r pairwise-correlation-fg114, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.114.", echo = FALSE, fig.height = 10, fig.width = 10}
 fts <- rownames(featureDefinitions(data_study))[
     grep("FG.114", featureGroups(data_study))]
 pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.114")
 ```
 
-Correlation can be seen for some features (between FT11396 and FT13447 as well
-as between FT1447 and FT13635), but most are uncorrelated to each
-other in this initial feature group.
+Correlation can be seen for some features (between FT11396 and FT13447) but most
+are uncorrelated to each other in this initial feature group.
+
+```{r pairwise-correlation-fg224, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.224.", echo = FALSE, fig.height = 10, fig.width = 10}
+fts <- rownames(featureDefinitions(data_study))[
+    grep("FG.224", featureGroups(data_study))]
+pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.224")
+```
+
+Also for this feature group, only two features are correlated while all others
+are uncorrelated.
 
 Other feature groups, such as *FG.210* were not splitted.
 
-```{r pairwise-correlation-fg236, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.082.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r pairwise-correlation-fg210, fig.path = IMAGE_PATH, fig.cap = "Pairwise correlation of features initially grouped in feature group FG.210.", echo = FALSE, fig.height = 10, fig.width = 10}
 fts <- rownames(featureDefinitions(data_study))[
     grep("FG.210", featureGroups(data_study))]
 pairs(t(fvals[fts, ]), gap = 0.1, main = "FG.210")
@@ -833,7 +906,7 @@ Next we plot the EICs using a different color for each of the subgroups. With
 peakType = "none" we disable the highlighting of the detected chromatographic 
 peaks.
 
-```{r EICs-FG.171.001, fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.007.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r EICs-FG.171.001, fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feature group FG.071.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
 cols <- brewer.pal(n = 9, "Set1")
 fgs <- unique(featureGroups(data_study)[fts])
 cols <- cols[seq_along(fgs)]
@@ -854,7 +927,7 @@ On the left side we see the actual intensities, the normalized are shown on the
 right.
 
 We evaluate next the sub-grouping in another feature group (*FG.216.001*) that
-was split into 3 distinct groups.
+was split into 2 distinct groups.
 
 ```{r EIC-extraction-FG.216.001, echo = TRUE}
 fts <- grep("FG.216.001", featureGroups(data_study))
@@ -862,12 +935,11 @@ eics <- featureChromatograms(data_study, features = fts,
                              filled = TRUE, n = 1)
 ```
 
-
 Next we plot the EICs using a different color for each of the subgroups. With 
-peakType = "none" we disable the highlighting of the detected chromatographic 
+`peakType = "none"` we disable the highlighting of the detected chromatographic 
 peaks.
 
-```{r EICs-FG.216.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feare gro FG.216.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
+```{r EICs-FG.216.001,  fig.path = IMAGE_PATH, fig.cap = "EICs for all features from the inital feature group FG.216.001. Subgrops were colored differenly.", echo = FALSE, fig.height = 10, fig.width = 10}
 cols <- brewer.pal(n = 9, "Set1")
 fgs <- unique(featureGroups(data_study)[fts])
 cols <- cols[seq_along(fgs)]
@@ -899,15 +971,15 @@ for (fg in fgs) {
         res = 300, pointsize = 4)
     par(mfrow = c(2, 2))
     ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
-    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
-                col = paste0(ft_cols, 80),
-                main = paste0(fg, ": ", colnames(eics)[1]))
+    plotChromatogramsOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                             col = paste0(ft_cols, 80),
+                             main = paste0(fg, ": ", colnames(eics)[1]))
     legend("topright",
            legend = rownames(featureDefinitions(data_study))[fts_idx],
            col = ft_cols, lty = 1)
-    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
-                col = paste0(ft_cols, 80),
-                main = paste0(fg, ": ", colnames(eics)[2]))
+    plotChromatogramsOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                             col = paste0(ft_cols, 80),
+                             main = paste0(fg, ": ", colnames(eics)[2]))
     legend("topright",
            legend = rownames(featureDefinitions(data_study))[fts_idx],
            col = ft_cols, lty = 1)

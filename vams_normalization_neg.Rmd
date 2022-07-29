@@ -42,8 +42,8 @@ RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
-## MZML_PATH <- "/data/massspec/mzML/"
-MZML_PATH <- "C:/Users/User/Documents/mzML_neg"
+MZML_PATH <- "/data/massspec/mzML/"
+## MZML_PATH <- "C:/Users/User/Documents/mzML_neg"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -101,7 +101,7 @@ also to the features defined above.
 
 ```{r extract-as-se}
 res_neg <- quantify(data_neg, method = "sum", filled = FALSE)
-
+res_neg$time_stamp <- as.character(res_neg$time_stamp)
 ```
 
 # Gap filling and imputation of missing values
@@ -413,6 +413,7 @@ for (i in seq_len(nrow(is_info))) {
                        format(mz(chr)[2], digits = 6)),
          peakCol = paste0(cls, 60))
     abline(v = is_info$RT[i], lty = 2)
+    legend("topleft", c(is_info[i, "name"], is_info[i, "feature_id"]))
     dev.off()
 }
 

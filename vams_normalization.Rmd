@@ -43,8 +43,8 @@ RDATA_PATH <- paste0("data/RData/", filename, "/")
 if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 ## Define the path where we can find the mzML files:
-## MZML_PATH <- "/data/massspec/mzML/"
-MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
+MZML_PATH <- "/data/massspec/mzML/"
+## MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -502,6 +502,7 @@ for (i in seq_len(nrow(is_info))) {
                        format(mz(chr)[2], digits = 6)),
          peakCol = paste0(cls, 60))
     abline(v = is_info$RT[i], lty = 2)
+    legend("topleft", c(is_info[i, "name"], is_info[i, "feature_id"]))
     dev.off()
 }
 
