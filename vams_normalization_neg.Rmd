@@ -101,7 +101,7 @@ also to the features defined above.
 
 ```{r extract-as-se}
 res_neg <- quantify(data_neg, method = "sum", filled = FALSE)
-
+res_neg$time_stamp <- as.character(res_neg$time_stamp)
 ```
 
 # Gap filling and imputation of missing values

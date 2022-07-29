@@ -269,26 +269,26 @@ to_keep <- c(
     FT00377 = "Alanine",
     FT00383 = "Allantoin",
     FT00105 = "Alpha-ketoisovaleric acid",
-    FT04310 = "alpha-Lactose",
-    FT10798 = "AMP",
+    FT04311 = "alpha-Lactose",
+    FT10805 = "AMP",
     FT00537 = "Arginine",
     FT00188 = "Asparagine",
     FT00603 = "Aspirin",
     FT01143 = "Carnosine",
     FT04651 = "CDP",
-    FT07627 = "CDP-choline",
-    FT05598 = "CDP-ethanolamine",
+    FT07631 = "CDP-choline",
+    FT05599 = "CDP-ethanolamine",
     FT00554 = "Citrulline",
     FT01310 = "Cystine",
-    FT03172 = "Dihydroxyacetone phosphate",
+    FT03173 = "Dihydroxyacetone phosphate",
     FT00061 = "Dimethylglycine",
     FT00604 = "Fructose",
     FT00785 = "Gluconic Acid",
     FT01139 = "Glucose",
     FT00287 = "Glutamine",
     FT00186 = "Glutaric acid",              # new
-    FT09247 = "Glutathione Oxidized",
-    FT09247 = "Glutathione Reduced",
+    FT09252 = "Glutathione Oxidized",
+    FT09252 = "Glutathione Reduced",
     FT00071 = "Glyceric Acid",
     FT02155 = "Glycero-phosphocholine",
     FT00362 = "Histidine",
@@ -311,7 +311,7 @@ to_keep <- c(
     FT01141 = "Myo-Inositol",
     FT00176 = "N-Acetyl-beta-alanine",
     FT00535 = "N-Acetylornithine",
-    FT10209 = "NAD",
+    FT10215 = "NAD",
     FT00191 = "Ornithine",
     FT00334 = "p-Hydroxyphenylacetic acid",
     FT00247 = "PABA",
@@ -323,16 +323,16 @@ to_keep <- c(
     FT00028 = "Pyruvic Acid",
     FT00464 = "Quinolinic acid",            # new
     FT00323 = "Ribose",
-    FT04216 = "SAH",
+    FT04217 = "SAH",
     FT00253 = "Salicylic acid",
-    FT08602 = "Sedoheptulose-7-phosphate",  # new
+    FT08606 = "Sedoheptulose-7-phosphate",  # new
     FT00067 = "Serine",
-    FT03306 = "Sphingosine",
-    FT04105 = "Sphingosine-1-phosphate",
+    FT03307 = "Sphingosine",
+    FT04106 = "Sphingosine-1-phosphate",
     FT00534 = "Suberic Acid",
     FT00118 = "Succinic Acid",
     FT00384 = "Succinylacetone",
-    FT04311 = "Sucrose",
+    FT04312 = "Sucrose",
     FT00145 = "Taurine",
     FT00236 = "Threonic Acid",
     FT00123 = "Threonine",
@@ -1187,20 +1187,23 @@ bee_plots <- function(x, tab) {
     dir.create(dr, recursive = TRUE, showWarning = FALSE)
     for (i in seq_len(nrow(tmp))) {
         vals <- split(tmp[i, ], f = std_sig$source)
-        col <- col_source[names(vals)]
+        names(vals) <- c("Capillary", "Plasma", "Venous")
+        col <- col_source[tolower(names(vals))]
         png(file = paste0(dr, rownames(std_sig)[i],
                           "_", rownames(tmp)[i], ".png"),
-            width = 6 * phi, height = 6, units = "in", res = 300,
-            pointsize = 12)
-        par(mar = c(5, 5, 5, 1))
-        beeswarm(vals, col = paste0(col, 80), pch = 16, cex = 1.5,
-                 spacing = 1.2,
+            width = 3.5, height = 4, units = "cm", res = 600,
+            pointsize = 3)
+        par(mar = c(4, 5, 3, 1))
+        beeswarm(vals, bg = paste0(col, "cc"), col = "#00000040",
+                 pch = 21, cex = 1.4,
+                 spacing = 0.4,
                  cex.main = 1.5,
                  cex.lab = 1.5,
                  cex.axis = 1.3,
-                 main = paste0(rownames(std_sig)[i], ": ", rownames(tmp)[i]),
+                 main = rownames(tmp)[i],
                  ylab = expression(log[2]~intensity))
         bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+        ## grid(nx = NA, ny = NULL)
         dev.off()
     }
 }
@@ -1284,14 +1287,14 @@ We now create the beeswarm plot:
 bee_plots("CapvsPlas", tab)
 ```
 
-![](images/semi_t_matrices_neg/CapvsPlas-beeswarm/FT09247_Glutathione Oxidized;Glutathione Reduced.png)
+![](images/semi_t_matrices_neg/CapvsPlas-beeswarm/FT09252_Glutathione Oxidized;Glutathione Reduced.png)
 
 **Glutathione** shows a much higher intensity in capillary blood samples 
 compared plasma samples. 
 
 ![](images/semi_t_matrices_neg/CapvsPlas-beeswarm/FT00188_Asparagine.png)
 
-![](images/semi_t_matrices_neg/CapvsPlas-beeswarm/FT04216_SAH.png)
+![](images/semi_t_matrices_neg/CapvsPlas-beeswarm/FT04217_SAH.png)
 
 Both, **Asparagine** and **SAH** also show higher intensities in capillary blood 
 samples compared to plasma samples.
@@ -1336,7 +1339,7 @@ bee_plots("VenvsPlas", tab)
 As already seen previously, **Glutathione** and **SAH** show a higher intensity
 in venous blood samples compared to plasma samples.
 
-![](images/semi_t_matrices_neg/VenvsPlas-beeswarm/FT03172_Dihydroxyacetone phosphate.png)
+![](images/semi_t_matrices_neg/VenvsPlas-beeswarm/FT03173_Dihydroxyacetone phosphate.png)
 
 The intensity level of **Dihydroxyacetone phosphate**  is higher in 
 capillary and venous blood samples, compared to plasma samples.

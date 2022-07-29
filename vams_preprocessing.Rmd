@@ -46,7 +46,7 @@ if (!file.exists(RDATA_PATH)) dir.create(RDATA_PATH, recursive = TRUE)
 
 #' Define the path where we can find the mzML files:
 MZML_PATH <- "C:/Users/User/Documents/mzML_pos"
-## MZML_PATH <- "/data/massspec/mzML/2018/"
+MZML_PATH <- "/data/massspec/mzML/2018/"
 if (!file.exists(MZML_PATH))
     stop("Can not find the directory with the mzML files: ", MZML_PATH)
 
@@ -117,7 +117,7 @@ RTd <- 30
 
 ## Use socket based parallel processing on Windows systems
 if (.Platform$OS.type == "unix") {
-    register(bpstart(MulticoreParam(ncores)))
+    register(MulticoreParam(ncores))
 } else {
     register(bpstart(SnowParam(ncores)))
 }

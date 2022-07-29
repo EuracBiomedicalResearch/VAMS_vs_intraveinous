@@ -971,15 +971,15 @@ for (fg in fgs) {
         res = 300, pointsize = 4)
     par(mfrow = c(2, 2))
     ft_cols <- brewer.pal(max(3, length(fts_idx)), "Paired")[seq_along(fts_idx)]
-    plotOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
-                col = paste0(ft_cols, 80),
-                main = paste0(fg, ": ", colnames(eics)[1]))
+    plotChromatogramsOverlay(normalize(eics[, 1, drop = FALSE]), lwd = 2,
+                             col = paste0(ft_cols, 80),
+                             main = paste0(fg, ": ", colnames(eics)[1]))
     legend("topright",
            legend = rownames(featureDefinitions(data_study))[fts_idx],
            col = ft_cols, lty = 1)
-    plotOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
-                col = paste0(ft_cols, 80),
-                main = paste0(fg, ": ", colnames(eics)[2]))
+    plotChromatogramsOverlay(normalize(eics[, 2, drop = FALSE]), lwd = 2,
+                             col = paste0(ft_cols, 80),
+                             main = paste0(fg, ": ", colnames(eics)[2]))
     legend("topright",
            legend = rownames(featureDefinitions(data_study))[fts_idx],
            col = ft_cols, lty = 1)
