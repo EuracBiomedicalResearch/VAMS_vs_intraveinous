@@ -2,7 +2,6 @@
 title: "Differential abundance analysis, untargeted approach"
 subtitle: "Positive polarity"
 author: "Christa Malfertheiner, Johannes Rainer"
-date: "1 October 2021"
 output:
   BiocStyle::html_document:
     toc: true
@@ -818,6 +817,7 @@ plot_volcano(res_ven, "MvsF", xlim = XL, ylim = YL,
 grid()
 plot_volcano(res_plas, "MvsF", xlim = XL, ylim = YL,
              main = "Plasma")
+grid()
 tmp <- dev.off()
 ```
 
