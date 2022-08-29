@@ -1,8 +1,7 @@
 ---
 title: "Differential abundance analysis, semi-targeted approach"
 subtitle: "Negative polarity"
-author: "Christa Malfertheiner"
-date: "13. September 2021"
+author: "Christa Malfertheiner, Johannes Rainer"
 output:
   BiocStyle::html_document:
     toc: true
