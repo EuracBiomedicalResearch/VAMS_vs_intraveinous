@@ -380,7 +380,7 @@ changed and if any similarities among the samples are visible or not.
 
 ```{r standards-pca-all, echo = FALSE}
 pc <- prcomp(t(log2(assay(std_res, "normalized_filled_imputed"))),
-                 center = TRUE, scale. = FALSE)
+             center = TRUE, scale. = FALSE)
 ```
 
 ```{r standards-pca-plot, fig.path = IMAGE_PATH, fig.cap = "PCA of the samples based on intensities of known compounds.", fig.width = 7 * phi, fig.height = 7, echo = FALSE}
@@ -1057,6 +1057,7 @@ pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
          width = 9.5, height = 7.5)
 ```
 
+
 ### Capillary *vs* venous
 
 The volcano plot below shows the results for the comparison of capillary and
@@ -1561,12 +1562,13 @@ for (std_current in std_matrices) {
 for (std_current in std_sex) {
     tmp <- log2(assay(std_res, "normalized_filled_imputed"))
     idx <- grep(std_current, rowData(std_res)$name)
+    f <- factor(paste0(std_res$source, std_res$sex))
     if (length(idx)) {
-        vals <- split(tmp[idx, ], f = std_res$sex)
-        names(vals) <- c("Female", "Male")
-        col <- col_sex[c("F", "M")]
+        vals <- split(tmp[idx, ], f = f)
+        names(vals) <- rep(c("Female", "Male"), 3)
+        col <- rep(col_source[c("capillary", "plasma", "venous")], each = 2)
         png(paste0(FIG_PATH, rowData(std_res)$name[idx], "_sex_POS.png"),
-            width = 3.5, height = 4, units = "cm", res = 600,
+            width = 4.5, height = 4, units = "cm", res = 600,
             pointsize = 3)
         par(mar = c(4, 5, 3, 1))
         beeswarm(vals, bg = paste0(col, "cc"), col = "#00000040",
@@ -1582,7 +1584,6 @@ for (std_current in std_sex) {
         dev.off()
     }
 }
-
 
 ```
 
