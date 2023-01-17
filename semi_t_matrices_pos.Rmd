@@ -1057,6 +1057,12 @@ pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
          width = 9.5, height = 7.5)
 ```
 
+```{r, echo = FALSE}
+## Export results
+write_xlsx(as.data.frame(rowData(std_res)),
+           path = paste0(RESULT_PATH, "matrices_semi_targeted.xlsx"))
+```
+
 
 ### Capillary *vs* venous
 
@@ -1585,6 +1591,16 @@ for (std_current in std_sex) {
     }
 }
 
+```
+
+```{r, echo = FALSE}
+## Export results
+write_xlsx(as.data.frame(rowData(res_cap)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_capillary.xlsx"))
+write_xlsx(as.data.frame(rowData(res_plas)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_plasma.xlsx"))
+write_xlsx(as.data.frame(rowData(res_ven)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_venous.xlsx"))
 ```
 
 

@@ -1106,7 +1106,13 @@ pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
          annotation_color = list(matrix = col_source),
          show_colnames = FALSE,
          filename = paste0(FIG_PATH, "FIG_7_NEG_heatmap_semitargeted_significant.png"),
-         width = 9.5, height = 7.5)
+         width = 9.5, height = 8.5)
+```
+
+```{r, echo = FALSE}
+## Export results
+write_xlsx(as.data.frame(rowData(std_res)),
+           path = paste0(RESULT_PATH, "matrices_semi_targeted.xlsx"))
 ```
 
 
@@ -1628,6 +1634,15 @@ for (std_current in std_sex) {
 
 ```
 
+```{r, echo = FALSE}
+## Export results
+write_xlsx(as.data.frame(rowData(res_cap)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_capillary.xlsx"))
+write_xlsx(as.data.frame(rowData(res_plas)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_plasma.xlsx"))
+write_xlsx(as.data.frame(rowData(res_ven)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_venous.xlsx"))
+```
 
 
 # Session information
