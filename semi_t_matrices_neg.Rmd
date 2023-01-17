@@ -1,8 +1,7 @@
 ---
 title: "Differential abundance analysis, semi-targeted approach"
 subtitle: "Negative polarity"
-author: "Christa Malfertheiner"
-date: "13. September 2021"
+author: "Christa Malfertheiner, Johannes Rainer"
 output:
   BiocStyle::html_document:
     toc: true
@@ -1107,7 +1106,13 @@ pheatmap(tmp, annotation_col = ann, labels_col = colnames(tmp),
          annotation_color = list(matrix = col_source),
          show_colnames = FALSE,
          filename = paste0(FIG_PATH, "FIG_7_NEG_heatmap_semitargeted_significant.png"),
-         width = 9.5, height = 7.5)
+         width = 9.5, height = 8.5)
+```
+
+```{r, echo = FALSE}
+## Export results
+write_xlsx(as.data.frame(rowData(std_res)),
+           path = paste0(RESULT_PATH, "matrices_semi_targeted.xlsx"))
 ```
 
 
@@ -1374,6 +1379,269 @@ dev.off()
 
 ```{r, echo = FALSE}
 summary_plots("CapvsPlas", tab)
+```
+
+# Difference between male and female participants
+
+```{r}
+all_present <- plas_present & cap_present & ven_present
+```
+
+At last we perform also a differential abundance analysis between male and
+female participants for each sample matrix.
+
+```{r diff-abundance-capillary}
+## Restrict to capillary samples
+res_cap <- std_res[, std_res$source == "capillary"]
+
+## Define the linear model and perform the analysis
+sex <- factor(res_cap$sex)
+age <- res_cap$age
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_cap, "normalized_filled_imputed")), design = dsgn)
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+adjp <- apply(fit$p.value, 2, p.adjust, method = "BH")
+tmp <- data.frame(
+    coef.MvsF = fit$coefficient[, "MvsF"],
+    pvalue.MvsF = fit$p.value[, "MvsF"],
+    adjp.MvsF = p.adjust(fit$p.value[, "MvsF"], method = "BH")
+)
+tmp$significant.MvsF <- tmp$adjp.MvsF < p.cut & abs(tmp$coef.MvsF) > m.cut
+
+tmp$avg.M <- rowMeans(
+    log2(assay(res_cap, "normalized_filled_imputed")[, res_cap$sex == "M"]))
+tmp$avg.F <- rowMeans(
+    log2(assay(res_cap, "normalized_filled_imputed")[, res_cap$sex == "F"]))
+rowData(res_cap) <- cbind(rowData(res_cap), tmp)
+```
+
+The same analysis is performed for venous and plasma samples.
+
+```{r diff-abundance-others, echo = FALSE}
+## venous samples
+res_ven <- std_res[, std_res$source == "venous"]
+
+## Define the linear model and perform the analysis
+sex <- factor(res_ven$sex)
+age <- res_ven$age
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_ven, "normalized_filled_imputed")), design = dsgn)
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+adjp <- apply(fit$p.value, 2, p.adjust, method = "BH")
+tmp <- data.frame(
+    coef.MvsF = fit$coefficient[, "MvsF"],
+    pvalue.MvsF = fit$p.value[, "MvsF"],
+    adjp.MvsF = p.adjust(fit$p.value[, "MvsF"], method = "BH")
+)
+tmp$significant.MvsF <- tmp$adjp.MvsF < p.cut & abs(tmp$coef.MvsF) > m.cut
+
+tmp$avg.M <- rowMeans(
+    log2(assay(res_ven, "normalized_filled_imputed")[, res_ven$sex == "M"]))
+tmp$avg.F <- rowMeans(
+    log2(assay(res_ven, "normalized_filled_imputed")[, res_ven$sex == "F"]))
+rowData(res_ven) <- cbind(rowData(res_ven), tmp)
+
+## plasma samples
+res_plas <- std_res[, std_res$source == "plasma"]
+
+## Define the linear model and perform the analysis
+sex <- factor(res_plas$sex)
+age <- res_plas$age
+dsgn <- model.matrix(~ 0 + sex)
+fit <- lmFit(log2(assay(res_plas, "normalized_filled_imputed")), design = dsgn)
+
+## Fit the actual contrasts of interest
+contr_mat <- makeContrasts(
+  MvsF = sexM - sexF,
+  levels = dsgn)
+fit <- contrasts.fit(fit, contrasts = contr_mat)
+fit <- eBayes(fit)
+adjp <- apply(fit$p.value, 2, p.adjust, method = "BH")
+tmp <- data.frame(
+    coef.MvsF = fit$coefficient[, "MvsF"],
+    pvalue.MvsF = fit$p.value[, "MvsF"],
+    adjp.MvsF = p.adjust(fit$p.value[, "MvsF"], method = "BH")
+)
+tmp$significant.MvsF <- tmp$adjp.MvsF < p.cut & abs(tmp$coef.MvsF) > m.cut
+
+tmp$avg.M <- rowMeans(
+    log2(assay(res_plas, "normalized_filled_imputed")[, res_plas$sex == "M"]))
+tmp$avg.F <- rowMeans(
+    log2(assay(res_plas, "normalized_filled_imputed")[, res_plas$sex == "F"]))
+rowData(res_plas) <- cbind(rowData(res_plas), tmp)
+```
+
+The results from the analyses are shown in the volcano plots below.
+
+```{r volcano-m-vs-f, echo = FALSE, fig.path = IMAGE_PATH, fig.width = 12, fig.height = 4, fig.cap = "Volcano plot showing the results for the comparison between male and female participants in capillary (left), venous (middle) and plasma (right) samples."}
+plot_volcano <- function(x, contrast = y, main = "", xlim, ylim) {
+    X <- rowData(x)[, paste0("coef.", contrast)]
+    Y <- rowData(x)[, paste0("adjp.", contrast)]
+    minp <- min(Y[Y > 0])
+    Y[Y == 0] <- minp / 100
+    Y <- -log10(Y)
+    if (missing(xlim))
+        xlim <- range(X)
+    if (missing(ylim))
+        ylim <- range(Y)
+    plot(X, Y,
+         xlab = expression(log[2]~difference),
+         ylab = expression(-log[10]~p[BH]), pch = 16, col = "#00000060",
+         xlim = xlim, ylim = ylim, main = main)
+    rect(xleft = -100, ybottom = -log10(p.cut), xright = -m.cut, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+    rect(xleft = m.cut, ybottom = -log10(p.cut), xright = 100, ytop = 100,
+         border = NA, col = paste0(brewer.pal(3, "Set1")[2], 10))
+        sigs <- rowData(x)[, paste0("significant.", contrast)]
+    if (any(sigs))
+        points(X[sigs], Y[sigs], col = paste0(brewer.pal(3, "Set1")[2], "ce"))
+}
+
+par(mfrow = c(1, 3))
+XL <- c(-2, 2.3)
+YL <- c(0, 1)
+plot_volcano(res_cap, "MvsF", xlim = XL, ylim = YL,
+             main = "Capillary")
+grid()
+plot_volcano(res_ven, "MvsF", xlim = XL, ylim = YL,
+             main = "Venous")
+grid()
+plot_volcano(res_plas, "MvsF", xlim = XL, ylim = YL,
+             main = "Plasma")
+grid()
+```
+
+The tables with the top 10 metabolites for each matrix are listed below.
+
+```{r, echo = FALSE, results = "asis"}
+top_cap <- rowData(res_cap)[, c("name", "HMDB", "coef.MvsF",
+                                "pvalue.MvsF", "adjp.MvsF")] |>
+as.data.frame()
+colnames(top_cap) <- sub(".MvsF", "", colnames(top_cap), fixed = TRUE)
+top_cap <- top_cap[order(top_cap$pvalue), ][1:10, ]
+pandoc.table(top_cap, style = "rmarkdown", split.tables = Inf,
+             caption = paste0("Top 10 features for difference male vs female",
+                              " in capillary samples"))
+```
+
+```{r, echo = FALSE, results = "asis"}
+top_ven <- rowData(res_ven)[, c("name", "HMDB", "coef.MvsF",
+                                "pvalue.MvsF", "adjp.MvsF")] |>
+as.data.frame()
+colnames(top_ven) <- sub(".MvsF", "", colnames(top_ven), fixed = TRUE)
+top_ven <- top_ven[order(top_ven$pvalue), ][1:10, ]
+pandoc.table(top_ven, style = "rmarkdown", split.tables = Inf,
+             caption = paste0("Top 10 features for difference male vs female",
+                              " in venous samples"))
+```
+
+```{r, echo = FALSE, results = "asis"}
+top_plas <- rowData(res_plas)[, c("name", "HMDB", "coef.MvsF",
+                                  "pvalue.MvsF", "adjp.MvsF")] |>
+as.data.frame()
+colnames(top_plas) <- sub(".MvsF", "", colnames(top_plas), fixed = TRUE)
+top_plas <- top_plas[order(top_plas$pvalue), ][1:10, ]
+pandoc.table(top_plas, style = "rmarkdown", split.tables = Inf,
+             caption = paste0("Top 10 features for difference male vs female",
+                              " in plasma samples"))
+```
+
+```{r, echo = FALSE}
+## beeswarm plots for selected metabolites.
+std_matrices <- c("Pyruvic Acid",
+                  "Glyceric Acid",
+                  "Phenylalanine",
+                  "Arginine",
+                  "Tryptophan",
+                  "Leucine",
+                  "Glucose")
+
+std_sex <- c("Citrulline",
+             "Gluconic Acid",
+             "L-Aspartic Acid",
+             "SAH",
+             "SAMe",
+             "Cystine",
+             "L-Glutamic Acid",
+             "Leucine",
+             "Methionine",
+             "Cystine")
+
+library(beeswarm)
+for (std_current in std_matrices) {
+    tmp <- log2(assay(std_res, "normalized_filled_imputed"))
+    idx <- grep(std_current, rowData(std_res)$name)
+    if (length(idx)) {
+        vals <- split(tmp[idx, ], f = std_res$source)
+        names(vals) <- c("Capillary", "Plasma", "Venous")
+        col <- col_source[tolower(names(vals))]
+        png(paste0(FIG_PATH, rowData(std_res)$name[idx], "_matrices_NEG.png"),
+            width = 3.5, height = 4, units = "cm", res = 600,
+            pointsize = 3)
+        par(mar = c(4, 5, 3, 1))
+        beeswarm(vals, bg = paste0(col, "cc"), col = "#00000040",
+                 pch = 21, cex = 1.4,
+                 spacing = 0.4,
+                 cex.main = 1.5,
+                 cex.lab = 1.5,
+                 cex.axis = 1.3,
+                 main = rowData(std_res)$name[idx],
+                 ylab = expression(log[2]~intensity))
+        bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+        grid(nx = NA, ny = NULL)
+        dev.off()
+    }
+}
+
+for (std_current in std_sex) {
+    tmp <- log2(assay(std_res, "normalized_filled_imputed"))
+    idx <- grep(std_current, rowData(std_res)$name)
+    f <- factor(paste0(std_res$source, std_res$sex))
+    if (length(idx)) {
+        vals <- split(tmp[idx, ], f = f)
+        names(vals) <- rep(c("Female", "Male"), 3)
+        col <- rep(col_source[c("capillary", "plasma", "venous")], each = 2)
+        png(paste0(FIG_PATH, rowData(std_res)$name[idx], "_sex_NEG.png"),
+            width = 4.5, height = 4, units = "cm", res = 600,
+            pointsize = 3)
+        par(mar = c(4, 5, 3, 1))
+        beeswarm(vals, bg = paste0(col, "cc"), col = "#00000040",
+                 pch = 21, cex = 1.4,
+                 spacing = 0.4,
+                 cex.main = 1.5,
+                 cex.lab = 1.5,
+                 cex.axis = 1.3,
+                 main = rowData(std_res)$name[idx],
+                 ylab = expression(log[2]~intensity))
+        bxplot(vals, probs = 0.5, col = "#00000060", add = TRUE, width = 0.9)
+        grid(nx = NA, ny = NULL)
+        dev.off()
+    }
+}
+
+
+```
+
+```{r, echo = FALSE}
+## Export results
+write_xlsx(as.data.frame(rowData(res_cap)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_capillary.xlsx"))
+write_xlsx(as.data.frame(rowData(res_plas)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_plasma.xlsx"))
+write_xlsx(as.data.frame(rowData(res_ven)),
+           path = paste0(RESULT_PATH, "sex_semi_targeted_venous.xlsx"))
 ```
 
 
