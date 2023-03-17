@@ -1,8 +1,8 @@
-This is version 3:
-- use new adduct information and retention times for *standards* defined by Mar.
-- use `integrate = 2` and `peakwidth = c(2, 20)` for the peak detection.)
-
 # VAMS vs intraveinous
+
+This repository contains the documents defining and describing the analysis
+performed in this publication [Volani et al. DOI:
+10.3390/metabo13020146](https://doi.org/10.3390/metabo13020146).
 
 Comparison of capillary whole blood Volumetric Absorbtive Microsampling to
 intravenous whole blood sampling to intravenous plasma to intravenous red blood
@@ -27,6 +27,11 @@ identification rely on R objects that are generated in the feature
 identification script. If you haven't run that then chances are the other ones
 will not work.
 
+## News
+
+This is version 3:
+- use new adduct information and retention times for *standards* defined by Mar.
+- use `integrate = 2` and `peakwidth = c(2, 20)` for the peak detection.)
 
 ## Files and structure of the analysis
 
